@@ -12,7 +12,11 @@
         "watch": "jest --watch",
         "test": "jest"
     },
-    "author": "",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ConrabOpto/mst-query.git"
+    },
+    "author": "Conrab Opto (www.conrabopto.se)",
     "license": "MIT",
     "files": [
         "dist"
