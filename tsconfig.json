@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "module": "es2015",
+        "jsx": "react",
+        "lib": ["ESNext", "dom"],
+        "declaration": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noImplicitAny": true,
+        "alwaysStrict": true,
+        "moduleResolution": "node",
+        "experimentalDecorators": true,
+        "downlevelIteration": true
+    },
+    "include": ["./src"]
+}
