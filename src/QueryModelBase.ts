@@ -25,7 +25,7 @@ export const QueryModelBase = types
     .model('QueryModelBase', {})
     .volatile(() => ({
         isLoading: false,
-        error: null as null | Error,
+        error: null as any,
         options: {} as any,
         _queryFn: null as null | QueryFnType,
         _abortController: null as AbortController | null,
