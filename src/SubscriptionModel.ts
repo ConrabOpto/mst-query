@@ -3,19 +3,19 @@ import { Instance, addDisposer, IDisposer } from 'mobx-state-tree';
 
 export const SubscriptionModel = QueryModelBase.named('SubscriptionModel')
     .volatile(() => ({
-        _subscription: null as null | IDisposer
+        _subscription: null as null | IDisposer,
     }))
-    .actions(self => {
+    .actions((self) => {
         return {
             subscribe(queryFn: any, variables = {}, options = {}) {
                 const opts = {
                     variables,
-                    ...options
+                    ...options,
                 };
 
                 const subscriber = {
                     next: this._next,
-                    error: this._error
+                    error: this._error,
                 };
 
                 self._subscription = queryFn(subscriber, opts.variables, opts);
@@ -39,7 +39,7 @@ export const SubscriptionModel = QueryModelBase.named('SubscriptionModel')
                 const currentData = (self as any).data;
                 (self as any).onUpdate?.(currentData, data);
                 (self as any).options?.onUpdate?.(currentData, data);
-            }
+            },
         };
     });
 

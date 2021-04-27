@@ -11,7 +11,7 @@ import {
     onSnapshot,
     isStateTreeNode,
     getSnapshot,
-    applySnapshot
+    applySnapshot,
 } from 'mobx-state-tree';
 import { when } from 'mobx';
 import { getSubType, mergeObjects, getRealTypeFromObject } from './Utils';
@@ -30,9 +30,9 @@ export const QueryModelBase = types
         _queryFn: null as null | QueryFnType,
         _abortController: null as AbortController | null,
         _disposer: null as null | IDisposer,
-        _requestSnapshot: null as any
+        _requestSnapshot: null as any,
     }))
-    .actions(self => {
+    .actions((self) => {
         let requestSnapshotDisposer = null as null | IDisposer;
         let isDisposed = false;
         (self as any).result = null as any;
@@ -126,12 +126,12 @@ export const QueryModelBase = types
                     context: {
                         ...options?.context,
                         fetchOptions: {
-                            signal: self._abortController.signal
-                        }
-                    }
+                            signal: self._abortController.signal,
+                        },
+                    },
                 };
 
-                return self._queryFn(options.variables, opts).then(result => {
+                return self._queryFn(options.variables, opts).then((result) => {
                     if (isDisposed) {
                         throw new DisposedError();
                     }
@@ -144,7 +144,7 @@ export const QueryModelBase = types
             },
             _runInAction(fn: any) {
                 return fn();
-            }
+            },
         };
     });
 
@@ -153,7 +153,7 @@ export function merge(data: any, typeDef: any, ctx: any): any {
         return data;
     }
     if (Array.isArray(data)) {
-        return data.map(d => merge(d, getSubType(typeDef, d), ctx));
+        return data.map((d) => merge(d, getSubType(typeDef, d), ctx));
     }
     const { id } = data;
 

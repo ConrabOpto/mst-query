@@ -27,7 +27,7 @@ export function createQuery<
     return QueryModel.named(name).props({
         data: types.maybeNull(data),
         request,
-        env
+        env,
     });
 }
 
@@ -40,7 +40,7 @@ export function createMutation<
     return MutationModel.named(name).props({
         data: types.maybeNull(data),
         request,
-        env
+        env,
     });
 }
 
@@ -51,7 +51,7 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
     const { data, env } = options;
     return SubscriptionModel.named(name).props({
         data: types.maybeNull(data),
-        env
+        env,
     });
 }
 
@@ -65,7 +65,16 @@ export function create<P extends IAnyModelType>(
     query: P,
     options: any = {}
 ): Instance<P> & { run: unknown } {
-    const { data, request, env, onMutate, onUpdate, onRequestSnapshot, afterCreate, onFetched } = options;
+    const {
+        data,
+        request,
+        env,
+        onMutate,
+        onUpdate,
+        onRequestSnapshot,
+        afterCreate,
+        onFetched,
+    } = options;
 
     const preparedData = data
         ? runInAction(() => merge(data, (query as any).properties.data, config.env))

@@ -28,7 +28,7 @@ export function useLazyQuery<P extends QueryReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                 queryCache.removeQuery(q);
+                queryCache.removeQuery(q);
             }
         };
     }, []);
@@ -52,21 +52,18 @@ export function useLazyQuery<P extends QueryReturnType>(
         isLoading: q.isLoading,
         isRefetching: q.isRefetching,
         isFetchingMore: q.isFetchingMore,
-        query: q
+        query: q,
     };
 }
 
-export function useQuery<P extends QueryReturnType>(
-    query: P,
-    options: UseQueryOptions<P> = {}
-) {
+export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryOptions<P> = {}) {
     const { key } = options;
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                 queryCache.removeQuery(q);
+                queryCache.removeQuery(q);
             }
         };
     }, []);
@@ -91,7 +88,7 @@ export function useQuery<P extends QueryReturnType>(
         isLoading: q.isLoading,
         isRefetching: q.isRefetching,
         isFetchingMore: q.isFetchingMore,
-        query: q
+        query: q,
     };
 }
 
@@ -117,13 +114,10 @@ export function useMutation<P extends MutationReturnType>(
 
     const result = {
         ...m,
-        mutation: m
+        mutation: m,
     };
 
-    return [
-        m.run,
-        result
-    ] as [typeof m['run'], typeof result];
+    return [m.run, result] as [typeof m['run'], typeof result];
 }
 
 type UseSubscriptionOptions<P extends SubscriptionReturnType> = Options & {
