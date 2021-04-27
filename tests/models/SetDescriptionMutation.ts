@@ -6,9 +6,9 @@ export const SetDescriptionMutation = createMutation('SetDescriptionMutation', {
     data: MstQueryRef(ItemModel),
     request: types.model({ id: types.string, description: types.string }),
     env: types.frozen(),
-}).actions(self => ({
+}).actions((self) => ({
     run: flow(function* () {
         const next = yield self.mutate(self.env.api.setDescription, getSnapshot(self.request));
         next();
-    })
-}))
+    }),
+}));

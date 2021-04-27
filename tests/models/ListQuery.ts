@@ -13,5 +13,5 @@ export const ListQuery = createQuery('ListQuery', {
     }),
     addItem(item: any) {
         self.data?.items.push(item);
-    }
+    },
 }));

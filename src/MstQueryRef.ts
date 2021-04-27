@@ -1,5 +1,5 @@
-import { IAnyType, types, getIdentifier } from "mobx-state-tree";
-import { getSubType } from "./Utils";
+import { IAnyType, types, getIdentifier } from 'mobx-state-tree';
+import { getSubType } from './Utils';
 
 export const objMap = new Map();
 
@@ -13,5 +13,5 @@ export const MstQueryRef = <IT extends IAnyType>(type: IT) =>
         set(value) {
             const id = getIdentifier(value)!;
             return id;
-        }
+        },
     });

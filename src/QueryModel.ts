@@ -5,16 +5,16 @@ export const QueryModel = QueryModelBase.named('QueryModel')
     .volatile(() => ({
         isRefetching: false,
         isFetchingMore: false,
-        isFetched: false
+        isFetched: false,
     }))
-    .actions(self => {
+    .actions((self) => {
         return {
             query(queryFn: QueryFnType, variables = {}, options = {}) {
                 self._abortController = new AbortController();
 
                 const opts = {
                     variables,
-                    ...options
+                    ...options,
                 };
 
                 const nextSuccess = (result: any) => () => {
@@ -23,7 +23,7 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                 };
                 const nextError = (err: any) => () => {
                     if (err instanceof DisposedError) {
-                        return { data: null,  error: null, result: null };
+                        return { data: null, error: null, result: null };
                     }
 
                     self._updateData(null, { isLoading: false, error: err });
@@ -50,7 +50,7 @@ export const QueryModel = QueryModelBase.named('QueryModel')
 
                 const opts = {
                     variables,
-                    ...options
+                    ...options,
                 };
 
                 const nextSuccess = (result: any) => () => {
@@ -59,10 +59,10 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                 };
                 const nextError = (err: any) => () => {
                     if (err instanceof DisposedError) {
-                        return { data: null,  error: null, result: null };
+                        return { data: null, error: null, result: null };
                     }
 
-                    return { data: null,  error: err, result: null };
+                    return { data: null, error: err, result: null };
                 };
 
                 return self._run(self._queryFn, opts).then(
@@ -84,7 +84,7 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                 self.isRefetching = true;
 
                 return (self as any).run(...runParams);
-            }
+            },
         };
     });
 

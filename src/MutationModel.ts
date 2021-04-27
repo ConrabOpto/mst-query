@@ -3,12 +3,12 @@ import QueryModelBase, { QueryFnType, DisposedError } from './QueryModelBase';
 import { equal } from '@wry/equality';
 
 export const MutationModel = QueryModelBase.named('MutationModel')
-    .views(self => ({
+    .views((self) => ({
         get hasChanged() {
             return !equal((self as any)._requestSnapshot, getSnapshot((self as any).request));
-        }
+        },
     }))
-    .actions(self => ({
+    .actions((self) => ({
         commitChanges() {
             const request = (self as any).request;
             self._requestSnapshot = getSnapshot(request);
@@ -33,7 +33,7 @@ export const MutationModel = QueryModelBase.named('MutationModel')
 
             const opts = {
                 variables,
-                ...options
+                ...options,
             };
 
             const nextSuccess = (result: any) => () => {
@@ -46,7 +46,7 @@ export const MutationModel = QueryModelBase.named('MutationModel')
             };
             const nextError = (err: any) => () => {
                 if (err instanceof DisposedError) {
-                    return { data: null,  error: null, result: null };
+                    return { data: null, error: null, result: null };
                 }
                 if (recorder) {
                     recorder.undo();
@@ -68,7 +68,7 @@ export const MutationModel = QueryModelBase.named('MutationModel')
         _updateStatus(status: any) {
             self.error = status.error;
             self.isLoading = status.isLoading;
-        }
+        },
     }));
 
 export interface MutationModelType extends Instance<typeof MutationModel> {}

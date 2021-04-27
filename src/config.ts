@@ -1,9 +1,9 @@
 type MstQueryConfig = {
     env?: any;
-}
+};
 
 export const config: MstQueryConfig = {
-    env: {}
+    env: {},
 };
 
 export const configure = (c: MstQueryConfig) => {

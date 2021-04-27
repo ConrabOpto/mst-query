@@ -1,7 +1,7 @@
-import { createQuery, createMutation, createSubscription } from "./create";
-import { MutationModelType } from "./MutationModel";
-import { QueryModelType } from "./QueryModel";
-import { SubscriptionModelType } from "./SubscriptionModel";
+import { createQuery, createMutation, createSubscription } from './create';
+import { MutationModelType } from './MutationModel';
+import { QueryModelType } from './QueryModel';
+import { SubscriptionModelType } from './SubscriptionModel';
 
 export type QueryReturnType = ReturnType<typeof createQuery>;
 export type MutationReturnType = ReturnType<typeof createMutation>;

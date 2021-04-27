@@ -103,6 +103,7 @@ Normalizing remote data and putting it in the correct store can be tedious and e
 A key feature of <i>mst-query</i> is automatic data normalization based on identifiers in our mobx-state-tree models.
 
 ## TODO
+
 Readme in progress...
 
 ## Queries
@@ -117,8 +118,8 @@ const MessageListQuery = createQuery('MessageListQuery', {
 });
 ```
 
-<i>Data</i> - the expected schema of the data returned from the server. 
+<i>Data</i> - the expected schema of the data returned from the server.
 
-<i>Request</i> (optional) - the shape of the data we send to our endpoint. 
+<i>Request</i> (optional) - the shape of the data we send to our endpoint.
 
 <i>Env</i> (optional) - any extra data we want to use in the query.
