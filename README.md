@@ -48,7 +48,7 @@ export const MessageQuery = createQuery('MessageQuery', {
 }));
 ```
 
-...then use your query in a React component!
+...then use the query in a React component!
 
 ```tsx
 import { useQuery } from 'mst-query';
@@ -78,48 +78,142 @@ const MesssageView = observer((props) => {
 npm install --save mst-query mobx-state-tree
 ```
 
+## Configuration
+
+```ts
+import { configure } from 'mst-query';
+
+configureMstQuery({
+    env: { ... }
+});
+```
+## TODO
+
+Readme below is in progress...
+
 ## Concepts
 
 A key concept in <i>mobx-state-tree</i> is a single, centralized state container that holds the entire state of our app. This keeps our business logic in one place, allowing our components to mostly focus on rendering.
 
-But there are a couple of drawbacks to consider, namely:
+But there are a couple of trade offs to consider.
 
--   The RootStore needs knowledge of all our models
+-   **The RootStore needs knowledge of all our models**
 
-This breaks code splitting, and is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
+    This breaks code splitting, and is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
 
-In contrast, <i>mst-query</i> only needs knowledge of the models relevant for the current query.
+    In contrast, <i>mst-query</i> only needs knowledge of the models relevant for the current query.
 
--   Unused data lives in the store forever
+-   **Unused data lives in the store forever**
 
-Most applications problaby don't manage enough data for this to be an issue. But consider an app with thousands of complex models and high data throughput, that is also kept open for long periods of time. Such an app will become more sluggish over time as it accumulates memory.
+    Most applications problaby don't manage enough data for this to be an issue. But consider an app with thousands of complex models and high data throughput, that is also kept open for long periods of time. Such an app will become more sluggish over time as it accumulates memory.
 
-In <i>mst-query</i>, unused data is automatically garbage collected.
+    In <i>mst-query</i>, unused data is automatically garbage collected.
 
--   Normalizing data from the server is our responsibility
+-   **Normalizing data from the server is our responsibility**
 
-Normalizing remote data and putting it in the correct store can be tedious and error prone. Especially if you have a complex backend schema with deep connections between models.
+    Normalizing remote data and putting it in the correct store can be tedious and error prone. Especially if you have a complex backend schema with deep connections between models.
 
-A key feature of <i>mst-query</i> is automatic data normalization based on identifiers in our mobx-state-tree models.
+    A key feature of <i>mst-query</i> is automatic data normalization based on identifiers in our mobx-state-tree models.
 
-## TODO
+## Models
 
-Readme in progress...
+In general, models can be created as usual. The main difference is how we handle references.
 
-## Queries
+### `MstQueryRef`
 
-A query is just a <i>mobx-state-tree</i> model, but with special properties. Here's an example of a query that fetches a list of messages.
+A custom reference that replaces `types.reference`.
 
-```tsx
-import { createQuery } from 'mobx-state-tree';
+```ts
+import { types } from 'mobx-state-tree';
 
-const MessageListQuery = createQuery('MessageListQuery', {
-    ...
+const UserModel = types.model({
+    id: types.identifier, // a normal identifier
+    name: types.string.
+    age: types.number
+});
+
+const MessageModel = types.model({
+    message: types.string,
+    createdBy: MstQueryRef(UserModel)
 });
 ```
 
-<i>Data</i> - the expected schema of the data returned from the server.
+## Queries
 
-<i>Request</i> (optional) - the shape of the data we send to our endpoint.
+### `createQuery`
 
-<i>Env</i> (optional) - any extra data we want to use in the query.
+A query is just a <i>mobx-state-tree</i> model, but with special properties, called a <i>QueryModel</i>. Here's an example of a query that fetches a list of messages, with an optional filter.
+
+```tsx
+import { createQuery } from 'mobx-state-tree';
+import { MessageModel } from './models';
+
+const MessageListQuery = createQuery('MessageListQuery', {
+    data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
+    request: types.model({ filter: types.optional(types.string, '') }),
+    env: types.frozen(),
+}).actions((self) => ({
+    run: flow(function* () {
+        const next = yield self.query(getItems, { filter: self.request.filer });
+        const { result, error, data } = next();
+    }),
+}));
+```
+
+The first argument to `createQuery` is the name of this query. The second is an option object that controls how this query recevies and transmits data. 
+
+There's also a special action, `run`. It will automatically be called when this query is put into a `useQuery`. Anything you return from `self.query` will be mapped to `data` when you call `next`.
+
+### `useQuery`
+
+onFetched, isLoading, isFetched, error
+
+key, afterCreate, onRequestSnapshot
+
+### `useLazyQuery`
+
+### `query`
+
+### `refetch` & `isRefetching`
+
+## Paginated and infinite lists
+
+### `queryMore`
+
+## Mutations
+
+### `createMutation`
+
+### `useMutation`
+
+### `mutate`
+
+## Optimistic updates
+
+Automatic rollback. Limitation about root node.
+
+## Change tracking
+
+### `hasChanged` & `commitChanges`
+Deep equality change tracking of request object.
+
+## Subscriptions
+
+### `createSubscription`
+
+### `useSubscription`
+
+## Cache
+
+### `queryCache`
+
+find, findAll, clear
+
+## Extra apis
+
+### `whenIsDoneLoading`
+
+### `reset`
+
+### `abort`
+
