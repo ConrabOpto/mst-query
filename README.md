@@ -87,6 +87,7 @@ configureMstQuery({
     env: { ... }
 });
 ```
+
 ## TODO
 
 Readme below is in progress...
@@ -160,15 +161,49 @@ const MessageListQuery = createQuery('MessageListQuery', {
 }));
 ```
 
-The first argument to `createQuery` is the name of this query. The second is an option object that controls how this query recevies and transmits data. 
+The first argument to `createQuery` is the name of this query. The second is an option object that controls how this query recevies (data) and transmits (request) data.
 
-There's also a special action, `run`. It will automatically be called when this query is put into a `useQuery`. Anything you return from `self.query` will be mapped to `data` when you call `next`.
+There's also a special action, `run`. This action should always be a flow generator, and will automatically be called when a query is put into a `useQuery` hook.
 
 ### `useQuery`
 
-onFetched, isLoading, isFetched, error
+```tsx
+import { useQuery } from 'mst-query';
+import { observer } from 'mobx-react';
+import { MessageQuery } from './MessageQuery';
 
-key, afterCreate, onRequestSnapshot
+const MesssageView = observer((props) => {
+    const { id, cachedData } = props;
+    const {
+        run,
+        data,
+        error,
+        isLoading,
+        isFetched,
+        isRefetching,
+        isFetchingMore,
+        query
+    } = useQuery(MessageQuery, {
+        data: cachedData,
+        request: { id },
+        onFetched(data, self) {},
+        afterCreate(self) {},
+        onRequestSnapshot(snapshot) {},
+        key: id
+    });
+    if (error) {
+        return <div>An error occured...</div>;
+    }
+    if (isLoading) {
+        return <div>Loading...</div>;
+    }
+    return <div>{data.message}</div>;
+});
+```
+
+The `key` argument is optional and works like putting a key prop on a React component. If this variable changes, the entire query will be re-created and run again.
+
+Note that `data` and `request` are only set on creation. Even if these values change, you have to use `key` to force useQuery to use them.
 
 ### `useLazyQuery`
 
@@ -195,6 +230,7 @@ Automatic rollback. Limitation about root node.
 ## Change tracking
 
 ### `hasChanged` & `commitChanges`
+
 Deep equality change tracking of request object.
 
 ## Subscriptions
@@ -216,4 +252,3 @@ find, findAll, clear
 ### `reset`
 
 ### `abort`
-
