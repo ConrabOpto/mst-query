@@ -139,6 +139,10 @@ const MessageModel = types.model({
 });
 ```
 
+Since data is garbage collected in `mst-query`, `MstQueryRef` doesn't throw if it cannot find a suitable model in the internal cache. Instead, it simply returns the id as a string, allowing us to fetch data for this model again.
+
+TODO: Add example of this
+
 ## Queries
 
 ### `createQuery`
@@ -182,14 +186,14 @@ const MesssageView = observer((props) => {
         isFetched,
         isRefetching,
         isFetchingMore,
-        query
+        query,
     } = useQuery(MessageQuery, {
         data: cachedData,
         request: { id },
         onFetched(data, self) {},
         afterCreate(self) {},
         onRequestSnapshot(snapshot) {},
-        key: id
+        key: id,
     });
     if (error) {
         return <div>An error occured...</div>;
@@ -203,9 +207,37 @@ const MesssageView = observer((props) => {
 
 The `key` argument is optional and works like putting a key prop on a React component. If this variable changes, the entire query will be re-created and run again.
 
-Note that `data` and `request` are only set on creation. Even if these values change, you have to use `key` to force useQuery to use them.
+Note that `data` and `request` are only set on creation. Even if these values change, you have to specify `key` to force useQuery to use them.
 
 ### `useLazyQuery`
+
+```tsx
+import { useLazyQuery } from 'mst-query';
+import { observer } from 'mobx-react';
+import { MessageQuery } from './MessageQuery';
+
+const MesssageView = observer((props) => {
+    const { id, cachedData } = props;
+    const { data, error, isLoading, query } = useLazyQuery(MessageQuery, {
+        data: cachedData,
+        request: { id },
+    });
+
+    useEffect(() => {
+        query.run();
+    }, []);
+
+    if (error) {
+        return <div>An error occured...</div>;
+    }
+    if (isLoading) {
+        return <div>Loading...</div>;
+    }
+    return <div>{data.message}</div>;
+});
+```
+
+A lazy version of `useQuery`. Useful if you have cached data and manually want to decide when to run the query.
 
 ### `query`
 

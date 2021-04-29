@@ -1,10 +1,8 @@
 import { types, IAnyType, IAnyModelType, Instance } from 'mobx-state-tree';
-import { runInAction } from 'mobx';
 import QueryModel from './QueryModel';
 import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
 import { config } from './config';
-import { merge } from './QueryModelBase';
 import queryCache from './cache';
 
 type BaseOptions<TData extends IAnyType, TEnv extends IAnyType> = {
@@ -76,18 +74,9 @@ export function create<P extends IAnyModelType>(
         onFetched,
     } = options;
 
-    const preparedData = data
-        ? runInAction(() => merge(data, (query as any).properties.data, config.env))
-        : null;
-    const preparedRequest = request
-        ? runInAction(() => merge(request, (query as any).properties.request, config.env))
-        : {};
+    const q = query.create({ data, request, env }, config.env);
+    queryCache.setQuery(q);
 
-    const q = query.create({ data: preparedData, request: preparedRequest, env }, config.env);
-
-    if (options.fetchPolicy !== 'no-cache') {
-        queryCache.setQuery(q);
-    }
     q._init({ data, request, onMutate, onUpdate, onFetched, onRequestSnapshot });
 
     afterCreate?.(q);
