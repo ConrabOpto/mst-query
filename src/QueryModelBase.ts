@@ -22,6 +22,7 @@ export const QueryModelBase = types
         isLoading: false,
         error: null as any,
         options: {} as any,
+        result: null as any,
         _queryFn: null as null | QueryFnType,
         _abortController: null as AbortController | null,
         _disposer: null as null | IDisposer,
@@ -30,7 +31,6 @@ export const QueryModelBase = types
     .actions((self) => {
         let requestSnapshotDisposer = null as null | IDisposer;
         let isDisposed = false;
-        (self as any).result = null as any;
         return {
             whenIsDoneLoading() {
                 return when(() => !self.isLoading);
@@ -130,7 +130,6 @@ export const QueryModelBase = types
                     if (isDisposed) {
                         throw new DisposedError();
                     }
-                    this._setResult(result);
                     if (options.convert) {
                         return options.convert(result);
                     }

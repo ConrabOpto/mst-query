@@ -18,6 +18,8 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                 };
 
                 const nextSuccess = (result: any) => () => {
+                    self._setResult(result);
+
                     self._updateData(result, { isLoading: false, error: null });
                     return { data: (self as any).data, error: null, result };
                 };
@@ -54,6 +56,8 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                 };
 
                 const nextSuccess = (result: any) => () => {
+                    self._setResult(result);
+
                     const data = self._prepareData(result);
                     return { data, error: null, result };
                 };

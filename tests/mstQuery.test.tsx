@@ -120,17 +120,23 @@ test('isLoading state', async () => {
 
 test('useQuery', (done) => {
     let loadingStates: any[] = [];
+    let renders = 0;
+    let result = null as any;
     const Comp = observer((props: any) => {
-        const { isLoading } = useQuery(ItemQuery, {
+        const { query, isLoading } = useQuery(ItemQuery, {
             request: { id: 'test' },
             env: { api },
         });
+        renders++;
         loadingStates.push(isLoading);
+        result = query.result;
         return <div></div>;
     });
     render(<Comp />);
     setTimeout(() => {
+        expect(result).not.toBe(null);
         expect(loadingStates).toStrictEqual([true, false]);
+        expect(renders).toBe(2);
         done();
     }, 0);
 });

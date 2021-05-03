@@ -37,6 +37,8 @@ export const MutationModel = QueryModelBase.named('MutationModel')
             };
 
             const nextSuccess = (result: any) => () => {
+                self._setResult(result);
+
                 if (recorder) {
                     recorder.undo();
                 }
