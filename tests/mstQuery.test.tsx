@@ -4,7 +4,7 @@ import { createQuery, create, queryCache, MstQueryRef, createMutation, useQuery 
 import { configure as configureMobx } from 'mobx';
 import { objMap } from '../src/MstQueryRef';
 import { collectSeenIdentifiers } from '../src/cache';
-import { merge } from '../src/utils';
+import { merge } from '../src/merge';
 import { render } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';

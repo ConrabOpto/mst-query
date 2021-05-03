@@ -10,7 +10,7 @@ import {
     applySnapshot,
 } from 'mobx-state-tree';
 import { when } from 'mobx';
-import { merge } from './Utils';
+import { merge } from './merge';
 
 export type QueryFnType = (variables: any, options: any) => Promise<any>;
 
