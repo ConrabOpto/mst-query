@@ -84,7 +84,8 @@ npm install --save mst-query mobx-state-tree
 import { configure } from 'mst-query';
 
 configureMstQuery({
-    env: { ... }
+    env: { ... },
+    getId: (data) => data['id']
 });
 ```
 

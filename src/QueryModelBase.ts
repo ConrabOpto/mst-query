@@ -1,21 +1,16 @@
 import {
     types,
     getType,
-    unprotect,
-    protect,
     getEnv,
-    isIdentifierType,
     IDisposer,
     addDisposer,
-    getRoot,
     onSnapshot,
     isStateTreeNode,
     getSnapshot,
     applySnapshot,
 } from 'mobx-state-tree';
 import { when } from 'mobx';
-import { getSubType, mergeObjects, getRealTypeFromObject } from './Utils';
-import { objMap } from './MstQueryRef';
+import { merge } from './Utils';
 
 export type QueryFnType = (variables: any, options: any) => Promise<any>;
 
@@ -147,46 +142,5 @@ export const QueryModelBase = types
             },
         };
     });
-
-export function merge(data: any, typeDef: any, ctx: any): any {
-    if (!data || data instanceof Date || typeof data !== 'object') {
-        return data;
-    }
-    if (Array.isArray(data)) {
-        return data.map((d) => merge(d, getSubType(typeDef, d), ctx));
-    }
-    const { id } = data;
-
-    // convert values deeply first to MST objects as much as possible
-    const snapshot: any = {};
-    for (const key in data) {
-        snapshot[key] = merge(data[key], getRealTypeFromObject(typeDef, data, key), ctx);
-    }
-
-    // GQL object with known type, instantiate or recycle MST object
-    // Try to reuse instance.
-    const modelType = getSubType(typeDef);
-    const hasIdentifier =
-        modelType && modelType.properties && isIdentifierType(modelType.properties.id);
-    const key = `${modelType.name}:${id}`;
-    let instance = hasIdentifier && objMap.get(key);
-    if (instance) {
-        // update existing object
-        const root = getRoot(instance);
-        unprotect(root);
-        Object.assign(instance, mergeObjects(instance, snapshot, typeDef));
-        protect(root);
-        return instance;
-    } else if (!instance) {
-        // create a new one
-        instance = modelType.create(snapshot, ctx);
-        if (hasIdentifier) {
-            const key = `${modelType.name}:${instance.id}`;
-            objMap.set(key, instance);
-        }
-        return instance;
-    }
-    return snapshot;
-}
 
 export default QueryModelBase;
