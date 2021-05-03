@@ -15,6 +15,7 @@ type UseQueryOptions<P extends QueryReturnType> = Options & {
     data?: SnapshotIn<P>['data'];
     request?: SnapshotIn<P>['request'];
     env?: SnapshotIn<P>['env'];
+    initialResult?: any;
     onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
 };
 

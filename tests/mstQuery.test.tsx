@@ -135,6 +135,31 @@ test('useQuery', (done) => {
     }, 0);
 });
 
+test('useQuery - with initial result', async () => {
+    const getItem = jest.fn();
+    const testApi = {
+        ...api,
+        getItem,
+    };
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ItemQuery, {
+            request: { id: 'test' },
+            initialResult: itemData,
+            env: { api: testApi },
+        });
+        q = query;
+        return <div></div>;
+    });
+    render(<Comp />);
+    
+    await q.whenIsDoneLoading();
+
+    expect(getItem).not.toBeCalled();
+    expect(q.data.id).toBe('test');
+});
+
 test('useQuery - with error', (done) => {
     let err: any = null;
     const customError = new Error();

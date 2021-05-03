@@ -56,14 +56,7 @@ export const MutationModel = QueryModelBase.named('MutationModel')
                 return { data: null, error: err, result: null };
             };
 
-            return self._run(mutateFn, opts).then(
-                (result: any) => {
-                    return nextSuccess(result);
-                },
-                (err: any) => {
-                    return nextError(err);
-                }
-            );
+            return self._run(mutateFn, opts).then(nextSuccess, nextError);
         },
         _updateStatus(status: any) {
             self.error = status.error;

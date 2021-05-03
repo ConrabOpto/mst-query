@@ -72,12 +72,13 @@ export function create<P extends IAnyModelType>(
         onRequestSnapshot,
         afterCreate,
         onFetched,
+        initialResult
     } = options;
 
     const q = query.create({ data, request, env }, config.env);
     queryCache.setQuery(q);
 
-    q._init({ data, request, onMutate, onUpdate, onFetched, onRequestSnapshot });
+    q._init({ data, request, onMutate, onUpdate, onFetched, onRequestSnapshot, initialResult });
 
     afterCreate?.(q);
 

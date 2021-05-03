@@ -178,7 +178,7 @@ import { observer } from 'mobx-react';
 import { MessageQuery } from './MessageQuery';
 
 const MesssageView = observer((props) => {
-    const { id, cachedData } = props;
+    const { id, snapshot, result } = props;
     const {
         run,
         data,
@@ -189,8 +189,9 @@ const MesssageView = observer((props) => {
         isFetchingMore,
         query,
     } = useQuery(MessageQuery, {
-        data: cachedData,
+        data: snapshot,
         request: { id },
+        initialResult: result,
         onFetched(data, self) {},
         afterCreate(self) {},
         onRequestSnapshot(snapshot) {},
@@ -238,11 +239,7 @@ const MesssageView = observer((props) => {
 });
 ```
 
-A lazy version of `useQuery`. Useful if you have cached data and manually want to decide when to run the query.
-
-### `query`
-
-### `refetch` & `isRefetching`
+A lazy version of `useQuery`. This hook is useful if you have cached data and manually want to decide when to run the query.
 
 ## Paginated and infinite lists
 
