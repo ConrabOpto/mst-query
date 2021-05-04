@@ -14,4 +14,10 @@ export const ListQuery = createQuery('ListQuery', {
     addItem(item: any) {
         self.data?.items.push(item);
     },
+    fetchMore: flow(function* () {
+        const next = yield self.queryMore(self.env.api.getItems, { offset: 5 });
+        const { data } = next();
+
+        self.data?.items.push(...data.items);
+    }),
 }));

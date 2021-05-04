@@ -32,13 +32,6 @@ export const QueryModel = QueryModelBase.named('QueryModel')
                     return { data: null, error: err, result: null };
                 };
 
-                if (self.options.initialResult) {
-                    const result = self.options.initialResult;
-                    self.options.initialResult = undefined;
-
-                    return new Promise((resolve) => resolve(nextSuccess(result)));
-                }
-
                 return self._run(queryFn, opts).then(nextSuccess, nextError);
             },
             queryMore(variables?: any, options = {}) {

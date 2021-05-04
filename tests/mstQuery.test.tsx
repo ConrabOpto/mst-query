@@ -9,7 +9,7 @@ import { render } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { ListQuery } from './models/ListQuery';
-import { itemData, listData } from './data';
+import { itemData, listData, moreListData } from './data';
 import { SetDescriptionMutation } from './models/SetDescriptionMutation';
 import { AddItemMutation } from './models/AddItemMutation';
 
@@ -19,7 +19,10 @@ const api = {
     async getItem() {
         return itemData;
     },
-    async getItems() {
+    async getItems({ offset = 0 } = {}) {
+        if (offset !== 0) {
+            return moreListData;
+        }
         return listData;
     },
     async setDescription({ description }: any) {
@@ -187,6 +190,26 @@ test('useQuery - with error', (done) => {
         expect(err).toEqual(customError);
         done();
     }, 0);
+});
+
+test('query more - with initial result', async () => {
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            initialResult: listData,
+            env: { api },
+        });
+        q = query;
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await q.whenIsDoneLoading();
+
+    await q.fetchMore();
+
+    expect(q.data.items.length).toBe(8);
 });
 
 test('refetching query', async () => {

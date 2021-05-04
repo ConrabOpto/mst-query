@@ -103,6 +103,7 @@ export const QueryModelBase = types
                 }
             },
             _run(queryFn: QueryFnType, options?: any) {
+                self._queryFn = queryFn;
                 self._abortController = new AbortController();
 
                 if (!self._disposer) {
@@ -112,9 +113,18 @@ export const QueryModelBase = types
                         requestSnapshotDisposer?.();
                     });
                 }
-
+                
                 this._setIsLoading();
-                self._queryFn = queryFn;
+
+                let runner: any;
+                if (self.options.initialResult) {
+                    const result = self.options.initialResult;
+                    self.options.initialResult = undefined;
+
+                    runner = () => new Promise((resolve) => resolve(result));
+                } else {
+                    runner = queryFn;
+                }
 
                 const opts = {
                     ...options,
@@ -126,7 +136,7 @@ export const QueryModelBase = types
                     },
                 };
 
-                return self._queryFn(options.variables, opts).then((result) => {
+                return runner(options.variables, opts).then((result: any) => {
                     if (isDisposed) {
                         throw new DisposedError();
                     }
