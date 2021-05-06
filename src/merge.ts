@@ -23,11 +23,6 @@ export function merge(data: any, typeDef: any, ctx: any): any {
     const modelType = getSubType(typeDef);
     const hasIdentifier =
         modelType && modelType.properties && isIdentifierType(config.getId(modelType.properties));
-    if (hasIdentifier && !id) {
-        console.warn(
-            'You are mapping data to a model with identifier, but no unique id was found in the data.'
-        );
-    }
 
     const key = `${modelType.name}:${id}`;
     let instance = hasIdentifier && objMap.get(key);
