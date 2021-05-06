@@ -21,7 +21,6 @@ type UseQueryOptions<P extends QueryReturnType> = Options & {
     env?: SnapshotIn<P>['env'];
     initialResult?: any;
     onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
-    cache?: boolean;
     cacheMaxAge?: number;
 };
 
