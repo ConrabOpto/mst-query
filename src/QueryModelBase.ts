@@ -11,6 +11,7 @@ import {
 } from 'mobx-state-tree';
 import { when } from 'mobx';
 import { merge } from './merge';
+import QueryCache from './cache';
 
 export type QueryFnType = (variables: any, options: any) => Promise<any>;
 
@@ -64,6 +65,17 @@ export const QueryModelBase = types
                         options.onRequestSnapshot && onSnapshot(request, options.onRequestSnapshot);
                 }
             },
+            _remove() {
+                if (self.options.cacheMaxAge) {
+                    setTimeout(() => {
+                        QueryCache.removeQuery(self as any);
+                    }, self.options.cacheMaxAge * 60);
+
+                    return;
+                }
+
+                QueryCache.removeQuery(self as any);
+            },
             _setResult(result: any) {
                 (self as any).result = result;
             },
@@ -113,7 +125,7 @@ export const QueryModelBase = types
                         requestSnapshotDisposer?.();
                     });
                 }
-                
+
                 this._setIsLoading();
 
                 let runner: any;

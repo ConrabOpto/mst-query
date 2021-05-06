@@ -1,4 +1,11 @@
-import { types, IAnyType, IAnyModelType, Instance } from 'mobx-state-tree';
+import {
+    types,
+    IAnyType,
+    IAnyModelType,
+    Instance,
+    isStateTreeNode,
+    getSnapshot,
+} from 'mobx-state-tree';
 import QueryModel from './QueryModel';
 import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
@@ -54,8 +61,29 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
 }
 
 export function createAndRun<P extends IAnyModelType>(query: P, options: any = {}) {
+    const { cacheMaxAge, key = query.name } = options;
+
+    let initialSnapshot;
+    if (cacheMaxAge) {
+        const queries = queryCache.findAll(query, (q) => {
+            return q.options.key === key;
+        });
+        if (queries.length > 1) {
+            throw new Error('Use an unique key when using cacheMaxAge');
+        }
+
+        initialSnapshot = queries.length && queries[0].data ? getSnapshot(queries[0]) : null;
+    }
+
+    const data = initialSnapshot ? (initialSnapshot as any).data : null;
+    options.data = options.data ?? data;
+
     const q = create(query, options);
-    q.run();
+
+    if (!initialSnapshot) {
+        q.run();
+    }
+
     return q;
 }
 
@@ -63,7 +91,7 @@ export function create<P extends IAnyModelType>(
     query: P,
     options: any = {}
 ): Instance<P> & { run: unknown } {
-    const {
+    let {
         data,
         request,
         env,
@@ -72,13 +100,26 @@ export function create<P extends IAnyModelType>(
         onRequestSnapshot,
         afterCreate,
         onFetched,
-        initialResult
+        initialResult,
+        cacheMaxAge,
+        key,
     } = options;
 
-    const q = query.create({ data, request, env }, config.env);
+    const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;
+    const q = query.create({ data: snapshot, request, env }, config.env);
     queryCache.setQuery(q);
 
-    q._init({ data, request, onMutate, onUpdate, onFetched, onRequestSnapshot, initialResult });
+    q._init({
+        data,
+        request,
+        onMutate,
+        onUpdate,
+        onFetched,
+        onRequestSnapshot,
+        initialResult,
+        cacheMaxAge,
+        key: key ?? query.name,
+    });
 
     afterCreate?.(q);
 

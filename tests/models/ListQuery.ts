@@ -9,7 +9,7 @@ export const ListQuery = createQuery('ListQuery', {
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield self.query(self.env.api.getItems);
-        next();
+        return next();
     }),
     addItem(item: any) {
         self.data?.items.push(item);

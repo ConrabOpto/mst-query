@@ -1,9 +1,13 @@
-import { Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { IAnyModelType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import { SubscriptionModelType } from './SubscriptionModel';
 import type { QueryReturnType, MutationReturnType, SubscriptionReturnType } from './utilityTypes';
-import queryCache from './cache';
+import { config } from './config';
+
+function mergeWithDefaultOptions(key: string, options: any, ) {
+    return Object.assign({}, (config as any)[key], options);
+}
 
 type Options = {
     onRequestSnapshot?: (snapshot: any) => any;
@@ -12,24 +16,28 @@ type Options = {
 };
 
 type UseQueryOptions<P extends QueryReturnType> = Options & {
-    data?: SnapshotIn<P>['data'];
+    data?: SnapshotIn<P>['data'] | IAnyModelType;
     request?: SnapshotIn<P>['request'];
     env?: SnapshotIn<P>['env'];
     initialResult?: any;
     onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
+    cache?: boolean;
+    cacheMaxAge?: number;
 };
 
 export function useLazyQuery<P extends QueryReturnType>(
     query: P,
     options: UseQueryOptions<P> = {}
 ) {
+    options = mergeWithDefaultOptions('queryOptions', options);
+
     const { key } = options;
     const [q, setQuery] = useState(() => create(query, options));
 
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                queryCache.removeQuery(q);
+                q._remove();
             }
         };
     }, []);
@@ -39,11 +47,11 @@ export function useLazyQuery<P extends QueryReturnType>(
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                queryCache.removeQuery(q);
+                q._remove();
             }
         }
     }, [key]);
-
+ 
     return {
         run: q.run as typeof q['run'],
         data: q.data as typeof q['data'],
@@ -58,13 +66,15 @@ export function useLazyQuery<P extends QueryReturnType>(
 }
 
 export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryOptions<P> = {}) {
+    options = mergeWithDefaultOptions('queryOptions', options);
+
     const { key } = options;
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                queryCache.removeQuery(q);
+                q._remove();
             }
         };
     }, []);
@@ -74,7 +84,7 @@ export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryO
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                queryCache.removeQuery(q);
+                q._remove();
             }
             (newQuery as any).run();
         }
@@ -108,7 +118,7 @@ export function useMutation<P extends MutationReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(m)) {
-                queryCache.removeQuery(m);
+                m._remove();
             }
         };
     }, []);
@@ -137,7 +147,7 @@ export function useSubscription<P extends SubscriptionReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(s)) {
-                queryCache.removeQuery(s);
+                s._remove();
             }
         };
     }, []);
@@ -147,7 +157,7 @@ export function useSubscription<P extends SubscriptionReturnType>(
             const newSubscription = create(query, options);
             setSubscription(newSubscription);
             if (isStateTreeNode(s)) {
-                queryCache.removeQuery(s);
+                s._remove();
             }
             (newSubscription as any).run();
         }

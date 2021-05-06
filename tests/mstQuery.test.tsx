@@ -162,7 +162,7 @@ test('useQuery - with initial result', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    
+
     await q.whenIsDoneLoading();
 
     expect(getItem).not.toBeCalled();
@@ -455,4 +455,32 @@ test('findAll', () => {
         mutation.request.text.includes('o')
     );
     expect(queries2.length).toBe(0);
+});
+
+test('caching', async () => {
+    const getItem = jest.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem,
+    };
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ItemQuery, {
+            request: { id: 'test' },
+            env: { api: testApi },
+            cacheMaxAge: 10
+        });
+        q = query;
+        return <div></div>;
+    });
+    const { unmount } = render(<Comp />);
+    await q.whenIsDoneLoading();
+
+    unmount();
+    render(<Comp />);
+    await q.whenIsDoneLoading();
+
+    expect(q.data.createdBy.name).toBe('Kim');
+    expect(getItem).toBeCalledTimes(1);
 });
