@@ -69,7 +69,7 @@ export const QueryModelBase = types
                 if (self.options.cacheMaxAge) {
                     setTimeout(() => {
                         QueryCache.removeQuery(self as any);
-                    }, self.options.cacheMaxAge * 60);
+                    }, self.options.cacheMaxAge * 1000);
 
                     return;
                 }
