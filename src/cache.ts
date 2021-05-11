@@ -12,7 +12,7 @@ import { objMap } from './MstQueryRef';
 import { observable, action } from 'mobx';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
-import { QueryType } from './UtilityTypes';
+import { QueryStatus, QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
 
 let cache = observable.map({}, { deep: false });
@@ -30,11 +30,15 @@ export class QueryCache {
 
     findAll<P extends IAnyModelType>(
         queryDef: P,
-        matcherFn: (query: Instance<P>) => boolean
+        matcherFn: (query: Instance<P>) => boolean,
+        includeStale = false
     ): Instance<P>[] {
         let results = [];
         for (let [_, arr] of cache) {
             for (let query of arr) {
+                if (!includeStale && query._status === QueryStatus.Stale) {
+                    continue;
+                }
                 if (getType(query) === queryDef && matcherFn(query)) {
                     results.push(query);
                 }

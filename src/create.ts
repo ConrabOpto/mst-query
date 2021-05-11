@@ -67,16 +67,18 @@ export function createAndRun<P extends IAnyModelType>(query: P, options: any = {
     if (cacheMaxAge) {
         const queries = queryCache.findAll(query, (q) => {
             return q.options.key === key;
-        });
+        }, true);
         if (queries.length > 1) {
-            throw new Error('Use an unique key when using cacheMaxAge');
+            throw new Error('Pass an unique key to useQuery when using cacheMaxAge');
         }
 
         initialSnapshot = queries.length && queries[0].data ? getSnapshot(queries[0]) : null;
     }
 
     const data = initialSnapshot ? (initialSnapshot as any).data : null;
+    const request = initialSnapshot ? (initialSnapshot as any).request : null;
     options.data = options.data ?? data;
+    options.request = options.request ?? request;
 
     const q = create(query, options);
 
@@ -102,7 +104,7 @@ export function create<P extends IAnyModelType>(
         onFetched,
         initialResult,
         cacheMaxAge,
-        key,
+        key = query.name,
     } = options;
 
     const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;

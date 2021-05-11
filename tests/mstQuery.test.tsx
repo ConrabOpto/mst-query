@@ -469,7 +469,7 @@ test('caching', async () => {
         const { query } = useQuery(ItemQuery, {
             request: { id: 'test' },
             env: { api: testApi },
-            cacheMaxAge: 10
+            cacheMaxAge: 1,
         });
         q = query;
         return <div></div>;
@@ -478,6 +478,10 @@ test('caching', async () => {
     await q.whenIsDoneLoading();
 
     unmount();
+    
+    const foundQuery = queryCache.find(ItemQuery, () => true);
+    expect(foundQuery).toBe(undefined);
+
     render(<Comp />);
     await q.whenIsDoneLoading();
 

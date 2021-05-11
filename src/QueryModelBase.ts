@@ -11,7 +11,8 @@ import {
 } from 'mobx-state-tree';
 import { when } from 'mobx';
 import { merge } from './merge';
-import QueryCache from './cache';
+import queryCache from './cache';
+import { QueryStatus } from './UtilityTypes';
 
 export type QueryFnType = (variables: any, options: any) => Promise<any>;
 
@@ -24,6 +25,7 @@ export const QueryModelBase = types
         error: null as any,
         options: {} as any,
         result: null as any,
+        _status: QueryStatus.Active,
         _queryFn: null as null | QueryFnType,
         _abortController: null as AbortController | null,
         _disposer: null as null | IDisposer,
@@ -66,15 +68,17 @@ export const QueryModelBase = types
                 }
             },
             _remove() {
+                self._status = QueryStatus.Stale;
+
                 if (self.options.cacheMaxAge) {
                     setTimeout(() => {
-                        QueryCache.removeQuery(self as any);
+                        queryCache.removeQuery(self as any);
                     }, self.options.cacheMaxAge * 1000);
 
                     return;
                 }
 
-                QueryCache.removeQuery(self as any);
+                queryCache.removeQuery(self as any);
             },
             _setResult(result: any) {
                 (self as any).result = result;
