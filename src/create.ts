@@ -11,6 +11,7 @@ import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
 import { config } from './config';
 import queryCache from './cache';
+import { QueryStatus } from './UtilityTypes';
 
 type BaseOptions<TData extends IAnyType, TEnv extends IAnyType> = {
     data: TData;
@@ -64,26 +65,36 @@ export function createAndRun<P extends IAnyModelType>(query: P, options: any = {
     const { cacheMaxAge, key = query.name } = options;
 
     let initialSnapshot;
+    let cachedQuery;
     if (cacheMaxAge) {
         const queries = queryCache.findAll(query, (q) => {
             return q.options.key === key;
         }, true);
+
         if (queries.length > 1) {
             throw new Error('Pass an unique key to useQuery when using cacheMaxAge');
         }
 
-        initialSnapshot = queries.length && queries[0].data ? getSnapshot(queries[0]) : null;
+        if (queries.length > 0) {
+            cachedQuery = queries[0];
+
+            initialSnapshot = cachedQuery ? getSnapshot(cachedQuery) : null;
+        }
     }
 
     const data = initialSnapshot ? (initialSnapshot as any).data : null;
     const request = initialSnapshot ? (initialSnapshot as any).request : null;
-    options.data = options.data ?? data;
-    options.request = options.request ?? request;
+    options.data = data ?? options.data;
+    options.request = request ?? options.request;
 
     const q = create(query, options);
 
     if (!initialSnapshot) {
         q.run();
+    }
+
+    if (cachedQuery) {        
+        queryCache.removeQuery(cachedQuery);
     }
 
     return q;

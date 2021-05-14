@@ -32,6 +32,7 @@ export const QueryModelBase = types
         _requestSnapshot: null as any,
     }))
     .actions((self) => {
+        let toBeRemovedTimeout = null as null | number;
         let requestSnapshotDisposer = null as null | IDisposer;
         let isDisposed = false;
         return {
@@ -71,9 +72,9 @@ export const QueryModelBase = types
                 self._status = QueryStatus.Stale;
 
                 if (self.options.cacheMaxAge) {
-                    setTimeout(() => {
+                    toBeRemovedTimeout = window.setTimeout(() => {
                         queryCache.removeQuery(self as any);
-                    }, self.options.cacheMaxAge * 1000);
+                    }, self.options.cacheMaxAge * 1000)
 
                     return;
                 }
@@ -126,7 +127,8 @@ export const QueryModelBase = types
                     self._disposer = addDisposer(self, () => {
                         isDisposed = true;
                         this.abort();
-                        requestSnapshotDisposer?.();
+                        requestSnapshotDisposer?.();                        
+                        toBeRemovedTimeout && clearTimeout(toBeRemovedTimeout);
                     });
                 }
 
