@@ -14,6 +14,7 @@ import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { QueryStatus, QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
+import { config } from './config';
 
 let cache = observable.map({}, { deep: false });
 
@@ -133,7 +134,7 @@ export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
     }
 
     if (isIdentifierType(t.properties.id)) {
-        const identifier = `${t.name}:${n.id}`;
+        const identifier = `${t.name}:${config.getId(n)}`;
 
         if (seenIdentifiers.has(identifier)) {
             return;
