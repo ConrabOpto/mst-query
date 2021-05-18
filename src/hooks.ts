@@ -42,7 +42,7 @@ export function useLazyQuery<P extends QueryReturnType>(
     }, []);
 
     useEffect(() => {
-        if (key && q.isFetched) {
+        if (key && key !== q.options.key) {
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
@@ -79,7 +79,7 @@ export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryO
     }, []);
 
     useEffect(() => {
-        if (key && q.isFetched) {
+        if (key && key !== q.options.key) {
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
@@ -152,7 +152,7 @@ export function useSubscription<P extends SubscriptionReturnType>(
     }, []);
 
     useEffect(() => {
-        if (key) {
+        if (key && key !== s.options.key) {
             const newSubscription = create(query, options);
             setSubscription(newSubscription);
             if (isStateTreeNode(s)) {
