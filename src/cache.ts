@@ -23,7 +23,7 @@ export class QueryCache {
 
     find<P extends IAnyModelType>(
         queryDef: P,
-        matcherFn: (query: Instance<P>) => boolean
+        matcherFn?: (query: Instance<P>) => boolean
     ): Instance<P> | undefined {
         const matches = this.findAll(queryDef, matcherFn);
         return matches?.[0];
@@ -31,7 +31,7 @@ export class QueryCache {
 
     findAll<P extends IAnyModelType>(
         queryDef: P,
-        matcherFn: (query: Instance<P>) => boolean,
+        matcherFn: (query: Instance<P>) => boolean = () => true,
         includeStale = false
     ): Instance<P>[] {
         let results = [];
