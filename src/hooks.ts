@@ -112,7 +112,8 @@ export function useMutation<P extends MutationReturnType>(
     query: P,
     options: UseMutationOptions<P> = {}
 ) {
-    const [m] = useState(() => create(query, options));
+    const { key } = options;
+    const [m, setMutation] = useState(() => create(query, options));
 
     useEffect(() => {
         return () => {
@@ -121,6 +122,16 @@ export function useMutation<P extends MutationReturnType>(
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (key && key !== m.options.key) {
+            const newMutation = create(query, options);
+            setMutation(newMutation);
+            if (isStateTreeNode(m)) {
+                m._remove();
+            }
+        }
+    }, [key]);
 
     const result = {
         ...m,
