@@ -9,8 +9,8 @@ export const AddItemMutation = createMutation('AddMutation', {
     request: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield self.mutate(self.env.api.addItem);
-        const { data } = next();
+        const next = yield* self.mutate(self.env.api.addItem);
+        const { data } = next<typeof AddItemMutation>();
 
         const query = queryCache.find(ListQuery, (q) => q.request.id === 'test');
         query?.addItem(data);

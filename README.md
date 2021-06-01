@@ -42,8 +42,8 @@ export const MessageQuery = createQuery('MessageQuery', {
     env: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield self.query(getItem, { id: self.request.id });
-        next();
+        const next = yield* self.query(getItem, { id: self.request.id });
+        const { data, result, error } = next<typeof MessageQuery>();
     }),
 }));
 ```
@@ -101,7 +101,7 @@ But there are a couple of trade offs to consider.
 
 -   **The RootStore needs knowledge of all our models**
 
-    This breaks code splitting, and is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
+    In a typical mobx-state-tree app, there's a root store that holds references to every model, split into multiple domain stores. If you want to support code splitting your models, you need to break up your root store into multiple instances. This is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
 
     In contrast, <i>mst-query</i> only needs knowledge of the models relevant for the current query.
 
@@ -160,8 +160,8 @@ const MessageListQuery = createQuery('MessageListQuery', {
     env: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield self.query(getItems, { filter: self.request.filer });
-        const { result, error, data } = next();
+        const next = yield* self.query(getItems, { filter: self.request.filer });
+        const { result, error, data } = next<typeof MessageListQuery>();
     }),
 }));
 ```

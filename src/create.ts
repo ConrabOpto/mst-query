@@ -11,7 +11,6 @@ import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
 import { config } from './config';
 import queryCache from './cache';
-import { QueryStatus } from './UtilityTypes';
 
 type BaseOptions<TData extends IAnyType, TEnv extends IAnyType> = {
     data: TData;

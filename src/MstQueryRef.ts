@@ -1,9 +1,9 @@
-import { IAnyType, types, getIdentifier } from 'mobx-state-tree';
+import { types, getIdentifier, IAnyComplexType } from 'mobx-state-tree';
 import { getSubType } from './Utils';
 
 export const objMap = new Map();
 
-export const MstQueryRef = <IT extends IAnyType>(type: IT) =>
+export const MstQueryRef = <IT extends IAnyComplexType>(type: IT) =>
     types.reference(type, {
         get(id) {
             const t = getSubType(type);

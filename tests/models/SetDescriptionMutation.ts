@@ -8,7 +8,7 @@ export const SetDescriptionMutation = createMutation('SetDescriptionMutation', {
     env: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield self.mutate(self.env.api.setDescription, getSnapshot(self.request));
+        const next = yield* self.mutate(self.env.api.setDescription, getSnapshot(self.request));
         next();
     }),
 }));
