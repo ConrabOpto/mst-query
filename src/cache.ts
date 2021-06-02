@@ -9,17 +9,24 @@ import {
     isIdentifierType,
 } from 'mobx-state-tree';
 import { objMap } from './MstQueryRef';
-import { observable, action } from 'mobx';
+import { observable, action, makeObservable } from 'mobx';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { QueryStatus, QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
 import { config } from './config';
 
-let cache = observable.map({}, { deep: false });
-
 export class QueryCache {
     _scheduledGc = null as null | number;
+    cache = observable.map({}, { deep: false });
+    
+    constructor() {
+        makeObservable(this, {
+            setQuery: action,
+            removeQuery: action,
+            clear: action
+        });
+    }
 
     find<P extends IAnyModelType>(
         queryDef: P,
@@ -35,7 +42,7 @@ export class QueryCache {
         includeStale = false
     ): Instance<P>[] {
         let results = [];
-        for (let [_, arr] of cache) {
+        for (let [_, arr] of this.cache) {
             for (let query of arr) {
                 if (!includeStale && query._status === QueryStatus.Stale) {
                     continue;
@@ -49,21 +56,19 @@ export class QueryCache {
         return results;
     }
 
-    @action
     setQuery<T extends QueryType>(q: Instance<T>) {
         const type = getType(q);
-        let arr = cache.get(type.name);
+        let arr = this.cache.get(type.name);
         if (!arr) {
             arr = observable.array([], { deep: false });
-            cache.set(type.name, arr);
+            this.cache.set(type.name, arr);
         }
         arr.push(q);
     }
 
-    @action
     removeQuery(query: QueryModelType | MutationModelType | SubscriptionModelType) {
         const type = getType(query);
-        cache.get(type.name).remove(query);
+        this.cache.get(type.name).remove(query);
         destroy(query);
 
         this._runGc();
@@ -75,7 +80,7 @@ export class QueryCache {
         }
 
         const seenIdentifiers = new Set();
-        for (let [_, arr] of cache) {
+        for (let [_, arr] of this.cache) {
             for (let query of arr) {
                 if (query.isLoading) {
                     this._scheduledGc = window.setTimeout(() => {
@@ -99,9 +104,8 @@ export class QueryCache {
         }
     }
 
-    @action
     clear() {
-        for (let [, arr] of cache) {
+        for (let [, arr] of this.cache) {
             for (let query of arr) {
                 destroy(query);
             }
@@ -112,7 +116,7 @@ export class QueryCache {
         }
 
         objMap.clear();
-        cache.clear();
+        this.cache.clear();
     }
 }
 
