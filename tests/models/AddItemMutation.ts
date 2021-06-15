@@ -1,7 +1,8 @@
 import { flow, types } from 'mobx-state-tree';
-import { createMutation, MstQueryRef, queryCache } from '../../src';
+import { createMutation, createOptimisticData, MstQueryRef, queryCache } from '../../src';
 import { ItemModel } from './ItemModel';
 import { ListQuery } from './ListQuery';
+import { itemData } from '../data';
 
 export const AddItemMutation = createMutation('AddMutation', {
     data: MstQueryRef(ItemModel),
@@ -9,10 +10,14 @@ export const AddItemMutation = createMutation('AddMutation', {
     request: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield* self.mutate(self.env.api.addItem);
+        const query = queryCache.find(ListQuery, (q) => q.request.id === 'test');
+        const optimistic = createOptimisticData(ItemModel, itemData);
+        query?.addItem(optimistic);
+
+        const next = yield* self.mutate(self.env.api.addItem, null);
         const { data } = next<typeof AddItemMutation>();
 
-        const query = queryCache.find(ListQuery, (q) => q.request.id === 'test');
+        query?.removeItem(optimistic);
         query?.addItem(data);
     }),
 }));

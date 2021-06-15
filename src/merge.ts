@@ -1,7 +1,20 @@
-import { getIdentifier, getRoot, getSnapshot, getType, isFrozenType, isIdentifierType, isStateTreeNode, protect, unprotect } from "mobx-state-tree";
+import { getIdentifier, getRoot, getSnapshot, getType, IAnyType, Instance, isFrozenType, isIdentifierType, isStateTreeNode, protect, unprotect } from "mobx-state-tree";
 import { config } from "./config";
 import { objMap } from "./MstQueryRef";
 import { getRealTypeFromObject, getSubType, isObject } from "./Utils";
+
+let optimisticId = 1;
+
+export function createOptimisticData<T extends IAnyType>(typeOrNode: T | Instance<T>, data: any) {
+    const type: IAnyType = isStateTreeNode(typeOrNode) ? getType(typeOrNode) : typeOrNode;
+    const instance = merge(
+        { ...data, [type.identifierAttribute ?? '']: `optimistic-${optimisticId}` },
+        type,
+        config.env
+    );
+    optimisticId++;
+    return instance as Instance<T>;
+}
 
 export function merge(data: any, typeDef: any, ctx: any): any {
     if (!data || data instanceof Date || typeof data !== 'object') {
@@ -10,22 +23,20 @@ export function merge(data: any, typeDef: any, ctx: any): any {
     if (Array.isArray(data)) {
         return data.map((d) => merge(d, getSubType(typeDef, d), ctx));
     }
-    const id = config.getId(data);
-
+    
     // convert values deeply first to MST objects as much as possible
     const snapshot: any = {};
     for (const key in data) {
         snapshot[key] = merge(data[key], getRealTypeFromObject(typeDef, data, key), ctx);
     }
-
+    
     // GQL object with known type, instantiate or recycle MST object
     // Try to reuse instance.
     const modelType = getSubType(typeDef);
-    const hasIdentifier =
-        modelType && modelType.properties && isIdentifierType(config.getId(modelType.properties));
+    const id = data[modelType.identifierAttribute];
 
     const key = `${modelType.name}:${id}`;
-    let instance = hasIdentifier && objMap.get(key);
+    let instance = id && objMap.get(key);
     if (instance) {
         // update existing object
         const root = getRoot(instance);
@@ -36,8 +47,8 @@ export function merge(data: any, typeDef: any, ctx: any): any {
     } else if (!instance) {
         // create a new one
         instance = modelType.create(snapshot, ctx);
-        if (hasIdentifier) {
-            const key = `${modelType.name}:${config.getId(instance)}`;
+        if (id) {
+            const key = `${modelType.name}:${id}`;
             objMap.set(key, instance);
         }
         return instance;

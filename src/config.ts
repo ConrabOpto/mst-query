@@ -1,6 +1,5 @@
 type MstQueryConfig = {
     env: any;
-    getId: (data: any) => any;
     queryOptions: {
         cacheMaxAge: number;
     };
@@ -8,7 +7,6 @@ type MstQueryConfig = {
 
 export const config: MstQueryConfig = {
     env: {},
-    getId: (data: any) => data['id'],
     queryOptions: {
         cacheMaxAge: 0,
     },

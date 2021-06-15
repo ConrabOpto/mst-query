@@ -6,7 +6,7 @@ import {
     isAlive,
     getType,
     isArrayType,
-    isIdentifierType,
+    getIdentifier,
 } from 'mobx-state-tree';
 import { objMap } from './MstQueryRef';
 import { observable, action, makeObservable } from 'mobx';
@@ -14,7 +14,6 @@ import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { QueryStatus, QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
-import { config } from './config';
 
 export class QueryCache {
     _scheduledGc = null as null | number;
@@ -137,8 +136,9 @@ export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
         return;
     }
 
-    if (isIdentifierType(t.properties.id)) {
-        const identifier = `${t.name}:${config.getId(n)}`;
+    const nodeIdentifier = getIdentifier(n);
+    if (nodeIdentifier) {
+        const identifier = `${t.name}:${nodeIdentifier}`;
 
         if (seenIdentifiers.has(identifier)) {
             return;

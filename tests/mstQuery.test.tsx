@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { createQuery, create, queryCache, MstQueryRef, createMutation, useQuery } from '../src';
-import { configure as configureMobx } from 'mobx';
+import { configure as configureMobx, reaction } from 'mobx';
 import { objMap } from '../src/MstQueryRef';
 import { collectSeenIdentifiers } from '../src/cache';
 import { merge } from '../src/merge';
@@ -229,13 +229,19 @@ test('refetching query', async () => {
     expect(itemQuery.data?.description).toBe('Test item');
 });
 
-test('mutation updates query', async () => {
+test('mutation updates query (with optimistic update)', async () => {    
     const listQuery = create(ListQuery, {
         request: { id: 'test' },
         env: { api },
     });
+
     await listQuery.run();
     expect(listQuery.data?.items.length).toBe(4);
+        
+    let observeCount = 0;
+    const dispose = reaction(() => listQuery.data?.items.map(i => i.id), () => {
+        observeCount++;
+    });
 
     const addItemMutation = create(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
@@ -243,7 +249,10 @@ test('mutation updates query', async () => {
     });
     await addItemMutation.run();
 
+    expect(observeCount).toBe(2);
     expect(listQuery.data?.items.length).toBe(5);
+
+    dispose();
 });
 
 test('merge of date objects', () => {
