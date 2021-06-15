@@ -165,7 +165,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
 }));
 ```
 
-The first argument to `createQuery` is the name of this query. The second is an option object that controls how this query recevies (data) and transmits (request) data.
+The first argument to `createQuery` is the name of this query. The second is an option object that controls how this query recevies (data) and transmits (request) data. In `env`, you can put anything this query needs that does not fit in data or request.
 
 There's also a special action, `run`. This action should always be a flow generator, and will automatically be called when a query is put into a `useQuery` hook.
 
@@ -190,6 +190,7 @@ const MesssageView = observer((props) => {
     } = useQuery(MessageQuery, {
         data: snapshot,
         request: { id },
+        env,
         initialResult: result,
         onFetched(data, self) {},
         afterCreate(self) {},
@@ -209,7 +210,7 @@ const MesssageView = observer((props) => {
 
 The `key` argument is optional and works like putting a key prop on a React component. If this variable changes, the entire query will be re-created and run again.
 
-Note that `data` and `request` are only set on creation.
+Note that `data`, `request` and `env` are only set on creation.
 
 The option `cacheMaxAge` controls how long we should use the cached value of this query. By default it's set to 0.
 
