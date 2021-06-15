@@ -94,7 +94,7 @@ configureMstQuery({
 
 ## Concepts
 
-A key concept in <i>mobx-state-tree</i> is a single, centralized state container that holds the entire state of our app. This keeps our business logic in one place, allowing our components to mostly focus on rendering.
+A key concept in mobx-state-tree is a single, centralized state container that holds the entire state of our app. This keeps our business logic in one place, allowing our components to mostly focus on rendering.
 
 But there are a couple of trade offs to consider.
 
@@ -102,19 +102,19 @@ But there are a couple of trade offs to consider.
 
     In a typical mobx-state-tree app, there's a root store that holds references to every model, split into multiple domain stores. If you want to support code splitting your models, you need to break up your root store into multiple instances. This is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
 
-    In contrast, <i>mst-query</i> only needs knowledge of the models relevant for the current query.
+    In contrast, mst-query only needs knowledge of the models relevant for the current query.
 
 -   **Unused data lives in the store forever**
 
     Most applications problaby don't manage enough data for memory usage to be much of an issue. But consider an app with thousands of complex models and high data throughput, that is also kept open for long periods of time. Such an app will become more sluggish over time as it accumulates memory.
 
-    In <i>mst-query</i>, unused data is automatically garbage collected.
+    In mst-query, unused data is automatically garbage collected.
 
 -   **Normalizing data from the server is our responsibility**
 
     Normalizing remote data and putting it in the correct store can be tedious and error prone. Especially if you have a complex backend schema with deep connections between models.
 
-    A key feature of <i>mst-query</i> is automatic data normalization based on identifiers in our mobx-state-tree models.
+    A key feature of mst-query is automatic data normalization based on identifiers in our mobx-state-tree models.
 
 ## Models
 
@@ -139,13 +139,13 @@ const MessageModel = types.model({
 });
 ```
 
-Since data is garbage collected in `mst-query`, `MstQueryRef` doesn't throw if it cannot find a suitable model in the internal cache. Instead, it simply returns the id as a string, allowing us to fetch data for this model again.
+Since data is garbage collected in mst-query, `MstQueryRef` doesn't throw if it cannot find a suitable model in the internal cache. Instead, it simply returns the id as a string, allowing us to fetch data for this model again.
 
 ## Queries
 
 ### `createQuery`
 
-A query is just a <i>mobx-state-tree</i> model, but with special properties, called a <i>QueryModel</i>. Here's an example of a query that fetches a list of messages.
+A query is just a mobx-state-tree model, but with special properties, called a `QueryModel`. Here's an example of a query that fetches a list of messages.
 
 ```tsx
 import { types } from 'mobx-state-tree';
@@ -278,7 +278,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
 }));
 ```
 
-The difference between `query` and `queryMore` is that the latter does not automatically merge it's result to the underlying query. This allows you to easily control how the data is appended to your list. It also means `mst-query` supports many different forms of pagination (offset-based, cursor-based, page-number-based) out of the box.
+The difference between `query` and `queryMore` is that the latter does not automatically merge it's result to the underlying query. This allows you to easily control how the data is appended to your list. It also means mst-query supports many different forms of pagination (offset-based, cursor-based, page-number-based) out of the box.
 
 ```tsx
 import { useQuery } from 'mst-query';
@@ -399,11 +399,11 @@ const AddMessageMutation = createMutation('AddMessage', {
 
 Optimistically updating the UI can be quite involved. You have to create a unique id, and make sure client data is replaced with server data as soon as possible - without the user noticing any changes.
 
-In `mst-query`, we try to make this easier by providing a `createOptimisticData` helper. This function creates an temporary, unique id and merges the data so that it is ready to be added to the ui.
+In mst-query, we try to make this easier by providing a `createOptimisticData` helper. This function creates an temporary, unique id and merges the data so that it is ready to be added to the ui.
 
 A difference from other query libraries is that you get imperative control of how this update happens. In the example above we simply replace the optimistic item with the server response, but you could of course do it differently if you wanted to.
 
-However, note that `mobx-state-tree` does not currently support mutable identifers ([see this issue](https://github.com/mobxjs/mobx-state-tree/issues/887)). This is important becasue it means that trying to reuse the same instance won't work.
+However, note that mobx-state-tree does not currently support mutable identifers ([see this issue](https://github.com/mobxjs/mobx-state-tree/issues/887)). This is important becasue it means that trying to reuse the same instance won't work.
 
 ## Change tracking
 
