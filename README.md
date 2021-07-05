@@ -38,8 +38,7 @@ const getItem = ({ id }) => {
 
 const MessageQuery = createQuery('MessageQuery', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ id: types.string }),
-    env: types.frozen(),
+    request: types.model({ id: types.string })
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItem, { id: self.request.id });
@@ -155,8 +154,7 @@ import { getItems } from './api';
 
 const MessageListQuery = createQuery('MessageListQuery', {
     data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
-    request: types.model({ filter: types.optional(types.string, '') }),
-    env: types.frozen(),
+    request: types.model({ filter: types.optional(types.string, '') })
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems, { filter: self.request.filer });
@@ -260,8 +258,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
         filter: types.optional(types.string, ''),
         offset: types.number,
         limit: types.number,
-    }),
-    env: types.frozen(),
+    })
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems, self.request);
@@ -316,8 +313,7 @@ import { addMessage } from './api';
 
 const AddMessageMutation = createMutation('AddMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ message: types.string, userId: types.number }),
-    env: types.frozen(),
+    request: types.model({ message: types.string, userId: types.number })
 })
     .views((self) => ({
         get canRun() {
@@ -377,8 +373,7 @@ import { addMessage } from './api';
 
 const AddMessageMutation = createMutation('AddMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ message: types.string, userId: types.number }),
-    env: types.frozen(),
+    request: types.model({ message: types.string, userId: types.number })
 }).actions((self) => ({
     run: flow(function* () {
         const query = queryCache.find(MessageListQuery);
@@ -418,8 +413,7 @@ import { updateMessage } from './api';
 
 const UpdateMessageMutation = createMutation('UpdateMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ messageId: types.string, message: types.string }),
-    env: types.frozen(),
+    request: types.model({ messageId: types.string, message: types.string })
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.mutate(updateMessage, self.request);
@@ -498,8 +492,7 @@ export class RealtimeService {
 const realtimeService = new RealtimeService();
 
 export const NewMessageSubscription = createSubscription('NewMessageSubscription', {
-    data: MstQueryRef(MessageModel),
-    env: types.frozen(),
+    data: MstQueryRef(MessageModel)
 }).actions((self) => ({
     run() {
         self.subscribe((subscriber: Subscriber) => realtimeService.subscribe(subscriber));
@@ -558,8 +551,7 @@ import { updateMessage } from './api';
 
 const UpdateMessageMutation = createMutation('UpdateMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ messageId: types.string, message: types.string }),
-    env: types.frozen(),
+    request: types.model({ messageId: types.string, message: types.string })
 }).actions((self) => ({
     run: flow(function* () {
         const messageList = queryCache.find(MessageListQuery);

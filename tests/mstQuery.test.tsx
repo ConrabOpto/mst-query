@@ -229,7 +229,7 @@ test('refetching query', async () => {
     expect(itemQuery.data?.description).toBe('Test item');
 });
 
-test('mutation updates query (with optimistic update)', async () => {    
+test('mutation updates query (with optimistic update)', async () => {
     const listQuery = create(ListQuery, {
         request: { id: 'test' },
         env: { api },
@@ -237,11 +237,14 @@ test('mutation updates query (with optimistic update)', async () => {
 
     await listQuery.run();
     expect(listQuery.data?.items.length).toBe(4);
-        
+
     let observeCount = 0;
-    const dispose = reaction(() => listQuery.data?.items.map(i => i.id), () => {
-        observeCount++;
-    });
+    const dispose = reaction(
+        () => listQuery.data?.items.map((i) => i.id),
+        () => {
+            observeCount++;
+        }
+    );
 
     const addItemMutation = create(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
@@ -342,8 +345,6 @@ test('merge frozen type', () => {
 
     const QueryModel = createQuery('FrozenQuery', {
         data: ModelWithFrozenProp,
-        request: types.frozen(),
-        env: types.frozen(),
     });
     const q = create(QueryModel, { request: { path: 'test' } });
     q._updateData(
@@ -369,8 +370,6 @@ test('replace arrays on sub properties', () => {
 
     const QueryModel = createQuery('FrozenQuery', {
         data: Model,
-        request: types.frozen(),
-        env: types.frozen(),
     });
     const q = create(QueryModel, { request: { path: 'test' } });
     q._updateData(
@@ -396,9 +395,7 @@ test('hasChanged mutation', () => {
         }));
 
     const MutationModel = createMutation('Mutation', {
-        data: types.frozen(),
         request: RequestModel,
-        env: types.frozen(),
     });
     const m = create(MutationModel, { request: { text: 'hi' } });
     expect(m.hasChanged).toBe(false);
@@ -426,8 +423,6 @@ test('merge with undefined data and union type', () => {
 
     const QueryModel = createQuery('TestQuery', {
         data: Model,
-        request: types.frozen(),
-        env: types.frozen(),
     });
     const q = create(QueryModel, { request: { path: 'test' } });
 
@@ -449,9 +444,7 @@ test('findAll', () => {
         }));
 
     const MutationModel = createMutation('Mutation', {
-        data: types.frozen(),
         request: RequestModel,
-        env: types.frozen(),
     });
     const m = create(MutationModel, { request: { path: 'test', text: 'hi' } });
 
@@ -487,7 +480,7 @@ test('caching', async () => {
     await q.whenIsDoneLoading();
 
     unmount();
-    
+
     const foundQuery = queryCache.find(ItemQuery, () => true);
     expect(foundQuery).toBe(undefined);
 
