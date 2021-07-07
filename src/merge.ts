@@ -1,4 +1,4 @@
-import { getIdentifier, getRoot, getSnapshot, getType, IAnyType, Instance, isFrozenType, isIdentifierType, isStateTreeNode, protect, unprotect } from "mobx-state-tree";
+import { clone, getIdentifier, getRoot, getSnapshot, getType, IAnyType, Instance, isFrozenType, isIdentifierType, isStateTreeNode, protect, unprotect } from "mobx-state-tree";
 import { config } from "./config";
 import { objMap } from "./MstQueryRef";
 import { getRealTypeFromObject, getSubType, isObject } from "./Utils";
@@ -16,7 +16,7 @@ export function createOptimisticData<T extends IAnyType>(typeOrNode: T | Instanc
     return instance as Instance<T>;
 }
 
-export function merge(data: any, typeDef: any, ctx: any): any {
+export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false): any {
     if (!data || data instanceof Date || typeof data !== 'object') {
         return data;
     }
@@ -37,6 +37,9 @@ export function merge(data: any, typeDef: any, ctx: any): any {
 
     const key = `${modelType.name}:${id}`;
     let instance = id && objMap.get(key);
+    
+    instance = !cloneInstances ? instance : clone(instance);
+
     if (instance) {
         // update existing object
         const root = getRoot(instance);

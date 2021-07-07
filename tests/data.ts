@@ -16,6 +16,7 @@ export const itemData = {
 };
 
 export const listData = {
+    id: 'list-1',
     items: [
         {
             id: 'test',
@@ -65,6 +66,7 @@ export const listData = {
 };
 
 export const moreListData = {
+    id: 'list-1',
     items: [
         {
             id: 'test5',
@@ -98,17 +100,6 @@ export const moreListData = {
                 name: 'Bob',
                 age: 23,
             },
-        },
-        {
-            id: 'test8',
-            description: 'Test item8',
-            created: new Date('2020-01-01'),
-            count: 3,
-            createdBy: {
-                id: 'cc',
-                name: 'Calle',
-                age: 29,
-            },
-        },
+        }
     ],
 };

@@ -54,7 +54,7 @@ test('garbage collection', async () => {
     expect(objMap.size).toBe(2);
 
     await qc.run();
-    expect(objMap.size).toBe(8);
+    expect(objMap.size).toBe(9);
 
     qc._updateData(null, { error: null, isLoading: false });
     q2._updateData(null, { error: null, isLoading: false });
@@ -63,7 +63,7 @@ test('garbage collection', async () => {
     qc._updateData(listData, { error: null, isLoading: false });
     await wait();
     queryCache.removeQuery(q1);
-    expect(objMap.size).toBe(8);
+    expect(objMap.size).toBe(9);
 
     queryCache.removeQuery(qc);
     expect(objMap.size).toBe(2);
@@ -209,7 +209,7 @@ test('query more - with initial result', async () => {
 
     await q.fetchMore();
 
-    expect(q.data.items.length).toBe(8);
+    expect(q.data.items.length).toBe(7);
 });
 
 test('refetching query', async () => {

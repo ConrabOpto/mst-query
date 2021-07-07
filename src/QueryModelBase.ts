@@ -90,7 +90,7 @@ export const QueryModelBase = types
             },
             _prepareData(data: any, type?: any) {
                 type = type ?? (getType(self) as any).properties.data;
-                return merge(data, type, getEnv(self));
+                return merge(data, type, getEnv(self), true);
             },
             _updateData(data: any, status?: any) {
                 const selfAny = self as any;

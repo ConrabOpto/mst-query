@@ -1,9 +1,9 @@
 import { flow, types } from 'mobx-state-tree';
-import { createQuery, MstQueryRef } from '../../src';
-import { ItemModel } from './ItemModel';
+import { createQuery } from '../../src';
+import { ListModel } from './ListModel';
 
 export const ListQuery = createQuery('ListQuery', {
-    data: types.model({ items: types.array(MstQueryRef(ItemModel)) }),
+    data: ListModel,
     request: types.frozen(),
     env: types.frozen(),
 }).actions((self) => ({
@@ -20,7 +20,6 @@ export const ListQuery = createQuery('ListQuery', {
     fetchMore: flow(function* () {
         const next = yield* self.queryMore(self.env.api.getItems, { offset: 5 });
         const { data } = next<typeof ListQuery>();
-
         if (data?.items) {
             self.data?.items.push(...data.items);
         }
