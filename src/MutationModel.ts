@@ -1,6 +1,4 @@
 import {
-    IPatchRecorder,
-    recordPatches,
     Instance,
     getSnapshot,
     IAnyType,
@@ -23,23 +21,6 @@ export const MutationModel = QueryModelBase.named('MutationModel').extend((s) =>
         variables?: any,
         options: any = {}
     ): Promise<<T extends IAnyType>() => MutationReturn<T>> => {
-        const { optimisticUpdate } = options;
-
-        let recorder: IPatchRecorder | null = null;
-        if (optimisticUpdate) {
-            const { query, data } = optimisticUpdate;
-
-            // TODO: Re-add this when we track down the bug that onPatch is not triggered for root node
-
-            // Always cancel outgoing refetches, so that they don't overwrite our optimistic update
-            //query.abort();
-
-            const preparedData = self._prepareData(data);
-            recorder = recordPatches(query);
-            options.onMutate(preparedData);
-            recorder.stop();
-        }
-
         const opts = {
             variables,
             ...options,
@@ -48,9 +29,6 @@ export const MutationModel = QueryModelBase.named('MutationModel').extend((s) =>
         const nextSuccess = (result: any) => () => {
             self._setResult(result);
 
-            if (recorder) {
-                recorder.undo();
-            }
             self._updateData(result, { isLoading: false, error: null });
             options.onMutate?.(self.data);
             return { data: self.data, error: null, result };
@@ -58,9 +36,6 @@ export const MutationModel = QueryModelBase.named('MutationModel').extend((s) =>
         const nextError = (err: any) => () => {
             if (err instanceof DisposedError) {
                 return { data: null, error: null, result: null };
-            }
-            if (recorder) {
-                recorder.undo();
             }
             self._updateData(null, { isLoading: false, error: err });
             options.onError?.(err, self);
