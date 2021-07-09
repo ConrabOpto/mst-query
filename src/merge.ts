@@ -65,7 +65,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
         instance = modelType.create(snapshot, ctx);
         const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
         if (storedId) {
-            const key = `${modelType.name}:${id}`;
+            const key = `${modelType.name}:${storedId}`;
             objMap.set(key, instance);
         }
         return instance;

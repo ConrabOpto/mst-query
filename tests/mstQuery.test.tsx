@@ -212,6 +212,34 @@ test('query more - with initial result', async () => {
     expect(q.data.items.length).toBe(7);
 });
 
+test('model with optional identifier', async () => {
+    const customApi = {
+        ...api,
+        async getItems() {
+            const data: any = {
+                ...listData,
+            };
+            delete data.id;
+            return data;
+        },
+    };
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            env: { api: customApi },
+        });
+        q = query;
+        return <div></div>;
+    });
+    render(<Comp />);
+    
+    await q.whenIsDoneLoading();
+
+    expect(objMap.get('ListModel:optional-1')).not.toBe(undefined);
+});
+
 test('refetching query', async () => {
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
