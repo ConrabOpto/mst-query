@@ -1,7 +1,20 @@
-import { clone, getIdentifier, getRoot, getSnapshot, getType, IAnyType, Instance, isFrozenType, isIdentifierType, isStateTreeNode, protect, unprotect } from "mobx-state-tree";
-import { config } from "./config";
-import { objMap } from "./MstQueryRef";
-import { getRealTypeFromObject, getSubType, isObject } from "./Utils";
+import {
+    clone,
+    getIdentifier,
+    getRoot,
+    getSnapshot,
+    getType,
+    IAnyType,
+    Instance,
+    isFrozenType,
+    isIdentifierType,
+    isStateTreeNode,
+    protect,
+    unprotect,
+} from 'mobx-state-tree';
+import { config } from './config';
+import { objMap } from './MstQueryRef';
+import { getRealTypeFromObject, getSubType, isObject } from './Utils';
 
 let optimisticId = 1;
 
@@ -23,13 +36,13 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     if (Array.isArray(data)) {
         return data.map((d) => merge(d, getSubType(typeDef, d), ctx));
     }
-    
+
     // convert values deeply first to MST objects as much as possible
     const snapshot: any = {};
     for (const key in data) {
         snapshot[key] = merge(data[key], getRealTypeFromObject(typeDef, data, key), ctx);
     }
-    
+
     // GQL object with known type, instantiate or recycle MST object
     // Try to reuse instance.
     const modelType = getSubType(typeDef);
@@ -37,7 +50,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
 
     const key = `${modelType.name}:${id}`;
     let instance = id && objMap.get(key);
-    
+
     instance = !cloneInstances ? instance : clone(instance);
 
     if (instance) {
@@ -50,7 +63,8 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     } else if (!instance) {
         // create a new one
         instance = modelType.create(snapshot, ctx);
-        if (id) {
+        const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
+        if (storedId) {
             const key = `${modelType.name}:${id}`;
             objMap.set(key, instance);
         }
