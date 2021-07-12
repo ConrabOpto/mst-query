@@ -82,7 +82,7 @@ export function createAndRun<P extends IAnyModelType>(query: P, options: any = {
         const queries = queryCache.findAll(
             query,
             (q) => {
-                return q.options.key === key;
+                return q.__MstQueryHandler.options.key === key;
             },
             true
         );
@@ -138,7 +138,7 @@ export function create<P extends IAnyModelType>(
     const q = query.create({ data: snapshot, request, env }, config.env);
     queryCache.setQuery(q);
 
-    q._init({
+    q.__MstQueryHandler.init({
         data,
         request,
         onMutate,

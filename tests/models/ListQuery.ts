@@ -4,8 +4,6 @@ import { ListModel } from './ListModel';
 
 export const ListQuery = createQuery('ListQuery', {
     data: ListModel,
-    request: types.frozen(),
-    env: types.frozen(),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(self.env.api.getItems);
@@ -18,7 +16,9 @@ export const ListQuery = createQuery('ListQuery', {
         self.data?.items.remove(item);
     },
     fetchMore: flow(function* () {
-        const next = yield* self.queryMore(self.env.api.getItems, { offset: 5 });
+        const next = yield* self.queryMore(self.env.api.getItems, null, {
+            variables: { offset: 5 },
+        });
         const { data } = next<typeof ListQuery>();
         if (data?.items) {
             self.data?.items.push(...data.items);

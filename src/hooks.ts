@@ -36,17 +36,17 @@ export function useLazyQuery<P extends QueryReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                q._remove();
+                q.__MstQueryHandler.remove();
             }
         };
     }, []);
 
     useEffect(() => {
-        if (key && key !== q.options.key) {
+        if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                q._remove();
+                q.__MstQueryHandler.remove();
             }
         }
     }, [key]);
@@ -73,17 +73,17 @@ export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryO
     useEffect(() => {
         return () => {
             if (isStateTreeNode(q)) {
-                q._remove();
+                q.__MstQueryHandler.remove();
             }
         };
     }, []);
 
     useEffect(() => {
-        if (key && key !== q.options.key) {
+        if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                q._remove();
+                q.__MstQueryHandler.remove();
             }
             (newQuery as any).run();
         }

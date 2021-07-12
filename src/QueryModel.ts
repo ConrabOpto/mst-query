@@ -1,96 +1,29 @@
-import QueryModelBase, { QueryFnType, DisposedError } from './QueryModelBase';
-import { IAnyType, Instance, SnapshotIn, toGeneratorFunction } from 'mobx-state-tree';
-
-type QueryReturn<T extends IAnyType> = {
-    data: Instance<T>['data'];
-    error: any;
-    result: SnapshotIn<T>['data'];
-};
+import { Instance, toGeneratorFunction } from 'mobx-state-tree';
+import QueryModelBase from './QueryModelBase';
 
 export const QueryModel = QueryModelBase.named('QueryModel')
-    .volatile(() => ({
-        isRefetching: false,
-        isFetchingMore: false,
-        isFetched: false,
+    .views((self) => ({
+        get isRefetching() {
+            return self.__MstQueryHandler.isRefetching;
+        },
+        get isFetchingMore() {
+            return self.__MstQueryHandler.isFetchingMore;
+        },
+        get isFetched() {
+            return self.__MstQueryHandler.isFetched;
+        }
     }))
-    .actions((s) => {
-        const self = s as CreatedQueryModelType;
-        const query = (
-            queryFn: QueryFnType,
-            variables = {},
-            options = {}
-        ): Promise<<T extends IAnyType>() => QueryReturn<T>> => {
-            self._abortController = new AbortController();
-
-            const opts = {
-                variables,
-                ...options,
-            };
-
-            const nextSuccess = (result: any) => () => {
-                self._setResult(result);
-
-                self._updateData(result, { isLoading: false, error: null });
-                return { data: self.data, error: null, result };
-            };
-            const nextError = (err: any) => () => {
-                if (err instanceof DisposedError) {
-                    return { data: null, error: null, result: null };
-                }
-
-                self._updateData(null, { isLoading: false, error: err });
-                return { data: null, error: err, result: null };
-            };
-
-            return self._run(queryFn, opts).then(nextSuccess, nextError);
-        };
-        const queryMore = (
-            queryFn: QueryFnType,
-            variables?: any,
-            options = {}
-        ): Promise<<T extends IAnyType>() => QueryReturn<T>> => {
-            self.isFetchingMore = true;
-
-            const opts = {
-                variables,
-                ...options,
-            };
-
-            const nextSuccess = (result: any) => () => {
-                self._setResult(result);
-
-                const data = self._prepareData(result);
-                return { data, error: null, result };
-            };
-            const nextError = (err: any) => () => {
-                if (err instanceof DisposedError) {
-                    return { data: null, error: null, result: null };
-                }
-
-                return { data: null, error: err, result: null };
-            };
-
-            return self._run(queryFn, opts).then(nextSuccess, nextError);
-        };
-        const refetch = (...runParams: any): Promise<any> => {
-            self.isRefetching = true;
-
-            return self.run(...runParams);
-        };
+    .actions((self) => {
         return {
-            query: toGeneratorFunction(query),
-            queryMore: toGeneratorFunction(queryMore),
-            refetch
+            query: toGeneratorFunction(self.__MstQueryHandler.query),
+            queryMore: toGeneratorFunction(self.__MstQueryHandler.queryMore),
+            refetch: self.__MstQueryHandler.refetch,
+            __MstQueryHandlerAction(action: any) {
+                return action();
+            }
         };
     });
 
 export interface QueryModelType extends Instance<typeof QueryModel> {}
-
-type CreatedQueryModelType = QueryModelType & {
-    data: unknown;
-    request: unknown;
-    env: unknown;
-    run: any;
-};
 
 export default QueryModel;

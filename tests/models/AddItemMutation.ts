@@ -5,9 +5,7 @@ import { ListQuery } from './ListQuery';
 import { itemData } from '../data';
 
 export const AddItemMutation = createMutation('AddMutation', {
-    data: MstQueryRef(ItemModel),
-    env: types.frozen(),
-    request: types.frozen(),
+    data: MstQueryRef(ItemModel)
 }).actions((self) => ({
     run: flow(function* () {
         const query = queryCache.find(ListQuery, (q) => q.request.id === 'test');

@@ -43,7 +43,7 @@ export class QueryCache {
         let results = [];
         for (let [_, arr] of this.cache) {
             for (let query of arr) {
-                if (!includeStale && query._status === QueryStatus.Stale) {
+                if (!includeStale && query.__MstQueryHandler?.status === QueryStatus.Stale) {
                     continue;
                 }
                 if (getType(query) === queryDef && matcherFn(query)) {

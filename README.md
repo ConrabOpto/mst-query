@@ -17,7 +17,7 @@ First, create some models and a query...
 
 ```tsx
 import { flow, types } from 'mobx-state-tree';
-import { createQuery, MstQueryRef } from 'mst-query';
+import { createQuery, MstQueryRef, RequestModel } from 'mst-query';
 
 const UserModel = types.model('UserModel', {
     id: types.identifier,
@@ -38,7 +38,7 @@ const getItem = ({ id }) => {
 
 const MessageQuery = createQuery('MessageQuery', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ id: types.string })
+    request: RequestModel.props({ id: types.string }),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItem, { id: self.request.id });
@@ -148,13 +148,13 @@ A query is just a mobx-state-tree model, but with special properties, called a `
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createQuery } from 'mobx-state-tree';
+import { createQuery, RequestModel } from 'mst-query';
 import { MessageModel } from './models';
 import { getItems } from './api';
 
 const MessageListQuery = createQuery('MessageListQuery', {
     data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
-    request: types.model({ filter: types.optional(types.string, '') })
+    request: RequestModel.props({ filter: types.optional(types.string, '') }),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems, { filter: self.request.filer });
@@ -194,7 +194,7 @@ const MesssageView = observer((props) => {
         afterCreate(self) {},
         onRequestSnapshot(snapshot) {},
         key: id,
-        cacheMaxAge: 0
+        cacheMaxAge: 0,
     });
     if (error) {
         return <div>An error occured...</div>;
@@ -248,17 +248,17 @@ A lazy version of `useQuery`. This hook is useful if you have cached data and ma
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createQuery } from 'mst-query';
+import { createQuery, RequestModel } from 'mst-query';
 import { MessageModel } from './models';
 import { getItems } from './api';
 
 const MessageListQuery = createQuery('MessageListQuery', {
     data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
-    request: types.model({
+    request: RequestModel.props({
         filter: types.optional(types.string, ''),
         offset: types.number,
         limit: types.number,
-    })
+    }),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems, self.request);
@@ -306,14 +306,14 @@ const MesssageListView = observer((props) => {
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createMutation } from 'mst-query';
+import { createMutation, RequestModel } from 'mst-query';
 import { MessageModel } from './models';
 
 import { addMessage } from './api';
 
 const AddMessageMutation = createMutation('AddMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ message: types.string, userId: types.number })
+    request: RequestModel.props({ message: types.string, userId: types.number }),
 })
     .views((self) => ({
         get canRun() {
@@ -321,7 +321,7 @@ const AddMessageMutation = createMutation('AddMessage', {
         },
     }))
     .actions((self) => ({
-        run: flow(function* () {            
+        run: flow(function* () {
             const next = yield* self.mutate(addMessage, self.request);
             const { data } = next<typeof AddMessageMutation>();
 
@@ -366,14 +366,14 @@ const AddMessage = observer((props) => {
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createMutation, createOptimisticData } from 'mst-query';
+import { createMutation, createOptimisticData, RequestModel } from 'mst-query';
 import { MessageListQueries } from './queries';
 import { MessageModel } from './models';
 import { addMessage } from './api';
 
 const AddMessageMutation = createMutation('AddMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ message: types.string, userId: types.number })
+    request: RequestModel.props({ message: types.string, userId: types.number }),
 }).actions((self) => ({
     run: flow(function* () {
         const query = queryCache.find(MessageListQuery);
@@ -406,25 +406,25 @@ However, note that mobx-state-tree does not currently support mutable identifers
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createMutation, createOptimisticData } from 'mst-query';
+import { createMutation, createOptimisticData, RequestModel } from 'mst-query';
 import { MessageListQueries } from './queries';
 import { MessageModel } from './models';
 import { updateMessage } from './api';
 
 const UpdateMessageMutation = createMutation('UpdateMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ messageId: types.string, message: types.string })
+    request: RequestModel.props({ messageId: types.string, message: types.string }),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.mutate(updateMessage, self.request);
 
-        self.commitChanges();
+        self.request.commit();
     }),
     setMessage(message: string) {
-        self.request.message = message; // now `self.hasChanged` is true!
+        self.request.message = message; // now `self.request.hasChanges` is true!
     },
     restore() {
-        self.reset(); // reset request to initial state
+        self.request.reset(); // reset request to initial state
     },
 }));
 ```
@@ -492,7 +492,7 @@ export class RealtimeService {
 const realtimeService = new RealtimeService();
 
 export const NewMessageSubscription = createSubscription('NewMessageSubscription', {
-    data: MstQueryRef(MessageModel)
+    data: MstQueryRef(MessageModel),
 }).actions((self) => ({
     run() {
         self.subscribe((subscriber: Subscriber) => realtimeService.subscribe(subscriber));
@@ -551,7 +551,7 @@ import { updateMessage } from './api';
 
 const UpdateMessageMutation = createMutation('UpdateMessage', {
     data: MstQueryRef(MessageModel),
-    request: types.model({ messageId: types.string, message: types.string })
+    request: RequestModel.props({ messageId: types.string, message: types.string }),
 }).actions((self) => ({
     run: flow(function* () {
         const messageList = queryCache.find(MessageListQuery);
