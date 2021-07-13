@@ -56,6 +56,7 @@ export class MstQueryHandler {
             error: observable,
             updateData: action.bound,
             setResult: action.bound,
+            setError: action.bound,
             run: action.bound,
             query: action.bound,
             queryMore: action.bound,
@@ -185,6 +186,10 @@ export class MstQueryHandler {
 
     setResult(result: any) {
         this.result = result;
+    }
+
+    setError(error: any) {
+        this.error = error;
     }
 
     prepareData(data: any) {

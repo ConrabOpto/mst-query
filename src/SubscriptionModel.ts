@@ -1,47 +1,43 @@
 import QueryModelBase from './QueryModelBase';
-import { Instance, addDisposer, IDisposer } from 'mobx-state-tree';
+import { Instance, addDisposer } from 'mobx-state-tree';
 
-export const SubscriptionModel = QueryModelBase.named('SubscriptionModel')
-    .volatile(() => ({
-        _subscription: null as null | IDisposer,
-    }))
-    .actions((self) => {
-        return {
-            subscribe(queryFn: any, variables = {}, options = {}) {
-                const opts = {
-                    variables,
-                    ...options,
-                };
+export const SubscriptionModel = QueryModelBase.named('SubscriptionModel').actions((self) => {
+    return {
+        subscribe(queryFn: any, variables = {}, options = {}) {
+            const opts = {
+                variables,
+                ...options,
+            };
 
-                const subscriber = {
-                    next: this._next,
-                    error: this._error,
-                };
+            const subscriber = {
+                next(data: any) {
+                    const selfAny = self as any;
 
-                self._subscription = queryFn(subscriber, opts.variables, opts);
-                if (self._subscription) {
-                    addDisposer(self, self._subscription);
-                }
-            },
-            _error(error: any) {
-                self.error = error;
-            },
-            _next(data: any) {
-                if ((self as any).shouldUpdate) {
-                    const update = (self as any).shouldUpdate(data);
-                    if (!update) {
-                        return;
+                    if (selfAny.shouldUpdate) {
+                        const update = selfAny.shouldUpdate(data);
+                        if (!update) {
+                            return;
+                        }
                     }
-                }
 
-                self._updateData(data);
+                    self.__MstQueryHandler.updateData(data);
 
-                const currentData = (self as any).data;
-                (self as any).onUpdate?.(currentData, data);
-                (self as any).options?.onUpdate?.(currentData, data);
-            },
-        };
-    });
+                    const currentData = selfAny.data;
+                    selfAny.onUpdate?.(currentData, data);
+                    selfAny.options?.onUpdate?.(currentData, data);
+                },
+                error(error: any) {
+                    self.__MstQueryHandler.setError(error);
+                },
+            };
+
+            const subscription = queryFn(subscriber, opts.variables, opts);
+            if (subscription) {
+                addDisposer(self, subscription);
+            }
+        },
+    };
+});
 
 export interface SubscriptionModelType extends Instance<typeof SubscriptionModel> {}
 
