@@ -25,20 +25,32 @@ type Options<
     TEnv extends IAnyType
 > = BaseOptions<TData, TEnv> & { request?: TRequest };
 
+type QueryOptions<
+    TRequest extends IAnyType,
+    TData extends IAnyType,
+    TEnv extends IAnyType,
+    TPagination extends IAnyType
+> = Options<TRequest, TData, TEnv> & {
+    pagination?: TPagination;
+};
+
 export function createQuery<
     TRequest extends IAnyType,
     TData extends IAnyType,
-    TEnv extends IAnyType
->(name: string, options: Options<TRequest, TData, TEnv> = {}) {
+    TEnv extends IAnyType,
+    TPagination extends IAnyType
+>(name: string, options: QueryOptions<TRequest, TData, TEnv, TPagination> = {}) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
         env = types.frozen() as TypeOrFrozen<TEnv>,
+        pagination = types.frozen() as TypeOrFrozen<TPagination>,
     } = options;
     return QueryModel.named(name).props({
         data: types.maybeNull(data),
         request: request,
         env,
+        pagination,
     });
 }
 
@@ -131,16 +143,18 @@ export function create<P extends IAnyModelType>(
         onFetched,
         initialResult,
         cacheMaxAge,
+        pagination,
         key = query.name,
     } = options;
 
     const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;
-    const q = query.create({ data: snapshot, request, env }, config.env);
+    const q = query.create({ data: snapshot, request, pagination, env }, config.env);
     queryCache.setQuery(q);
 
     q.__MstQueryHandler.init({
         data,
         request,
+        pagination,
         onMutate,
         onUpdate,
         onFetched,

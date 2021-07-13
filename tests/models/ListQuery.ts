@@ -4,6 +4,7 @@ import { ListModel } from './ListModel';
 
 export const ListQuery = createQuery('ListQuery', {
     data: ListModel,
+    pagination: types.optional(types.model({ offset: types.optional(types.number, 0) }), {}),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(self.env.api.getItems);
@@ -16,9 +17,9 @@ export const ListQuery = createQuery('ListQuery', {
         self.data?.items.remove(item);
     },
     fetchMore: flow(function* () {
-        const next = yield* self.queryMore(self.env.api.getItems, null, {
-            variables: { offset: 5 },
-        });
+        self.pagination.offset += 4;
+
+        const next = yield* self.queryMore(self.env.api.getItems);
         const { data } = next<typeof ListQuery>();
         if (data?.items) {
             self.data?.items.push(...data.items);

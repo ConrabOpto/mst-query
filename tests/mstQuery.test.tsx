@@ -20,13 +20,15 @@ const api = {
     async getItem() {
         return itemData;
     },
-    async getItems({ offset = 0 } = {}) {
+    async getItems({ pagination }: any = {}) {
+        const { offset = 0 } = pagination ?? {};
         if (offset !== 0) {
             return moreListData;
         }
         return listData;
     },
-    async setDescription({ description }: any) {
+    async setDescription({ request }: any) {
+        const { description } = request;
         return {
             ...itemData,
             description,
@@ -145,30 +147,35 @@ test('useQuery', (done) => {
     }, 0);
 });
 
-// test('useQuery - with initial result', async () => {
-//     const getItem = jest.fn();
-//     const testApi = {
-//         ...api,
-//         getItem,
-//     };
+test('query more - with initial result', async () => {
+    const customApi = {
+        ...api,
+        async getItems(options: any, query: any) {
+            if (!query.isFetched) {
+                return listData;
+            }
+            return api.getItems(options);
+        },
+    };
 
-//     let q: any;
-//     const Comp = observer((props: any) => {
-//         const { query } = useQuery(ItemQuery, {
-//             request: { id: 'test' },
-//             initialResult: itemData,
-//             env: { api: testApi },
-//         });
-//         q = query;
-//         return <div></div>;
-//     });
-//     render(<Comp />);
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            initialResult: listData,
+            env: { api: customApi },
+        });
+        q = query;
+        return <div></div>;
+    });
+    render(<Comp />);
 
-//     await q.whenIsDoneLoading();
+    await when(() => !q.isLoading);
 
-//     expect(getItem).not.toBeCalled();
-//     expect(q.data.id).toBe('test');
-// });
+    await q.fetchMore();
+
+    expect(q.data.items.length).toBe(7);
+});
 
 test('useQuery - with error', (done) => {
     let err: any = null;
@@ -191,26 +198,6 @@ test('useQuery - with error', (done) => {
         expect(err).toEqual(customError);
         done();
     }, 0);
-});
-
-test('query more - with initial result', async () => {
-    let q: any;
-    const Comp = observer((props: any) => {
-        const { query } = useQuery(ListQuery, {
-            request: { id: 'test' },
-            initialResult: listData,
-            env: { api },
-        });
-        q = query;
-        return <div></div>;
-    });
-    render(<Comp />);
-
-    await when(() => !q.isLoading);
-
-    await q.fetchMore();
-
-    expect(q.data.items.length).toBe(7);
 });
 
 test('model with optional identifier', async () => {

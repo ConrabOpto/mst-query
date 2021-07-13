@@ -32,7 +32,8 @@ const MessageModel = types.model('MessageModel', {
     createdBy: MstQueryRef(UserModel),
 });
 
-const getItem = ({ id }) => {
+const getItem = ({ request }) => {
+    const { id } = request;
     return fetch('...').then((res) => res.json());
 };
 
@@ -41,7 +42,7 @@ const MessageQuery = createQuery('MessageQuery', {
     request: RequestModel.props({ id: types.string }),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield* self.query(getItem, { id: self.request.id });
+        const next = yield* self.query(getItem);
         const { data, result, error } = next<typeof MessageQuery>();
     }),
 }));
@@ -157,7 +158,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
     request: RequestModel.props({ filter: types.optional(types.string, '') }),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield* self.query(getItems, { filter: self.request.filer });
+        const next = yield* self.query(getItems);
         const { result, error, data } = next<typeof MessageListQuery>();
     }),
 }));
@@ -261,13 +262,13 @@ const MessageListQuery = createQuery('MessageListQuery', {
     }),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield* self.query(getItems, self.request);
+        const next = yield* self.query(getItems);
         next();
     }),
     fetchMore(offset: number) {
         self.request.offset = offset;
 
-        const next = yield * self.queryMore(getItems, self.request);
+        const next = yield * self.queryMore(getItems);
         const { data } = next<typeof MessageListQuery>();
 
         self.data.items.push(data.items);
@@ -322,7 +323,7 @@ const AddMessageMutation = createMutation('AddMessage', {
     }))
     .actions((self) => ({
         run: flow(function* () {
-            const next = yield* self.mutate(addMessage, self.request);
+            const next = yield* self.mutate(addMessage);
             const { data } = next<typeof AddMessageMutation>();
 
             // add new message to query
@@ -380,7 +381,7 @@ const AddMessageMutation = createMutation('AddMessage', {
         const optimistic = createOptimisticData(ItemModel, itemData);
         query?.addItem(optimistic);
 
-        const next = yield* self.mutate(addMessage, self.request);
+        const next = yield* self.mutate(addMessage);
         const { data } = next<typeof AddMessageMutation>();
 
         query?.removeItem(optimistic);
@@ -416,7 +417,7 @@ const UpdateMessageMutation = createMutation('UpdateMessage', {
     request: RequestModel.props({ messageId: types.string, message: types.string }),
 }).actions((self) => ({
     run: flow(function* () {
-        const next = yield* self.mutate(updateMessage, self.request);
+        const next = yield* self.mutate(updateMessage);
 
         self.request.commit();
     }),
@@ -534,31 +535,4 @@ const query = queryCache.find(MessageQuery);
 const queryWithId = queryCache.find(MessageQuery, (q) => q.request.id === 'message-id');
 
 const allMessageMutations = queryCache.findAll(UpdateMessageMutation, (q) => true);
-```
-
-## Extra apis
-
-### `whenIsDoneLoading`
-
-A helper to await a query or mutation if it's currently loading.
-
-```tsx
-import { types } from 'mobx-state-tree';
-import { createMutation } from 'mst-query';
-import { MessageListQueries } from './queries';
-import { MessageModel } from './models';
-import { updateMessage } from './api';
-
-const UpdateMessageMutation = createMutation('UpdateMessage', {
-    data: MstQueryRef(MessageModel),
-    request: RequestModel.props({ messageId: types.string, message: types.string }),
-}).actions((self) => ({
-    run: flow(function* () {
-        const messageList = queryCache.find(MessageListQuery);
-        yield messageList.whenIsDoneLoading();
-
-        const next = yield* self.mutate(updateMessage, self.request);
-        next();
-    }),
-}));
 ```

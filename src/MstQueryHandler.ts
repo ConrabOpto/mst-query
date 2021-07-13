@@ -1,6 +1,7 @@
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
+    getSnapshot,
     getType,
     IAnyType,
     IDisposer,
@@ -14,13 +15,26 @@ import { merge } from './merge';
 import { QueryStatus } from './UtilityTypes';
 import queryCache from './cache';
 
-export type QueryFnType = (variables: any, options: any) => Promise<any>;
-
 type QueryReturn<T extends IAnyType> = {
     data: Instance<T>['data'];
     error: any;
     result: SnapshotIn<T>['data'];
 };
+
+type Context = {
+    fetchOptions: {
+        signal: AbortSignal;
+    };
+};
+
+type QueryOptions = {
+    request?: any;
+    pagination?: any;
+    context?: Context;
+    convert?: (result: any) => any;
+};
+
+export type QueryFnType = (options: QueryOptions, query: any) => Promise<any>;
 
 export class DisposedError extends Error {}
 
@@ -75,7 +89,7 @@ export class MstQueryHandler {
         }
     }
 
-    run(queryFn: QueryFnType, options?: any) {
+    run(queryFn: QueryFnType, options: QueryOptions = {}) {
         this.abortController = new AbortController();
 
         if (!this.disposer) {
@@ -95,7 +109,12 @@ export class MstQueryHandler {
             },
         };
 
-        return queryFn(options.variables, opts).then((result: any) => {
+        const queryStatus = {
+            isFetched: this.isFetched,
+            isLoading: this.isLoading
+        };
+
+        return queryFn(opts, this.model).then((result: any) => {
             if (this.isDisposed) {
                 throw new DisposedError();
             }
@@ -108,14 +127,12 @@ export class MstQueryHandler {
 
     query(
         queryFn: QueryFnType,
-        variables = {},
-        options = {}
+        options: QueryOptions = {}
     ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
         const opts = {
-            variables,
+            ...getVariables(this.model),
             ...options,
         };
-
         return this.run(queryFn, opts).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
@@ -123,17 +140,15 @@ export class MstQueryHandler {
     }
 
     queryMore(
-        queryFn: QueryFnType,
-        variables?: any,
-        options = {}
+        queryFn: QueryFnType,        
+        options: QueryOptions = {}
     ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
         this.isFetchingMore = true;
 
         const opts = {
-            variables,
+            ...getVariables(this.model),
             ...options,
         };
-
         return this.run(queryFn, opts).then(
             (result) => this.onSuccess(result, false),
             (err) => this.onError(err, false)
@@ -156,7 +171,7 @@ export class MstQueryHandler {
             } else {
                 data = this.prepareData(result);
             }
-            
+
             this.options.onSuccess?.(data);
 
             return { data, error: null, result };
@@ -240,4 +255,19 @@ export class MstQueryHandler {
         this.onRequestSnapshotDisposer?.();
         this.toBeRemovedTimeout && clearTimeout(this.toBeRemovedTimeout);
     }
+}
+
+function getVariables(model: any) {
+    let variables: any = {};
+    if (model.request) {
+        variables.request = isStateTreeNode(model.request)
+            ? getSnapshot(model.request)
+            : model.request;
+    }
+    if (model.pagination) {
+        variables.pagination = isStateTreeNode(model.pagination)
+            ? getSnapshot(model.pagination)
+            : model.pagination;
+    }
+    return variables;
 }
