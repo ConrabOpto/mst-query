@@ -256,19 +256,18 @@ import { getItems } from './api';
 const MessageListQuery = createQuery('MessageListQuery', {
     data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
     request: RequestModel.props({
-        filter: types.optional(types.string, ''),
-        offset: types.number,
-        limit: types.number,
+        filter: types.optional(types.string, '')
     }),
+    pagination: types.model({ offset: types.number, limit: types.number }),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems);
         next();
     }),
     fetchMore(offset: number) {
-        self.request.offset = offset;
+        self.pagination.offset = offset;
 
-        const next = yield * self.queryMore(getItems);
+        const next = yield* self.queryMore(getItems);
         const { data } = next<typeof MessageListQuery>();
 
         self.data.items.push(data.items);
@@ -285,7 +284,7 @@ import { MessageListQuery } from './MessageListQuery';
 
 const MesssageListView = observer((props) => {
     const { data, isFetchingMore, query } = useQuery(MessageListQuery, {
-        request: { offset: 0, limit: 20 },
+        pagination: { offset: 0, limit: 20 },
     });
     if (isFetchingMore) {
         return <div>Is fetching more results...</div>;
@@ -403,7 +402,7 @@ However, note that mobx-state-tree does not currently support mutable identifers
 
 ## Change tracking
 
-### `hasChanged` & `commitChanges`
+### `hasChanges` & `commit`
 
 ```tsx
 import { types } from 'mobx-state-tree';
@@ -447,9 +446,9 @@ const EditMessage = observer((props) => {
                 onChange={ev => mutation.setMessage(ev.target.value)} />
             <button
                 type="button"
-                disabled={mutation.hasChanged} // hasChanged is false initially
+                disabled={mutation.request.hasChanges} // hasChanged is false initially
                 onClick={() => addMessage()}>Save</button>
-            <button type="button" onClick={() => mutation.restore()}>Reset</button>
+            <button type="button" onClick={() => mutation.request.reset()}>Reset</button>
         </div>
     );
 });

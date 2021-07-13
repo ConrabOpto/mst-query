@@ -19,7 +19,7 @@ type UseQueryOptions<P extends QueryReturnType> = Options & {
     data?: SnapshotIn<P>['data'] | IAnyModelType;
     request?: SnapshotIn<P>['request'];
     env?: SnapshotIn<P>['env'];
-    initialResult?: any;
+    pagination?: SnapshotIn<P>['pagination'];
     onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
     cacheMaxAge?: number;
 };
