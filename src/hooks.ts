@@ -118,17 +118,17 @@ export function useMutation<P extends MutationReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(m)) {
-                m._remove();
+                m.__MstQueryHandler.remove();
             }
         };
     }, []);
 
     useEffect(() => {
-        if (key && key !== m.options.key) {
+        if (key && key !== m.__MstQueryHandler.options.key) {
             const newMutation = create(query, options);
             setMutation(newMutation);
             if (isStateTreeNode(m)) {
-                m._remove();
+                m.__MstQueryHandler.remove();
             }
         }
     }, [key]);
@@ -157,17 +157,17 @@ export function useSubscription<P extends SubscriptionReturnType>(
     useEffect(() => {
         return () => {
             if (isStateTreeNode(s)) {
-                s._remove();
+                s.__MstQueryHandler.remove();
             }
         };
     }, []);
 
     useEffect(() => {
-        if (key && key !== s.options.key) {
+        if (key && key !== s.__MstQueryHandler.options.key) {
             const newSubscription = create(query, options);
             setSubscription(newSubscription);
             if (isStateTreeNode(s)) {
-                s._remove();
+                s.__MstQueryHandler.remove();
             }
             (newSubscription as any).run();
         }
