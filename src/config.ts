@@ -1,14 +1,16 @@
 type MstQueryConfig = {
     env: any;
     queryOptions: {
-        cacheMaxAge: number;
+        staleTime?: number;
+        cacheTime?: number;
     };
 };
 
 export const config: MstQueryConfig = {
     env: {},
     queryOptions: {
-        cacheMaxAge: 0,
+        staleTime: 0,
+        cacheTime: 300
     },
 };
 

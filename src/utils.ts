@@ -6,6 +6,8 @@ import {
     isArrayType,
     isReferenceType,
     isFrozenType,
+    isStateTreeNode,
+    getSnapshot,
 } from 'mobx-state-tree';
 import { isObservableArray } from 'mobx';
 
@@ -49,6 +51,10 @@ export function getSubType(t: any, data?: any): any {
     } else {
         return t;
     }
+}
+
+export function getSnapshotOrData(data: any) {
+    return isStateTreeNode(data) ? getSnapshot(data) : data;
 }
 
 function isArray(a: any) {

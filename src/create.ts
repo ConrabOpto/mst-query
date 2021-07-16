@@ -11,6 +11,7 @@ import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
 import { config } from './config';
 import queryCache from './cache';
+import { QueryStatus } from './UtilityTypes';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -85,53 +86,31 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
     });
 }
 
-export function createAndRun<P extends IAnyModelType>(query: P, options: any = {}) {
-    const { cacheMaxAge, key = query.name } = options;
+export function createAndRun<T extends IAnyModelType>(query: T, options: any = {}) {
+    const { request, data } = options;
 
-    let initialSnapshot;
-    let cachedQuery;
-    if (cacheMaxAge) {
-        const queries = queryCache.findAll(
-            query,
-            (q) => {
-                return q.__MstQueryHandler.options.key === key;
-            },
-            true
-        );
+    const cachedQuery: any = queryCache._getCachedQuery(query, request);
 
-        if (queries.length > 1) {
-            throw new Error('Pass an unique key to useQuery when using cacheMaxAge');
-        }
-
-        if (queries.length > 0) {
-            cachedQuery = queries[0];
-
-            initialSnapshot = cachedQuery ? getSnapshot(cachedQuery) : null;
-        }
+    let cachedData: any;
+    if (cachedQuery) {
+        cachedData = (getSnapshot(cachedQuery) as any).data;
     }
 
-    const data = initialSnapshot ? (initialSnapshot as any).data : null;
-    const request = initialSnapshot ? (initialSnapshot as any).request : null;
-    options.data = data ?? options.data;
-    options.request = request ?? options.request;
+    options.data = data ?? cachedData;
 
     const q = create(query, options);
 
-    if (!initialSnapshot) {
+    if (!cachedData || cachedQuery.__MstQueryHandler.status === QueryStatus.Stale) {
         q.run();
-    }
-
-    if (cachedQuery) {
-        queryCache.removeQuery(cachedQuery);
     }
 
     return q;
 }
 
-export function create<P extends IAnyModelType>(
-    query: P,
+export function create<T extends IAnyModelType>(
+    query: T,
     options: any = {}
-): Instance<P> & { run: unknown } {
+): Instance<T> & { run: unknown } {
     let {
         data,
         request,
@@ -142,7 +121,8 @@ export function create<P extends IAnyModelType>(
         afterCreate,
         onFetched,
         initialResult,
-        cacheMaxAge,
+        staleTime,
+        cacheTime,
         pagination,
         key = query.name,
     } = options;
@@ -160,7 +140,8 @@ export function create<P extends IAnyModelType>(
         onFetched,
         onRequestSnapshot,
         initialResult,
-        cacheMaxAge,
+        staleTime,
+        cacheTime,
         key: key ?? query.name,
     });
 

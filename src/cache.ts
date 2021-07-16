@@ -12,40 +12,38 @@ import { objMap } from './MstQueryRef';
 import { observable, action, makeObservable } from 'mobx';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
-import { QueryStatus, QueryType } from './UtilityTypes';
+import { QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
+import equal from '@wry/equality';
+import { getSnapshotOrData } from './Utils';
 
 export class QueryCache {
     _scheduledGc = null as null | number;
     cache = observable.map({}, { deep: false });
-    
+
     constructor() {
         makeObservable(this, {
             setQuery: action,
             removeQuery: action,
-            clear: action
+            clear: action,
         });
     }
 
-    find<P extends IAnyModelType>(
-        queryDef: P,
-        matcherFn?: (query: Instance<P>) => boolean
-    ): Instance<P> | undefined {
+    find<T extends IAnyModelType>(
+        queryDef: T,
+        matcherFn?: (query: Instance<T>) => boolean
+    ): Instance<T> | undefined {
         const matches = this.findAll(queryDef, matcherFn);
         return matches?.[0];
     }
 
-    findAll<P extends IAnyModelType>(
-        queryDef: P,
-        matcherFn: (query: Instance<P>) => boolean = () => true,
-        includeStale = false
-    ): Instance<P>[] {
+    findAll<T extends IAnyModelType>(
+        queryDef: T,
+        matcherFn: (query: Instance<T>) => boolean = () => true
+    ): Instance<T>[] {
         let results = [];
         for (let [_, arr] of this.cache) {
             for (let query of arr) {
-                if (!includeStale && query.__MstQueryHandler?.status === QueryStatus.Stale) {
-                    continue;
-                }
                 if (getType(query) === queryDef && matcherFn(query)) {
                     results.push(query);
                 }
@@ -71,6 +69,35 @@ export class QueryCache {
         destroy(query);
 
         this._runGc();
+    }
+
+    clear() {
+        for (let [, arr] of this.cache) {
+            for (let query of arr) {
+                destroy(query);
+            }
+        }
+
+        for (let [, obj] of objMap) {
+            destroy(obj);
+        }
+
+        objMap.clear();
+        this.cache.clear();
+    }
+
+    _getCachedQuery(queryDef: any, request: any) {
+        const req = getSnapshotOrData(request);
+        const queries = this.findAll(
+            queryDef,
+            (q) => equal(q.__MstQueryHandler.cachedRequest, req)
+        );
+        if (queries.length) {
+            return queries
+                .filter((q) => q.__MstQueryHandler.cachedAt)
+                .sort((a, b) => b.cachedAt - a.cachedAt)[0];
+        }
+        return null;
     }
 
     _runGc() {
@@ -101,21 +128,6 @@ export class QueryCache {
                 objMap.delete(key);
             }
         }
-    }
-
-    clear() {
-        for (let [, arr] of this.cache) {
-            for (let query of arr) {
-                destroy(query);
-            }
-        }
-
-        for (let [, obj] of objMap) {
-            destroy(obj);
-        }
-
-        objMap.clear();
-        this.cache.clear();
     }
 }
 

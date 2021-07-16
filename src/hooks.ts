@@ -21,7 +21,8 @@ type UseQueryOptions<P extends QueryReturnType> = Options & {
     env?: SnapshotIn<P>['env'];
     pagination?: SnapshotIn<P>['pagination'];
     onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
-    cacheMaxAge?: number;
+    staleTime?: number;
+    cacheTime?: number;
 };
 
 export function useLazyQuery<P extends QueryReturnType>(
@@ -79,13 +80,14 @@ export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryO
     }, []);
 
     useEffect(() => {
-        if (key && key !== q.__MstQueryHandler.options.key) {
-            const newQuery = create(query, options);
+        if (key && key !== q.
+            
+            __MstQueryHandler.options.key) {
+            const newQuery = createAndRun(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
                 q.__MstQueryHandler.remove();
             }
-            (newQuery as any).run();
         }
     }, [key]);
 

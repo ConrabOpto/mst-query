@@ -14,6 +14,7 @@ import { config } from './config';
 import { merge } from './merge';
 import { QueryStatus } from './UtilityTypes';
 import queryCache from './cache';
+import { getSnapshotOrData } from './Utils';
 
 type QueryReturn<T extends IAnyType> = {
     data: Instance<T>['data'];
@@ -55,6 +56,9 @@ export class MstQueryHandler {
     onRequestSnapshotDisposer?: IDisposer;
     abortController?: AbortController;
     toBeRemovedTimeout?: number;
+
+    cachedAt?: Date;
+    cachedRequest: any;
 
     isDisposed = false;
 
@@ -109,11 +113,6 @@ export class MstQueryHandler {
             },
         };
 
-        const queryStatus = {
-            isFetched: this.isFetched,
-            isLoading: this.isLoading
-        };
-
         return queryFn(opts, this.model).then((result: any) => {
             if (this.isDisposed) {
                 throw new DisposedError();
@@ -140,7 +139,7 @@ export class MstQueryHandler {
     }
 
     queryMore(
-        queryFn: QueryFnType,        
+        queryFn: QueryFnType,
         options: QueryOptions = {}
     ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
         this.isFetchingMore = true;
@@ -216,6 +215,8 @@ export class MstQueryHandler {
             this.model.__MstQueryHandlerAction(() => {
                 this.model.data = merge(data, this.type.properties.data, config.env);
             });
+
+            this.updateCache();
         }
         if (!this.isFetched) {
             this.isFetched = true;
@@ -235,18 +236,35 @@ export class MstQueryHandler {
         return this.model.data;
     }
 
+    updateCache() {
+        this.cachedAt = new Date();
+        this.cachedRequest = getSnapshotOrData(this.model.request);
+
+        if (this.options.staleTime) {
+            setTimeout(() => {
+                this.status = QueryStatus.Stale;
+            }, this.options.staleTime * 1000);
+        } else {
+            this.status = QueryStatus.Stale;
+        }
+    }
+
     remove() {
-        this.status = QueryStatus.Stale;
-
-        if (this.options.cacheMaxAge) {
-            this.toBeRemovedTimeout = window.setTimeout(() => {
-                queryCache.removeQuery(this.model);
-            }, this.options.cacheMaxAge * 1000);
-
+        if (this.toBeRemovedTimeout) {
             return;
         }
 
-        queryCache.removeQuery(this.model);
+        const cacheTimeMs = this.options.cacheTime * 1000;
+        const currentDate = new Date().getTime();
+        const cachedAt = this.cachedAt?.getTime() ?? 0;
+        const elapsedInMs = currentDate - cachedAt;
+        if (elapsedInMs < cacheTimeMs) {
+            this.toBeRemovedTimeout = window.setTimeout(() => {
+                queryCache.removeQuery(this.model);
+            }, cacheTimeMs - elapsedInMs);
+        } else {
+            queryCache.removeQuery(this.model);
+        }
     }
 
     onDispose() {

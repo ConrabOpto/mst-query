@@ -1,4 +1,4 @@
-import { types } from 'mobx-state-tree';
+import { Instance, types } from 'mobx-state-tree';
 import { MstQueryHandler } from './MstQueryHandler';
 
 export const QueryModelBase = types
@@ -21,5 +21,7 @@ export const QueryModelBase = types
             },
         };
     });
+
+export interface QueryModelBaseType extends Instance<typeof QueryModelBase> {}
 
 export default QueryModelBase;

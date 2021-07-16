@@ -1,9 +1,10 @@
 import { flow, types } from 'mobx-state-tree';
-import { createQuery } from '../../src';
+import { createQuery, MstQueryRef } from '../../src';
 import { ListModel } from './ListModel';
 
 export const ListQuery = createQuery('ListQuery', {
-    data: ListModel,
+    data: MstQueryRef(ListModel),
+    request: types.model({ id: types.string }),
     pagination: types.optional(types.model({ offset: types.optional(types.number, 0) }), {}),
 }).actions((self) => ({
     run: flow(function* () {
@@ -11,10 +12,10 @@ export const ListQuery = createQuery('ListQuery', {
         return next();
     }),
     addItem(item: any) {
-        self.data?.items.push(item);
+        self.data?.addItem(item);
     },
     removeItem(item: any) {
-        self.data?.items.remove(item);
+        self.data?.removeItem(item);
     },
     fetchMore: flow(function* () {
         self.pagination.offset += 4;
@@ -22,7 +23,7 @@ export const ListQuery = createQuery('ListQuery', {
         const next = yield* self.queryMore(self.env.api.getItems);
         const { data } = next<typeof ListQuery>();
         if (data?.items) {
-            self.data?.items.push(...data.items);
+            self.data?.addItems(data.items);
         }
     }),
 }));

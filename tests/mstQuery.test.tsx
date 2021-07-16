@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { createQuery, create, queryCache, MstQueryRef, createMutation, useQuery } from '../src';
-import { configure as configureMobx, reaction, when } from 'mobx';
+import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { objMap } from '../src/MstQueryRef';
 import { collectSeenIdentifiers } from '../src/cache';
 import { merge } from '../src/merge';
@@ -50,7 +50,7 @@ beforeEach(() => {
 test('garbage collection', async () => {
     const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api } });
     const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api } });
-    const qc = create(ListQuery, { env: { api } });
+    const qc = create(ListQuery, { request: { id: 'test' }, env: { api } });
 
     await q1.run();
     await q2.run();
@@ -162,7 +162,6 @@ test('query more - with initial result', async () => {
     const Comp = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            initialResult: listData,
             env: { api: customApi },
         });
         q = query;
@@ -476,7 +475,7 @@ test('findAll', () => {
     expect(queries2.length).toBe(0);
 });
 
-test('caching', async () => {
+test('caching - item', async () => {
     const getItem = jest.fn(() => Promise.resolve(itemData));
     const testApi = {
         ...api,
@@ -488,7 +487,8 @@ test('caching', async () => {
         const { query } = useQuery(ItemQuery, {
             request: { id: 'test' },
             env: { api: testApi },
-            cacheMaxAge: 1,
+            cacheTime: 1,
+            staleTime: 1,
         });
         q = query;
         return <div></div>;
@@ -498,12 +498,114 @@ test('caching', async () => {
 
     unmount();
 
-    const foundQuery = queryCache.find(ItemQuery);
-    expect(foundQuery).toBe(undefined);
-
     render(<Comp />);
     await when(() => !q.isLoading);
 
     expect(q.data.createdBy.name).toBe('Kim');
     expect(getItem).toBeCalledTimes(1);
+});
+
+test('caching - list', async () => {
+    let q1: any;
+    const Comp1 = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api },
+            staleTime: 1,
+        });
+        q1 = query;
+        return <div></div>;
+    });
+    render(<Comp1 />);
+
+    await when(() => !q1.isLoading);
+
+    await q1.fetchMore();
+
+    let q2: any;
+    const Comp2 = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api },
+            staleTime: 1,
+        });
+        q2 = query;
+        return <div></div>;
+    });
+    render(<Comp2 />);
+
+    await when(() => !q2.isLoading);
+
+    expect(q1.data.items.length).toBe(7);
+    expect(q2.data.items.length).toBe(7);
+});
+
+test('caching - reuse same key', async () => {
+    const getItems = jest.fn(() => Promise.resolve(listData));
+    const testApi = {
+        ...api,
+        getItems,
+    };
+
+    let id = observable.box('test');
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: id.get() },
+            pagination: { offset: 0 },
+            env: { api: testApi },
+            staleTime: 1,
+            key: id.get(),
+        });
+        q = query;
+        if (q.isLoading || !q.data) {
+            return <div>loading</div>;
+        }
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await when(() => !q.isLoading);
+
+    runInAction(() => id.set('test2'));
+    await when(() => !q.isLoading);
+
+    runInAction(() => id.set('test'));
+    await when(() => !q.isLoading);
+
+    expect(getItems).toBeCalledTimes(2);
+});
+
+test('caching - cache time', async () => {
+    const getItems = jest.fn(() => Promise.resolve(listData));
+    const testApi = {
+        ...api,
+        getItems,
+    };
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api: testApi },
+            cacheTime: 0.01,
+        });
+        q = query;
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await when(() => !q.isLoading);
+
+    unmount();
+
+    expect(q.__MstQueryHandler.isDisposed).toBe(false);
+
+    await wait(20);
+
+    expect(q.__MstQueryHandler.isDisposed).toBe(true);
 });

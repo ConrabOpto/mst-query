@@ -195,7 +195,7 @@ const MesssageView = observer((props) => {
         afterCreate(self) {},
         onRequestSnapshot(snapshot) {},
         key: id,
-        cacheMaxAge: 0,
+        staleTime: 0,
     });
     if (error) {
         return <div>An error occured...</div>;
@@ -211,7 +211,7 @@ The `key` argument is optional and works like putting a key prop on a React comp
 
 Note that `data`, `request` and `env` are only set on creation.
 
-The option `cacheMaxAge` controls how long we should use the cached value of this query. By default it's set to 0.
+The option `staleTime` controls how long we should use the cached value of this query. By default it's set to 0.
 
 ### `useLazyQuery`
 
