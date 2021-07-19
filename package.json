@@ -1,6 +1,6 @@
 {
     "name": "mst-query",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "description": "Query library for mobx-state-tree",
     "type": "module",
     "source": "src/index.ts",
