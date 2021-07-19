@@ -11,6 +11,9 @@ export const QueryModel = QueryModelBase.named('QueryModel')
         },
         get isFetched() {
             return self.__MstQueryHandler.isFetched;
+        },
+        get result() {
+            return self.__MstQueryHandler.result;
         }
     }))
     .actions((self) => {
