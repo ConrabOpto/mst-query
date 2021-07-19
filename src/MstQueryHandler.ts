@@ -26,6 +26,7 @@ type Context = {
     fetchOptions: {
         signal: AbortSignal;
     };
+    [key: string]: any;
 };
 
 type QueryOptions = {
