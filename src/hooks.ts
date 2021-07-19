@@ -15,19 +15,19 @@ type Options = {
     key?: string;
 };
 
-type UseQueryOptions<P extends QueryReturnType> = Options & {
-    data?: SnapshotIn<P>['data'] | IAnyModelType;
-    request?: SnapshotIn<P>['request'];
-    env?: SnapshotIn<P>['env'];
-    pagination?: SnapshotIn<P>['pagination'];
-    onFetched?: (data: Instance<P>['data'], self: Instance<P>) => void;
+type UseQueryOptions<T extends QueryReturnType> = Options & {
+    data?: SnapshotIn<T>['data'] | IAnyModelType;
+    request?: SnapshotIn<T>['request'];
+    env?: SnapshotIn<T>['env'];
+    pagination?: SnapshotIn<T>['pagination'];
+    onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     cacheTime?: number;
 };
 
-export function useLazyQuery<P extends QueryReturnType>(
-    query: P,
-    options: UseQueryOptions<P> = {}
+export function useLazyQuery<T extends QueryReturnType>(
+    query: T,
+    options: UseQueryOptions<T> = {}
 ) {
     options = mergeWithDefaultOptions('queryOptions', options);
 
@@ -65,7 +65,7 @@ export function useLazyQuery<P extends QueryReturnType>(
     };
 }
 
-export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryOptions<P> = {}) {
+export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryOptions<T> = {}) {
     options = mergeWithDefaultOptions('queryOptions', options);
 
     const { key } = options;
@@ -104,15 +104,15 @@ export function useQuery<P extends QueryReturnType>(query: P, options: UseQueryO
     };
 }
 
-type UseMutationOptions<P extends MutationReturnType> = Options & {
-    data?: SnapshotIn<P>['data'];
-    request?: SnapshotIn<P>['request'];
-    env?: SnapshotIn<P>['env'];
+type UseMutationOptions<T extends MutationReturnType> = Options & {
+    data?: SnapshotIn<T>['data'];
+    request?: SnapshotIn<T>['request'];
+    env?: SnapshotIn<T>['env'];
 };
 
-export function useMutation<P extends MutationReturnType>(
-    query: P,
-    options: UseMutationOptions<P> = {}
+export function useMutation<T extends MutationReturnType>(
+    query: T,
+    options: UseMutationOptions<T> = {}
 ) {
     const { key } = options;
     const [m, setMutation] = useState(() => create(query, options));
@@ -143,15 +143,15 @@ export function useMutation<P extends MutationReturnType>(
     return [m.run, result] as [typeof m['run'], typeof result];
 }
 
-type UseSubscriptionOptions<P extends SubscriptionReturnType> = Options & {
+type UseSubscriptionOptions<T extends SubscriptionReturnType> = Options & {
     onUpdate?: any;
-    data?: SnapshotIn<P>['data'];
-    env?: SnapshotIn<P>['env'];
+    data?: SnapshotIn<T>['data'];
+    env?: SnapshotIn<T>['env'];
 };
 
-export function useSubscription<P extends SubscriptionReturnType>(
-    query: P,
-    options: UseSubscriptionOptions<P> = {}
+export function useSubscription<T extends SubscriptionReturnType>(
+    query: T,
+    options: UseSubscriptionOptions<T> = {}
 ): Instance<SubscriptionModelType> {
     const { key } = options;
     const [s, setSubscription] = useState(() => createAndRun(query, options));
