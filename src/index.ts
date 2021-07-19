@@ -7,3 +7,4 @@ export { useQuery, useLazyQuery, useMutation, useSubscription } from './hooks';
 export { create, createQuery, createMutation, createSubscription } from './create';
 export { MstQueryRef } from './MstQueryRef';
 export { createOptimisticData } from './merge';
+export { RequestModel } from './RequestModel';
