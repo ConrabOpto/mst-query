@@ -59,7 +59,7 @@ export function createMutation<
     TRequest extends IAnyType,
     TData extends IAnyType,
     TEnv extends IAnyType
->(name: string, options: Options<TData, TRequest, TEnv> = {}) {
+>(name: string, options: Options<TRequest, TData, TEnv> = {}) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,

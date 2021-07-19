@@ -18,9 +18,7 @@ export const QueryModel = QueryModelBase.named('QueryModel')
             query: toGeneratorFunction(self.__MstQueryHandler.query),
             queryMore: toGeneratorFunction(self.__MstQueryHandler.queryMore),
             refetch: self.__MstQueryHandler.refetch,
-            __MstQueryHandlerAction(action: any) {
-                return action();
-            }
+            abort: self.__MstQueryHandler.abort
         };
     });
 

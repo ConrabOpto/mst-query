@@ -80,6 +80,7 @@ export class MstQueryHandler {
             queryMore: action.bound,
             refetch: action.bound,
             remove: action.bound,
+            abort: action.bound
         });
     }
 
