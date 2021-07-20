@@ -58,6 +58,7 @@ export class MstQueryHandler {
     abortController?: AbortController;
     toBeRemovedTimeout?: number;
 
+    cachedQueryFn: any;
     cachedAt?: Date;
     cachedRequest: any;
 
@@ -81,7 +82,7 @@ export class MstQueryHandler {
             queryMore: action.bound,
             refetch: action.bound,
             remove: action.bound,
-            abort: action.bound
+            abort: action.bound,
         });
     }
 
@@ -95,11 +96,20 @@ export class MstQueryHandler {
         }
     }
 
-    run(queryFn: QueryFnType, options: QueryOptions = {}) {
+    run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = true) {
+        this.cachedQueryFn = queryFn;
+
         this.abortController = new AbortController();
 
         if (!this.disposer) {
             this.disposer = addDisposer(this.model, () => this.onDispose());
+        }
+
+        const cachedResult = useCache && this.getDataFromCache();
+        if (cachedResult && cachedResult.status !== QueryStatus.Stale) {
+            // Update data before user call next to render cached result immediately
+            this.updateDataFromSnapshot(cachedResult.data);
+            return Promise.resolve({ cached: true, ...cachedResult });
         }
 
         this.isLoading = true;
@@ -150,7 +160,7 @@ export class MstQueryHandler {
             ...getVariables(this.model),
             ...options,
         };
-        return this.run(queryFn, opts).then(
+        return this.run(queryFn, opts, false).then(
             (result) => this.onSuccess(result, false),
             (err) => this.onError(err, false)
         );
@@ -164,6 +174,14 @@ export class MstQueryHandler {
 
     onSuccess(result: any, shouldUpdate = true) {
         return () => {
+            if (result?.cached) {
+                this.setResult(result.result);
+
+                this.options.onSuccess?.(this.model.data);
+
+                return { data: this.model.data, error: null, result: result.result };
+            }
+
             this.setResult(result);
 
             let data;
@@ -210,6 +228,38 @@ export class MstQueryHandler {
 
     prepareData(data: any) {
         return merge(data, this.type.properties.data, config.env, true);
+    }
+
+    getDataFromCache() {
+        const cachedQuery: any = queryCache._getCachedQuery(
+            this.cachedQueryFn,
+            this.type,
+            this.model.request
+        );
+        if (!cachedQuery) {
+            return null;
+        }
+
+        const cachedData = (getSnapshot(cachedQuery) as any).data;
+        return {
+            data: cachedData,
+            result: cachedQuery.result,
+            status: cachedQuery.__MstQueryHandler.status,
+        };
+    }
+
+    updateDataFromSnapshot(snapshot: any) {
+        if (snapshot) {
+            this.model.__MstQueryHandlerAction(() => {
+                this.model.data = snapshot;
+            });
+        }
+        if (!this.isFetched) {
+            this.isFetched = true;
+            this.options.onFetched?.(this.model.data, this.model);
+        }
+
+        return this.model.data;
     }
 
     updateData(data: any, status?: any) {

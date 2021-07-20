@@ -522,6 +522,7 @@ test('caching - list', async () => {
     await when(() => !q1.isLoading);
 
     await q1.fetchMore();
+    expect(q1.data.items.length).toBe(7);
 
     let q2: any;
     const Comp2 = observer((props: any) => {
@@ -577,6 +578,44 @@ test('caching - reuse same key', async () => {
     await when(() => !q.isLoading);
 
     expect(getItems).toBeCalledTimes(2);
+});
+
+test('caching - dont cache different query functions', async () => {
+    let q1: any;
+    const Comp1 = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api },
+            staleTime: 1,
+        });
+        q1 = query;
+        return <div></div>;
+    });
+    render(<Comp1 />);
+
+    await when(() => !q1.isLoading);
+
+    const differentApi = {         
+        getItems: jest.fn(() => Promise.resolve(listData))
+    };
+
+    let q2: any;
+    const Comp2 = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api: differentApi },
+            staleTime: 1,
+        });
+        q2 = query;
+        return <div></div>;
+    });
+    render(<Comp2 />);
+
+    await when(() => !q2.isLoading);
+
+    expect(differentApi.getItems).toBeCalledTimes(1);
 });
 
 test('caching - cache time', async () => {

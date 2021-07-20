@@ -87,22 +87,8 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
 }
 
 export function createAndRun<T extends IAnyModelType>(query: T, options: any = {}) {
-    const { request, data } = options;
-
-    const cachedQuery: any = queryCache._getCachedQuery(query, request);
-
-    let cachedData: any;
-    if (cachedQuery) {
-        cachedData = (getSnapshot(cachedQuery) as any).data;
-    }
-
-    options.data = data ?? cachedData;
-
     const q = create(query, options);
-
-    if (!cachedData || cachedQuery.__MstQueryHandler.status === QueryStatus.Stale) {
-        q.run();
-    }
+    q.run();
 
     return q;
 }

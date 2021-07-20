@@ -86,11 +86,13 @@ export class QueryCache {
         this.cache.clear();
     }
 
-    _getCachedQuery(queryDef: any, request: any) {
+    _getCachedQuery(queryFn: any, queryDef: any, request: any) {
         const req = getSnapshotOrData(request);
         const queries = this.findAll(
             queryDef,
-            (q) => equal(q.__MstQueryHandler.cachedRequest, req)
+            (q) =>
+                q.__MstQueryHandler.cachedQueryFn === queryFn &&
+                equal(q.__MstQueryHandler.cachedRequest, req)
         );
         if (queries.length) {
             return queries
