@@ -23,7 +23,7 @@ type QueryReturn<T extends IAnyType> = {
 };
 
 type Context = {
-    fetchOptions: {
+    fetchOptions?: {
         signal: AbortSignal;
     };
     [key: string]: any;
@@ -108,10 +108,10 @@ export class MstQueryHandler {
         const opts = {
             ...options,
             context: {
-                ...options?.context,
                 fetchOptions: {
                     signal: this.abortController.signal,
                 },
+                ...options?.context,
             },
         };
 
