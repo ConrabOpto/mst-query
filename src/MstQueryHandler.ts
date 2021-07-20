@@ -96,7 +96,7 @@ export class MstQueryHandler {
         }
     }
 
-    run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = true) {
+    run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = false) {
         this.cachedQueryFn = queryFn;
 
         this.abortController = new AbortController();
@@ -144,7 +144,7 @@ export class MstQueryHandler {
             ...getVariables(this.model),
             ...options,
         };
-        return this.run(queryFn, opts).then(
+        return this.run(queryFn, opts, true).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
@@ -160,7 +160,7 @@ export class MstQueryHandler {
             ...getVariables(this.model),
             ...options,
         };
-        return this.run(queryFn, opts, false).then(
+        return this.run(queryFn, opts).then(
             (result) => this.onSuccess(result, false),
             (err) => this.onError(err, false)
         );
