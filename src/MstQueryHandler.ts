@@ -79,6 +79,7 @@ export class MstQueryHandler {
             setError: action.bound,
             run: action.bound,
             query: action.bound,
+            mutate: action.bound,
             queryMore: action.bound,
             refetch: action.bound,
             remove: action.bound,
@@ -105,7 +106,8 @@ export class MstQueryHandler {
             this.disposer = addDisposer(this.model, () => this.onDispose());
         }
 
-        const cachedResult = useCache && this.getDataFromCache();
+        const getCachedData = useCache && !this.isRefetching;
+        const cachedResult = getCachedData && this.getDataFromCache();
         if (cachedResult) {
             // Update data before user call next to render cached result immediately
             this.updateDataFromSnapshot(cachedResult.data);
@@ -150,6 +152,20 @@ export class MstQueryHandler {
             ...options,
         };
         return this.run(queryFn, opts, true).then(
+            (result) => this.onSuccess(result),
+            (err) => this.onError(err)
+        );
+    }
+    
+    mutate(
+        queryFn: QueryFnType,
+        options: QueryOptions = {}
+    ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
+        const opts = {
+            ...getVariables(this.model),
+            ...options,
+        };
+        return this.run(queryFn, opts).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );

@@ -8,7 +8,7 @@ export const MutationModel = QueryModelBase.named('MutationModel')
         },
     }))
     .actions((self) => ({
-        mutate: toGeneratorFunction(self.__MstQueryHandler.query),
+        mutate: toGeneratorFunction(self.__MstQueryHandler.mutate),
         abort: self.__MstQueryHandler.abort,
     }));
 

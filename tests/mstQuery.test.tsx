@@ -231,12 +231,13 @@ test('refetching query', async () => {
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api },
+        staleTime: 1
     });
     await itemQuery.run();
 
     const mutation = create(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
-        env: { api },
+        env: { api }
     });
     await mutation.run();
 
