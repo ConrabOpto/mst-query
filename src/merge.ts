@@ -7,7 +7,6 @@ import {
     IAnyType,
     Instance,
     isFrozenType,
-    isIdentifierType,
     isStateTreeNode,
     protect,
     unprotect,
@@ -51,7 +50,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     const key = `${modelType.name}:${id}`;
     let instance = id && objMap.get(key);
 
-    instance = !cloneInstances ? instance : clone(instance);
+    instance = cloneInstances && instance ? clone(instance) : instance;
 
     if (instance) {
         // update existing object
