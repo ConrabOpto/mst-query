@@ -2,7 +2,6 @@
     "name": "mst-query",
     "version": "0.7.10",
     "description": "Query library for mobx-state-tree",
-    "type": "module",
     "source": "src/index.ts",
     "main": "dist/mst-query.js",
     "exports": "./dist/mst-query.modern.js",
