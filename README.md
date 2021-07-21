@@ -88,7 +88,9 @@ npm install --save mst-query mobx-state-tree
 import { configure } from 'mst-query';
 
 configureMstQuery({
-    env: { ... }
+    env: { ... },
+    staleTime: number,
+    cacheTime: number
 });
 ```
 
@@ -190,12 +192,12 @@ const MesssageView = observer((props) => {
         data: snapshot,
         request: { id },
         env,
-        initialResult: result,
         onFetched(data, self) {},
         afterCreate(self) {},
         onRequestSnapshot(snapshot) {},
         key: id,
         staleTime: 0,
+        cacheTime: 300,
     });
     if (error) {
         return <div>An error occured...</div>;
@@ -211,7 +213,7 @@ The `key` argument is optional and works like putting a key prop on a React comp
 
 Note that `data`, `request` and `env` are only set on creation.
 
-The option `staleTime` controls how long we should use the cached value of this query. By default it's set to 0.
+The options `staleTime` and `cacheTime` controls how long we should use the cached value of this query.
 
 ### `useLazyQuery`
 
@@ -256,7 +258,7 @@ import { getItems } from './api';
 const MessageListQuery = createQuery('MessageListQuery', {
     data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
     request: RequestModel.props({
-        filter: types.optional(types.string, '')
+        filter: types.optional(types.string, ''),
     }),
     pagination: types.model({ offset: types.number, limit: types.number }),
 }).actions((self) => ({
@@ -267,7 +269,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
     fetchMore(offset: number) {
         self.pagination.offset = offset;
 
-        const next = yield* self.queryMore(getItems);
+        const next = yield * self.queryMore(getItems);
         const { data } = next<typeof MessageListQuery>();
 
         self.data.items.push(data.items);
@@ -329,7 +331,7 @@ const AddMessageMutation = createMutation('AddMessage', {
             const messageList = queryCache.find(MessageListQuery);
             messageList?.addMessage(data);
 
-            self.reset(); // restore request model to initial state
+            self.request.reset(); // restore request model to initial state
         }),
         setMessage(message: string) {
             self.request.message = message;
@@ -526,6 +528,8 @@ export const MessageList: React.FC = observer(props => {
 ```
 
 ## Cache
+
+Queries are cached by model type, request arguments and query function passed to run. Stale time is how much time should pass before a cached value needs to be refetched from the server. Cache time controls how long a query will remain in the cache after it is no longer in use.
 
 ### `queryCache`
 
