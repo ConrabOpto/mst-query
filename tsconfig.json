@@ -11,7 +11,8 @@
         "alwaysStrict": true,
         "moduleResolution": "node",
         "experimentalDecorators": true,
-        "downlevelIteration": true
+        "downlevelIteration": true,
+        "esModuleInterop": true
     },
     "include": ["./src", "./tests"]
 }
