@@ -8,14 +8,14 @@ import {
     isArrayType,
     getIdentifier,
 } from 'mobx-state-tree';
-import { objMap } from './MstQueryRef';
+import equal from '@wry/equality';
 import { observable, action, makeObservable } from 'mobx';
+import { objMap } from './MstQueryRef';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
-import { QueryType } from './UtilityTypes';
 import { SubscriptionModelType } from './SubscriptionModel';
-import equal from '@wry/equality';
-import { getSnapshotOrData } from './Utils';
+import { QueryType } from './utilityTypes';
+import { getSnapshotOrData } from './utils';
 
 export class QueryCache {
     _scheduledGc = null as null | number;

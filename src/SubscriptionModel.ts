@@ -1,5 +1,5 @@
-import QueryModelBase from './QueryModelBase';
 import { Instance, addDisposer } from 'mobx-state-tree';
+import QueryModelBase from './QueryModelBase';
 
 export const SubscriptionModel = QueryModelBase.named('SubscriptionModel').actions((self) => {
     return {

@@ -1,5 +1,5 @@
 import { types, getIdentifier, IAnyComplexType } from 'mobx-state-tree';
-import { getSubType } from './Utils';
+import { getSubType } from './utils';
 
 export const objMap = new Map();
 

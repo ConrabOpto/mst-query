@@ -13,7 +13,7 @@ import {
 } from 'mobx-state-tree';
 import { config } from './config';
 import { objMap } from './MstQueryRef';
-import { getRealTypeFromObject, getSubType, isObject } from './Utils';
+import { getRealTypeFromObject, getSubType, isObject } from './utils';
 
 let optimisticId = 1;
 

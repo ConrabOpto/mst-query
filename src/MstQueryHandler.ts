@@ -12,9 +12,9 @@ import {
 } from 'mobx-state-tree';
 import { config } from './config';
 import { merge } from './merge';
-import { QueryStatus } from './UtilityTypes';
 import queryCache from './cache';
-import { getSnapshotOrData } from './Utils';
+import { QueryStatus } from './utilityTypes';
+import { getSnapshotOrData } from './utils';
 
 type QueryReturn<T extends IAnyType> = {
     data: Instance<T>['data'];
