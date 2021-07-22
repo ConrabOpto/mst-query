@@ -1,5 +1,11 @@
 Query library for mobx-state-tree
 
+<a href="https://github.com/ConrabOpto/mst-query/actions/workflows/unit-tests.yml">
+<img src="https://github.com/ConrabOpto/mst-query/actions/workflows/unit-tests.yml/badge.svg" />
+</a><a href="https://bundlephobia.com/package/mst-query" target="\_parent">
+  <img alt="" src="https://badgen.net/bundlephobia/minzip/mst-query@latest" />
+</a>
+
 # Features
 
 -   Automatic Normalization
