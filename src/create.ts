@@ -114,7 +114,6 @@ export function create<T extends IAnyModelType>(
 
     const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;
     const q = query.create({ data: snapshot, request, pagination, env }, config.env);
-    queryCache.setQuery(q);
 
     q.__MstQueryHandler.init({
         data,

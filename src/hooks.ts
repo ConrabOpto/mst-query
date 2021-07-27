@@ -4,8 +4,9 @@ import { create, createAndRun } from './create';
 import { SubscriptionModelType } from './SubscriptionModel';
 import type { QueryReturnType, MutationReturnType, SubscriptionReturnType } from './utilityTypes';
 import { config } from './config';
+import queryCache from './cache';
 
-function mergeWithDefaultOptions(key: string, options: any, ) {
+function mergeWithDefaultOptions(key: string, options: any) {
     return Object.assign({}, (config as any)[key], options);
 }
 
@@ -35,14 +36,6 @@ export function useLazyQuery<T extends QueryReturnType>(
     const [q, setQuery] = useState(() => create(query, options));
 
     useEffect(() => {
-        return () => {
-            if (isStateTreeNode(q)) {
-                q.__MstQueryHandler.remove();
-            }
-        };
-    }, []);
-
-    useEffect(() => {
         if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = create(query, options);
             setQuery(newQuery);
@@ -51,7 +44,18 @@ export function useLazyQuery<T extends QueryReturnType>(
             }
         }
     }, [key]);
- 
+
+    useEffect(() => {
+        if (q) {
+            queryCache.setQuery(q);
+        }
+        return () => {
+            if (isStateTreeNode(q)) {
+                q.__MstQueryHandler.remove();
+            }
+        };
+    }, [q]);
+
     return {
         run: q.run as typeof q['run'],
         data: q.data as typeof q['data'],
@@ -72,17 +76,18 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
+        if (q) {
+            queryCache.setQuery(q);
+        }
         return () => {
             if (isStateTreeNode(q)) {
                 q.__MstQueryHandler.remove();
             }
         };
-    }, []);
+    }, [q]);
 
     useEffect(() => {
-        if (key && key !== q.
-            
-            __MstQueryHandler.options.key) {
+        if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = createAndRun(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
@@ -118,12 +123,15 @@ export function useMutation<T extends MutationReturnType>(
     const [m, setMutation] = useState(() => create(query, options));
 
     useEffect(() => {
+        if (m) {
+            queryCache.setQuery(m);
+        }
         return () => {
             if (isStateTreeNode(m)) {
                 m.__MstQueryHandler.remove();
             }
         };
-    }, []);
+    }, [m]);
 
     useEffect(() => {
         if (key && key !== m.__MstQueryHandler.options.key) {
@@ -157,12 +165,15 @@ export function useSubscription<T extends SubscriptionReturnType>(
     const [s, setSubscription] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
+        if (s) {
+            queryCache.setQuery(s);
+        }
         return () => {
             if (isStateTreeNode(s)) {
                 s.__MstQueryHandler.remove();
             }
         };
-    }, []);
+    }, [s]);
 
     useEffect(() => {
         if (key && key !== s.__MstQueryHandler.options.key) {

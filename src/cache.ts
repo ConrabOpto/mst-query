@@ -53,7 +53,7 @@ export class QueryCache {
         return results;
     }
 
-    setQuery<T extends QueryType>(q: Instance<T>) {
+    setQuery(q: QueryModelType | MutationModelType | SubscriptionModelType) {
         const type = getType(q);
         let arr = this.cache.get(type.name);
         if (!arr) {
