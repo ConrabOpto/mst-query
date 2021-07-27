@@ -17,6 +17,10 @@ Query library for mobx-state-tree
 -   Abort Requests
 -   Optimistic Mutations
 
+# Examples
+
+* [Queries & cache](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
+
 # Basic Usage
 
 First, create some models and a query...
