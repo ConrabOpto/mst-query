@@ -2,10 +2,10 @@ import { flow } from 'mobx-state-tree';
 import { createMutation, createOptimisticData, MstQueryRef, queryCache } from '../../src';
 import { ItemModel } from './ItemModel';
 import { ListQuery } from './ListQuery';
-import { itemData } from '../data';
+import { itemData } from '../api/data';
 
 export const AddItemMutation = createMutation('AddMutation', {
-    data: MstQueryRef(ItemModel)
+    data: MstQueryRef(ItemModel),
 }).actions((self) => ({
     run: flow(function* () {
         const query = queryCache.find(ListQuery, (q) => q.request.id === 'test');

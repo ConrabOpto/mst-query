@@ -1,4 +1,4 @@
-import queryCache from './cache';
+import queryCache from './QueryCache';
 
 export type { QueryFnType } from './MstQueryHandler';
 export { queryCache };

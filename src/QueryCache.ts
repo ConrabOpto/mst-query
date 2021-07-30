@@ -7,14 +7,19 @@ import {
     getType,
     isArrayType,
     getIdentifier,
+    IAnyComplexType,
 } from 'mobx-state-tree';
 import equal from '@wry/equality';
 import { observable, action, makeObservable } from 'mobx';
-import { objMap } from './MstQueryRef';
+import { config } from './config';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { SubscriptionModelType } from './SubscriptionModel';
 import { getSnapshotOrData } from './utils';
+
+const getKey = (type: IAnyComplexType, id: string | number) => {
+    return `${type.name}:${id}`;
+};
 
 export class QueryCache {
     _scheduledGc = null as null | number;
@@ -78,11 +83,11 @@ export class QueryCache {
             }
         }
 
-        for (let [, obj] of objMap) {
-            destroy(obj);
+        for (let [, obj] of config.rootStore.models) {
+            config.rootStore.delete(getType(obj), getIdentifier(obj), obj);
         }
 
-        objMap.clear();
+        config.rootStore.models.clear();
         this.cache.clear();
     }
 
@@ -124,10 +129,10 @@ export class QueryCache {
             }
         }
 
-        for (let [key, obj] of objMap) {
-            if (!seenIdentifiers.has(key)) {
-                destroy(obj);
-                objMap.delete(key);
+        for (let [key, obj] of config.rootStore.models) {
+            const identifier = getIdentifier(obj) as string | number;
+            if (!seenIdentifiers.has(getKey(getType(obj), identifier))) {
+                config.rootStore.delete(getType(obj), key, obj);
             }
         }
     }
@@ -152,7 +157,7 @@ export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
 
     const nodeIdentifier = getIdentifier(n);
     if (nodeIdentifier) {
-        const identifier = `${t.name}:${nodeIdentifier}`;
+        const identifier = getKey(t, nodeIdentifier);
 
         if (seenIdentifiers.has(identifier)) {
             return;

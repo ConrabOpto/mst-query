@@ -100,6 +100,6 @@ export const moreListData = {
                 name: 'Bob',
                 age: 23,
             },
-        }
+        },
     ],
 };

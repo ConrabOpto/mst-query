@@ -13,7 +13,7 @@ import {
 } from 'mobx-state-tree';
 import { config } from './config';
 import { merge } from './merge';
-import queryCache from './cache';
+import queryCache from './QueryCache';
 import { QueryStatus } from './utilityTypes';
 import { getSnapshotOrData } from './utils';
 

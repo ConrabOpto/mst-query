@@ -4,7 +4,7 @@ import { create, createAndRun } from './create';
 import { SubscriptionModelType } from './SubscriptionModel';
 import type { QueryReturnType, MutationReturnType, SubscriptionReturnType } from './utilityTypes';
 import { config } from './config';
-import queryCache from './cache';
+import queryCache from './QueryCache';
 
 function mergeWithDefaultOptions(key: string, options: any) {
     return Object.assign({}, (config as any)[key], options);
