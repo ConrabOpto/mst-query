@@ -24,7 +24,7 @@ export const SubscriptionModel = QueryModelBase.named('SubscriptionModel').actio
 
                     const currentData = selfAny.data;
                     selfAny.onUpdate?.(currentData, data);
-                    selfAny.options?.onUpdate?.(currentData, data);
+                    selfAny.__MstQueryHandler.options?.onUpdate?.(currentData, data);
                 },
                 error(error: any) {
                     self.__MstQueryHandler.setError(error);
