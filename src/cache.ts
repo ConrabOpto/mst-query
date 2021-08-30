@@ -14,7 +14,7 @@ import { objMap } from './MstQueryRef';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { SubscriptionModelType } from './SubscriptionModel';
-import { QueryType } from './utilityTypes';
+import { QueryStatus } from './utilityTypes';
 import { getSnapshotOrData } from './utils';
 
 export class QueryCache {
@@ -34,16 +34,20 @@ export class QueryCache {
         matcherFn?: (query: Instance<T>) => boolean
     ): Instance<T> | undefined {
         const matches = this.findAll(queryDef, matcherFn);
-        return matches?.[0];
+        return matches[0];
     }
 
     findAll<T extends IAnyModelType>(
         queryDef: T,
-        matcherFn: (query: Instance<T>) => boolean = () => true
+        matcherFn: (query: Instance<T>) => boolean = () => true,
+        includeInactive = false
     ): Instance<T>[] {
         let results = [];
         for (let [_, arr] of this.cache) {
             for (let query of arr) {
+                if (!includeInactive && query.__MstQueryHandler.status === QueryStatus.Inactive) {
+                    continue;
+                }
                 if (getType(query) === queryDef && matcherFn(query)) {
                     results.push(query);
                 }
@@ -92,7 +96,8 @@ export class QueryCache {
             queryDef,
             (q) =>
                 q.__MstQueryHandler.cachedQueryFn === queryFn &&
-                equal(q.__MstQueryHandler.cachedRequest, req)
+                equal(q.__MstQueryHandler.cachedRequest, req),
+            true
         );
         if (queries.length) {
             return queries

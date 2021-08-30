@@ -13,5 +13,6 @@ export type QueryType = QueryModelType | MutationModelType | SubscriptionModelTy
 
 export enum QueryStatus {
     Active = 'ACTIVE',
-    Stale = 'STALE'
+    Stale = 'STALE',
+    Inactive = 'INACTIVE'
 };

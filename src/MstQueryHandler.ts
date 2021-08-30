@@ -327,6 +327,8 @@ export class MstQueryHandler {
             return;
         }
 
+        this.status = QueryStatus.Inactive;
+
         const cacheTimeMs = this.options.cacheTime * 1000;
         const currentDate = new Date().getTime();
         const cachedAt = this.cachedAt?.getTime() ?? 0;
