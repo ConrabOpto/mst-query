@@ -43,17 +43,18 @@ export class QueryCache {
         includeInactive = false
     ): Instance<T>[] {
         let results = [];
-        for (let [_, arr] of this.cache) {
-            for (let query of arr) {
-                if (!includeInactive && query.__MstQueryHandler.status === QueryStatus.Inactive) {
-                    continue;
-                }
-                if (getType(query) === queryDef && matcherFn(query)) {
-                    results.push(query);
-                }
+        const arr = this.cache.get(queryDef.name) ?? [];
+        for (let query of arr) {
+            if (!includeInactive && query.__MstQueryHandler.status === QueryStatus.Inactive) {
+                continue;
+            }
+            if (!isAlive(query)) {
+                continue;
+            }
+            if (getType(query) === queryDef && matcherFn(query)) {
+                results.push(query);
             }
         }
-
         return results;
     }
 
