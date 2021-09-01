@@ -657,3 +657,30 @@ test('caching - cache time', async () => {
 
     expect(q.__MstQueryHandler.isDisposed).toBe(true);
 });
+
+test('hook - onSuccess callback called', async () => {
+    const onSuccess = jest.fn();
+    const getItems = jest.fn(() => Promise.resolve(listData));
+    const testApi = {
+        ...api,
+        getItems,
+    };
+
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ListQuery, {
+            request: { id: 'test' },
+            pagination: { offset: 0 },
+            env: { api: testApi },
+            cacheTime: 0.01,
+            onSuccess: onSuccess
+        });
+        q = query;
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await when(() => !q.isLoading);
+    
+    expect(onSuccess).toBeCalledTimes(1);
+});

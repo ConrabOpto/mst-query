@@ -203,14 +203,14 @@ export class MstQueryHandler {
 
     onSuccess(result: any, shouldUpdate = true) {
         return () => {
-            if (!isAlive(this.model)) {
+            if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
 
             if (result?.__mst_query_cached) {
                 this.setResult(result.result);
 
-                this.options.onSuccess?.(this.model.data);
+                this.options.onSuccess?.(this.model.data, this.model);
 
                 return { data: this.model.data, error: null, result: result.result };
             }
@@ -224,7 +224,7 @@ export class MstQueryHandler {
                 data = this.prepareData(result);
             }
 
-            this.options.onSuccess?.(data);
+            this.options.onSuccess?.(data, this.model);
 
             return { data, error: null, result };
         };
@@ -232,7 +232,7 @@ export class MstQueryHandler {
 
     onError(err: any, shouldUpdate = true) {
         return () => {
-            if (!isAlive(this.model)) {
+            if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
 
@@ -244,7 +244,7 @@ export class MstQueryHandler {
                 this.updateData(null, { isLoading: false, error: err });
             }
 
-            this.options.onError?.(err);
+            this.options.onError?.(err, this.model);
 
             return { data: null, error: err, result: null };
         };

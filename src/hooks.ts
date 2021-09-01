@@ -22,6 +22,8 @@ type UseQueryOptions<T extends QueryReturnType> = Options & {
     env?: SnapshotIn<T>['env'];
     pagination?: SnapshotIn<T>['pagination'];
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     cacheTime?: number;
 };
@@ -113,6 +115,8 @@ type UseMutationOptions<T extends MutationReturnType> = Options & {
     data?: SnapshotIn<T>['data'];
     request?: SnapshotIn<T>['request'];
     env?: SnapshotIn<T>['env'];
+    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
 };
 
 export function useMutation<T extends MutationReturnType>(
