@@ -510,7 +510,6 @@ test('caching - item', async () => {
 
     render(<Comp />);
     await when(() => !q.isLoading);
-
     expect(q.data.createdBy.name).toBe('Kim');
     expect(getItem).toBeCalledTimes(1);
 });

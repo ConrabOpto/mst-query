@@ -6,6 +6,7 @@ import {
     IAnyType,
     IDisposer,
     Instance,
+    isAlive,
     isStateTreeNode,
     onSnapshot,
     SnapshotIn,
@@ -107,7 +108,7 @@ export class MstQueryHandler {
         }
 
         const getCachedData = useCache && !this.isRefetching;
-        const cachedResult = getCachedData && this.getDataFromCache();
+        const cachedResult = getCachedData ? this.getDataFromCache() : null;
         if (cachedResult) {
             // Update data before user call next to render cached result immediately
             this.updateDataFromSnapshot(cachedResult.data);
@@ -132,15 +133,22 @@ export class MstQueryHandler {
             promise = queryFn(opts, this.model);
         }
 
-        return promise.then((result: any) => {
-            if (this.isDisposed) {
-                throw new DisposedError();
-            }
-            if (options.convert) {
-                return options.convert(result);
-            }
-            return result;
-        });
+        return promise
+            .then((result: any) => {
+                if (this.isDisposed) {
+                    throw new DisposedError();
+                }
+                if (options.convert) {
+                    return options.convert(result);
+                }
+                return result;
+            })
+            .finally(() => {
+                if (cachedResult?.query.__MstQueryHandler.toBeRemovedTimeout) {
+                    queryCache.removeQuery(cachedResult.query);
+                    clearTimeout(cachedResult.query.__MstQueryHandler.toBeRemovedTimeout);
+                }
+            });
     }
 
     query(
@@ -156,7 +164,7 @@ export class MstQueryHandler {
             (err) => this.onError(err)
         );
     }
-    
+
     mutate(
         queryFn: QueryFnType,
         options: QueryOptions = {}
@@ -195,6 +203,10 @@ export class MstQueryHandler {
 
     onSuccess(result: any, shouldUpdate = true) {
         return () => {
+            if (!isAlive(this.model)) {
+                return { data: null, error: null, result: null };
+            }
+
             if (result?.__mst_query_cached) {
                 this.setResult(result.result);
 
@@ -220,6 +232,10 @@ export class MstQueryHandler {
 
     onError(err: any, shouldUpdate = true) {
         return () => {
+            if (!isAlive(this.model)) {
+                return { data: null, error: null, result: null };
+            }
+
             if (err instanceof DisposedError) {
                 return { data: null, error: null, result: null };
             }
@@ -262,10 +278,14 @@ export class MstQueryHandler {
         }
 
         const cachedData = (getSnapshot(cachedQuery) as any).data;
+        const result = cachedQuery.result;
+        const status = cachedQuery.__MstQueryHandler.status;
+
         return {
+            result,
+            status,
             data: cachedData,
-            result: cachedQuery.result,
-            status: cachedQuery.__MstQueryHandler.status,
+            query: cachedQuery,
         };
     }
 
@@ -327,8 +347,6 @@ export class MstQueryHandler {
             return;
         }
 
-        this.status = QueryStatus.Inactive;
-
         const cacheTimeMs = this.options.cacheTime * 1000;
         const currentDate = new Date().getTime();
         const cachedAt = this.cachedAt?.getTime() ?? 0;
@@ -336,6 +354,7 @@ export class MstQueryHandler {
         if (elapsedInMs < cacheTimeMs) {
             this.toBeRemovedTimeout = window.setTimeout(() => {
                 queryCache.removeQuery(this.model);
+                this.toBeRemovedTimeout = undefined;
             }, cacheTimeMs - elapsedInMs);
         } else {
             queryCache.removeQuery(this.model);
