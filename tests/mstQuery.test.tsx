@@ -25,7 +25,7 @@ const createAndCache = <T extends IAnyModelType>(
     return q;
 };
 
-const api = {
+let api = {
     async getItem() {
         return itemData;
     },
@@ -237,21 +237,28 @@ test('model with optional identifier', async () => {
 });
 
 test('refetching query', async () => {
+    const getItem = jest.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem,
+    };
     const itemQuery = createAndCache(ItemQuery, {
         request: { id: 'test' },
-        env: { api },
+        env: { api: testApi },
         staleTime: 1,
     });
     await itemQuery.run();
 
     const mutation = createAndCache(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
-        env: { api },
+        env: { api: testApi },
     });
     await mutation.run();
 
     await itemQuery.refetch();
+
     expect(itemQuery.data?.description).toBe('Test item');
+    expect(getItem).toHaveBeenCalledTimes(2);
 });
 
 test('mutation updates query (with optimistic update)', async () => {
