@@ -10,7 +10,6 @@ import QueryModel from './QueryModel';
 import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
 import { config } from './config';
-import queryCache from './cache';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 

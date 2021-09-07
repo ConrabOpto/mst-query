@@ -1,56 +1,31 @@
 import * as React from 'react';
-import { types, unprotect, applySnapshot, getSnapshot, IAnyModelType, Instance } from 'mobx-state-tree';
-import { createQuery, create, queryCache, MstQueryRef, createMutation, useQuery } from '../src';
+import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
+import {
+    createQuery,
+    queryCache,
+    MstQueryRef,
+    createMutation,
+    useQuery,
+    config,
+    configure,
+} from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
-import { objMap } from '../src/MstQueryRef';
-import { collectSeenIdentifiers } from '../src/cache';
+import { collectSeenIdentifiers } from '../src/QueryCache';
 import { merge } from '../src/merge';
 import { render } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { ListQuery } from './models/ListQuery';
-import { itemData, listData, moreListData } from './data';
+import { itemData, listData } from './api/data';
 import { SetDescriptionMutation } from './models/SetDescriptionMutation';
 import { AddItemMutation } from './models/AddItemMutation';
 import { RequestModel } from '../src/RequestModel';
+import { api } from './api/api';
+import { createAndCache, wait } from './utils';
 
-const wait = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const createAndCache = <T extends IAnyModelType>(
-    query: T,
-    options: any
-): Instance<T> & { run: unknown } => {
-    const q = create(query, options);
-    queryCache.setQuery(q);
-    return q;
-};
-
-let api = {
-    async getItem() {
-        return itemData;
-    },
-    async getItems({ pagination }: any = {}) {
-        const { offset = 0 } = pagination ?? {};
-        if (offset !== 0) {
-            return moreListData;
-        }
-        return listData;
-    },
-    async setDescription({ request }: any) {
-        const { description } = request;
-        return {
-            ...itemData,
-            description,
-        };
-    },
-    async addItem() {
-        return {
-            ...itemData,
-            id: 'add-test',
-            description: 'add',
-        };
-    },
-};
+beforeAll(() => {
+    configure({});
+});
 
 beforeEach(() => {
     queryCache.clear();
@@ -63,10 +38,10 @@ test('garbage collection', async () => {
 
     await q1.run();
     await q2.run();
-    expect(objMap.size).toBe(2);
+    expect(config.rootStore.models.size).toBe(2);
 
     await qc.run();
-    expect(objMap.size).toBe(9);
+    expect(config.rootStore.models.size).toBe(9);
 
     qc.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
     q2.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
@@ -75,13 +50,13 @@ test('garbage collection', async () => {
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
     queryCache.removeQuery(q1);
-    expect(objMap.size).toBe(9);
+    expect(config.rootStore.models.size).toBe(9);
 
     queryCache.removeQuery(qc);
-    expect(objMap.size).toBe(2);
+    expect(config.rootStore.models.size).toBe(2);
 
     queryCache.removeQuery(q2);
-    expect(objMap.size).toBe(0);
+    expect(config.rootStore.models.size).toBe(0);
 });
 
 test('gc - only walk model props', () => {
@@ -233,7 +208,7 @@ test('model with optional identifier', async () => {
 
     await when(() => !q.isLoading);
 
-    expect(objMap.get('ListModel:optional-1')).not.toBe(undefined);
+    expect(config.rootStore.models.get('ListModel:optional-1')).not.toBe(undefined);
 });
 
 test('refetching query', async () => {
@@ -680,7 +655,7 @@ test('hook - onSuccess callback called', async () => {
             pagination: { offset: 0 },
             env: { api: testApi },
             cacheTime: 0.01,
-            onSuccess: onSuccess
+            onSuccess: onSuccess,
         });
         q = query;
         return <div></div>;
@@ -688,6 +663,6 @@ test('hook - onSuccess callback called', async () => {
 
     const { unmount } = render(<Comp />);
     await when(() => !q.isLoading);
-    
+
     expect(onSuccess).toBeCalledTimes(1);
 });

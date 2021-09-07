@@ -12,7 +12,6 @@ import {
     unprotect,
 } from 'mobx-state-tree';
 import { config } from './config';
-import { objMap } from './MstQueryRef';
 import { getRealTypeFromObject, getSubType, isObject } from './utils';
 
 let optimisticId = 1;
@@ -47,8 +46,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     const modelType = getSubType(typeDef);
     const id = data[modelType.identifierAttribute];
 
-    const key = `${modelType.name}:${id}`;
-    let instance = id && objMap.get(key);
+    let instance = id && config.rootStore.get(modelType, id);
 
     instance = cloneInstances && instance ? clone(instance) : instance;
 
@@ -64,8 +62,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
         instance = modelType.create(snapshot, ctx);
         const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
         if (storedId) {
-            const key = `${modelType.name}:${storedId}`;
-            objMap.set(key, instance);
+            config.rootStore.put(modelType, storedId, instance);
         }
         return instance;
     }
