@@ -1,20 +1,21 @@
 import equal from '@wry/equality';
+import { observable } from 'mobx';
 import { applySnapshot, getSnapshot, types } from 'mobx-state-tree';
 
 export const RequestModel = types.model('RequestModel', {}).extend((self) => {
-    let storedSnapshot: any = getSnapshot(self);
+    let storedSnapshot: any = observable.box(getSnapshot(self));
     return {
         views: {
             get hasChanges() {
-                return !equal(storedSnapshot, getSnapshot(self));
+                return !equal(storedSnapshot.get(), getSnapshot(self));
             },
         },
         actions: {
             commit() {
-                storedSnapshot = getSnapshot(self);
+                storedSnapshot.set(getSnapshot(self));
             },
             reset() {
-                applySnapshot(self, storedSnapshot);
+                applySnapshot(self, storedSnapshot.get());
                 this.commit();
             },
         },
