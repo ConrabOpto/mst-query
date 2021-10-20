@@ -8,6 +8,7 @@ import { createAndCache, wait } from './utils';
 import { RootStore } from './models/RootStore';
 import { itemData, listData } from './api/data';
 import { ItemQuery } from './models/ItemQuery';
+import { models } from '../src/QueryCache';
 
 beforeAll(() => {
     const env = {};
@@ -63,7 +64,7 @@ test('garbage collection', async () => {
     expect(config.rootStore.userStore.users.size).toBe(4);
     expect(config.rootStore.listStore.lists.size).toBe(1);
 
-    expect(config.rootStore.models.size).toBe(9);
+    expect(models.size).toBe(9);
 
     qc.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
     q2.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
@@ -72,11 +73,11 @@ test('garbage collection', async () => {
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
     queryCache.removeQuery(q1);
-    expect(config.rootStore.models.size).toBe(9);
+    expect(models.size).toBe(9);
 
     queryCache.removeQuery(qc);
-    expect(config.rootStore.models.size).toBe(2);
+    expect(models.size).toBe(2);
 
     queryCache.removeQuery(q2);
-    expect(config.rootStore.models.size).toBe(0);
+    expect(models.size).toBe(0);
 });

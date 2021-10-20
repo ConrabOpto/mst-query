@@ -19,7 +19,7 @@ Query library for mobx-state-tree
 
 # Examples
 
-* [Queries & cache](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
+-   [Queries & cache](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
 
 # Basic Usage
 
@@ -95,38 +95,21 @@ npm install --save mst-query mobx-state-tree
 ## Configuration
 
 ```ts
-import { configure } from 'mst-query';
+import { configure, createModelStore, createRootStore } from 'mst-query';
+
+// Creating a root store for holding your models is recommended (but optional)
+const RootStore = createRootStore({
+    messageStore: createModelStore({ messages: types.map(MessageModel) }),
+    userStore: createModelStore({ users: types.map(UserModel) }),
+});
 
 configureMstQuery({
-    env: { ... },
+    env,
+    rootStore: RootStore.create({}, env),
     staleTime: number,
-    cacheTime: number
+    cacheTime: number,
 });
 ```
-
-## Concepts
-
-A key concept in mobx-state-tree is a single, centralized state container that holds the entire state of our app. This keeps our business logic in one place, allowing our components to mostly focus on rendering.
-
-But there are a couple of trade offs to consider.
-
--   **The RootStore needs knowledge of all our models**
-
-    In a typical mobx-state-tree app, there's a root store that holds references to every model, split into multiple domain stores. If you want to support code splitting your models, you need to break up your root store into multiple instances. This is bad for the user that only utilizes a small portion of our app. Also if the model bundle is large, it slows down the startup time for all users.
-
-    In contrast, mst-query only needs knowledge of the models relevant for the current query.
-
--   **Unused data lives in the store forever**
-
-    Most applications problaby don't manage enough data for memory usage to be much of an issue. But consider an app with thousands of complex models and high data throughput, that is also kept open for long periods of time. Such an app will become more sluggish over time as it accumulates memory.
-
-    In mst-query, unused data is automatically garbage collected.
-
--   **Normalizing data from the server is our responsibility**
-
-    Normalizing remote data and putting it in the correct store can be tedious and error prone. Especially if you have a complex backend schema with deep connections between models.
-
-    A key feature of mst-query is automatic data normalization based on identifiers in our mobx-state-tree models.
 
 ## Models
 

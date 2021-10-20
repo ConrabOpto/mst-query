@@ -6,7 +6,7 @@ export const MstQueryRef = <IT extends IAnyComplexType>(type: IT) =>
     types.reference(type, {
         get(id) {
             const t = getSubType(type);
-            return config.rootStore.get(t, id) ?? id;
+            return config.rootStore.__MstQueryAction('get', t, id) ?? id;
         },
         set(value) {
             const id = getIdentifier(value)!;

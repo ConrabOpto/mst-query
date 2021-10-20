@@ -1,3 +1,4 @@
+import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
@@ -268,7 +269,7 @@ export class MstQueryHandler {
     }
 
     getDataFromCache() {
-        const cachedQuery: any = queryCache._getCachedQuery(
+        const cachedQuery: any = getCachedQuery(
             this.cachedQueryFn,
             this.type,
             this.model.request
@@ -367,6 +368,22 @@ export class MstQueryHandler {
         this.onRequestSnapshotDisposer?.();
         this.toBeRemovedTimeout && clearTimeout(this.toBeRemovedTimeout);
     }
+}
+
+function getCachedQuery(queryFn: any, queryDef: any, request: any) {
+    const req = getSnapshotOrData(request);
+    const queries = queryCache.findAll(
+        queryDef,
+        (q) =>
+            q.__MstQueryHandler.cachedQueryFn === queryFn &&
+            equal(q.__MstQueryHandler.cachedRequest, req)
+    );
+    if (queries.length) {
+        return queries
+            .filter((q) => q.__MstQueryHandler.cachedAt)
+            .sort((a, b) => b.cachedAt - a.cachedAt)[0];
+    }
+    return null;
 }
 
 function getVariables(model: any) {

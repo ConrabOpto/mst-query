@@ -9,21 +9,22 @@ import {
     getIdentifier,
     IAnyComplexType,
 } from 'mobx-state-tree';
-import equal from '@wry/equality';
 import { observable, action, makeObservable } from 'mobx';
 import { config } from './config';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { SubscriptionModelType } from './SubscriptionModel';
-import { getSnapshotOrData } from './utils';
 
-const getKey = (type: IAnyComplexType, id: string | number) => {
+export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
 };
 
+export const models = new Map<string, any>();
+
+export const cache = observable.map({}, { deep: false });
+
 export class QueryCache {
-    _scheduledGc = null as null | number;
-    cache = observable.map({}, { deep: false });
+    #scheduledGc = null as null | number;
 
     constructor() {
         makeObservable(this, {
@@ -46,7 +47,7 @@ export class QueryCache {
         matcherFn: (query: Instance<T>) => boolean = () => true
     ): Instance<T>[] {
         let results = [];
-        const arr = this.cache.get(queryDef.name) ?? [];
+        const arr = cache.get(queryDef.name) ?? [];
         for (let query of arr) {
             if (!isAlive(query)) {
                 continue;
@@ -60,65 +61,49 @@ export class QueryCache {
 
     setQuery(q: QueryModelType | MutationModelType | SubscriptionModelType) {
         const type = getType(q);
-        let arr = this.cache.get(type.name);
+        let arr = cache.get(type.name);
         if (!arr) {
             arr = observable.array([], { deep: false });
-            this.cache.set(type.name, arr);
+            cache.set(type.name, arr);
         }
         arr.push(q);
     }
 
     removeQuery(query: QueryModelType | MutationModelType | SubscriptionModelType) {
         const type = getType(query);
-        this.cache.get(type.name).remove(query);
+        cache.get(type.name).remove(query);
         destroy(query);
 
-        this._runGc();
+        this.#runGc();
     }
 
     clear() {
-        for (let [, arr] of this.cache) {
+        for (let [, arr] of cache) {
             for (let query of arr) {
                 destroy(query);
             }
         }
 
-        for (let [, obj] of config.rootStore.models) {
-            config.rootStore.delete(getType(obj), getIdentifier(obj), obj);
+        for (let [, obj] of models) {
+            config.rootStore.__MstQueryAction('delete', getType(obj), getIdentifier(obj), obj);
         }
 
-        config.rootStore.models.clear();
-        this.cache.clear();
+        models.clear();
+        cache.clear();
     }
 
-    _getCachedQuery(queryFn: any, queryDef: any, request: any) {
-        const req = getSnapshotOrData(request);
-        const queries = this.findAll(
-            queryDef,
-            (q) =>
-                q.__MstQueryHandler.cachedQueryFn === queryFn &&
-                equal(q.__MstQueryHandler.cachedRequest, req)
-        );
-        if (queries.length) {
-            return queries
-                .filter((q) => q.__MstQueryHandler.cachedAt)
-                .sort((a, b) => b.cachedAt - a.cachedAt)[0];
-        }
-        return null;
-    }
-
-    _runGc() {
-        if (this._scheduledGc) {
+    #runGc() {
+        if (this.#scheduledGc) {
             return;
         }
 
         const seenIdentifiers = new Set();
-        for (let [_, arr] of this.cache) {
+        for (let [_, arr] of cache) {
             for (let query of arr) {
                 if (query.isLoading) {
-                    this._scheduledGc = window.setTimeout(() => {
-                        this._scheduledGc = null;
-                        this._runGc();
+                    this.#scheduledGc = window.setTimeout(() => {
+                        this.#scheduledGc = null;
+                        this.#runGc();
                     }, 1000);
 
                     return;
@@ -129,10 +114,11 @@ export class QueryCache {
             }
         }
 
-        for (let [key, obj] of config.rootStore.models) {
+        for (let [key, obj] of models) {
             const identifier = getIdentifier(obj) as string | number;
             if (!seenIdentifiers.has(getKey(getType(obj), identifier))) {
-                config.rootStore.delete(getType(obj), key, obj);
+                models.delete(getKey(getType(obj), getIdentifier(obj) as string));
+                config.rootStore.__MstQueryAction('delete', getType(obj), key, obj);
             }
         }
     }
