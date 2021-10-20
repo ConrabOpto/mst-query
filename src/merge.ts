@@ -64,7 +64,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
         const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
         if (storedId) {
             config.rootStore.__MstQueryAction('put', modelType, storedId, instance);
-            models.set(getKey(modelType, id), instance);
+            models.set(getKey(modelType, storedId), instance);
         }
         return instance;
     }
