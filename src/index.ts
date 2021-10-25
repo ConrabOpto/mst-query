@@ -8,3 +8,4 @@ export { create, createQuery, createMutation, createSubscription } from './creat
 export { MstQueryRef } from './MstQueryRef';
 export { createOptimisticData } from './merge';
 export { RequestModel } from './RequestModel';
+export { createRootStore, createModelStore } from './RootStore';
