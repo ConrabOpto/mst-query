@@ -11,28 +11,22 @@ const getStoreNameDefault = (typeName: string) => {
 
 type MstQueryAction = 'get' | 'put' | 'delete';
 
-export const createModelStore = <T extends ModelPropertiesDeclaration>(
-    props: T,
-    initialData = {}
-) => {
-    return types.optional(
-        types.model(props).actions((self) => ({
-            __MstQueryAction(action: MstQueryAction, id: string, instance: any) {
-                const map = self[Object.keys(props)[0]] as any;
-                switch (action) {
-                    case 'get':
-                        return map.get(id);
-                    case 'put':
-                        map.put(instance);
-                        break;
-                    case 'delete':
-                        map.delete(id);
-                        break;
-                }
-            },
-        })),
-        initialData as any
-    );
+export const createModelStore = <T extends ModelPropertiesDeclaration>(props: T) => {
+    return types.model(props).actions((self) => ({
+        __MstQueryAction(action: MstQueryAction, id: string, instance: any) {
+            const map = self[Object.keys(props)[0]] as any;
+            switch (action) {
+                case 'get':
+                    return map.get(id);
+                case 'put':
+                    map.put(instance);
+                    break;
+                case 'delete':
+                    map.delete(id);
+                    break;
+            }
+        },
+    }));
 };
 
 export const createRootStore = <T extends ModelPropertiesDeclaration>(

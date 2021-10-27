@@ -5,7 +5,7 @@ import { ListModel } from './ListModel';
 import { UserModel } from './UserModel';
 
 export const RootStore = createRootStore({
-    itemStore: createModelStore({ items: types.map(ItemModel) }),
-    userStore: createModelStore({ users: types.map(UserModel) }),
-    listStore: createModelStore({ lists: types.map(ListModel) }),
+    itemStore: types.optional(createModelStore({ items: types.map(ItemModel) }), {}),
+    userStore: types.optional(createModelStore({ users: types.map(UserModel) }), {}),
+    listStore: types.optional(createModelStore({ lists: types.map(ListModel) }), {}),
 });

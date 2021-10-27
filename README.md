@@ -99,8 +99,8 @@ import { configure, createModelStore, createRootStore } from 'mst-query';
 
 // Creating a root store for holding your models is recommended (but optional)
 const RootStore = createRootStore({
-    messageStore: createModelStore({ messages: types.map(MessageModel) }),
-    userStore: createModelStore({ users: types.map(UserModel) }),
+    messageStore: types.optional(createModelStore({ messages: types.map(MessageModel) }), {}),
+    userStore: types.optional(createModelStore({ users: types.map(UserModel) }), {}),
 });
 
 configureMstQuery({
