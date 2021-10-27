@@ -5,7 +5,8 @@ const getKey = (type: IAnyModelType, id: string | number) => {
 };
 
 const getStoreNameDefault = (typeName: string) => {
-    return `${typeName.replace(/Model$/, '').toLowerCase()}Store`;
+    const str = typeName.replace(/Model$/, '');
+    return `${str[0].toLowerCase()}${str.slice(1)}Store`;
 };
 
 type MstQueryAction = 'get' | 'put' | 'delete';
