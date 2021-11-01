@@ -86,6 +86,7 @@ export class MstQueryHandler {
             refetch: action.bound,
             remove: action.bound,
             abort: action.bound,
+            updateDataFromSnapshot: action.bound,
         });
     }
 
@@ -112,7 +113,7 @@ export class MstQueryHandler {
         const cachedResult = getCachedData ? this.getDataFromCache() : null;
         if (cachedResult) {
             // Update data before user call next to render cached result immediately
-            this.updateDataFromSnapshot(cachedResult.data);
+            this.updateDataFromSnapshot(cachedResult.data, cachedResult.cachedAt);
         }
 
         let promise;
@@ -203,7 +204,7 @@ export class MstQueryHandler {
     }
 
     onSuccess(result: any, shouldUpdate = true) {
-        return (): { data: any, error: any, result: any } => {
+        return (): { data: any; error: any; result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
@@ -232,7 +233,7 @@ export class MstQueryHandler {
     }
 
     onError(err: any, shouldUpdate = true) {
-        return (): { data: any, error: any, result: any } => {
+        return (): { data: any; error: any; result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
@@ -269,11 +270,7 @@ export class MstQueryHandler {
     }
 
     getDataFromCache() {
-        const cachedQuery: any = getCachedQuery(
-            this.cachedQueryFn,
-            this.type,
-            this.model.request
-        );
+        const cachedQuery: any = getCachedQuery(this.cachedQueryFn, this.type, this.model.request);
         if (!cachedQuery) {
             return null;
         }
@@ -281,17 +278,20 @@ export class MstQueryHandler {
         const cachedData = (getSnapshot(cachedQuery) as any).data;
         const result = cachedQuery.result;
         const status = cachedQuery.__MstQueryHandler.status;
+        const cachedAt = cachedQuery.__MstQueryHandler.cachedAt;
 
         return {
             result,
             status,
+            cachedAt,
             data: cachedData,
             query: cachedQuery,
         };
     }
 
-    updateDataFromSnapshot(snapshot: any) {
+    updateDataFromSnapshot(snapshot: any, cachedAt: Date) {
         if (snapshot) {
+            this.cachedAt = cachedAt;
             this.model.__MstQueryHandlerAction(() => {
                 this.model.data = snapshot;
             });
