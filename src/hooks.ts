@@ -68,6 +68,7 @@ export function useLazyQuery<T extends QueryReturnType>(
         isRefetching: q.isRefetching,
         isFetchingMore: q.isFetchingMore,
         query: q,
+        cachedAt: q.__MstQueryHandler.cachedAt,
     };
 }
 
@@ -108,6 +109,7 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
         isRefetching: q.isRefetching,
         isFetchingMore: q.isFetchingMore,
         query: q,
+        cachedAt: q.__MstQueryHandler.cachedAt,
     };
 }
 
