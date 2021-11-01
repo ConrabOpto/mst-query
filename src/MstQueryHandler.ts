@@ -18,10 +18,10 @@ import queryCache from './QueryCache';
 import { QueryStatus } from './utilityTypes';
 import { getSnapshotOrData } from './utils';
 
-type QueryReturn<T extends IAnyType> = {
+type QueryReturn<T extends IAnyType, TResult> = {
     data: Instance<T>['data'];
     error: any;
-    result: SnapshotIn<T>['data'];
+    result: TResult;
 };
 
 type Context = {
@@ -155,7 +155,7 @@ export class MstQueryHandler {
     query(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
+    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
         const opts = {
             ...getVariables(this.model),
             ...options,
@@ -169,7 +169,7 @@ export class MstQueryHandler {
     mutate(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
+    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
         const opts = {
             ...getVariables(this.model),
             ...options,
@@ -183,7 +183,7 @@ export class MstQueryHandler {
     queryMore(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<T extends IAnyType>() => QueryReturn<T>> {
+    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
         this.isFetchingMore = true;
 
         const opts = {
@@ -203,7 +203,7 @@ export class MstQueryHandler {
     }
 
     onSuccess(result: any, shouldUpdate = true) {
-        return () => {
+        return (): { data: any, error: any, result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
@@ -232,7 +232,7 @@ export class MstQueryHandler {
     }
 
     onError(err: any, shouldUpdate = true) {
-        return () => {
+        return (): { data: any, error: any, result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
