@@ -1,5 +1,3 @@
-import * as React from 'react';
-import { config, configure, queryCache } from '../src';
 import { reaction } from 'mobx';
 import { AddItemMutation } from './models/AddItemMutation';
 import { ListQuery } from './models/ListQuery';
@@ -8,21 +6,21 @@ import { createAndCache, wait } from './utils';
 import { RootStore } from './models/RootStore';
 import { itemData, listData } from './api/data';
 import { ItemQuery } from './models/ItemQuery';
-import { models } from '../src/QueryCache';
+import { models } from '../src/QueryStore';
+import { QueryClient } from '../src/QueryClient';
 
-beforeAll(() => {
-    const env = {};
-    configure({ env, rootStore: RootStore.create({}, env) });
-});
+const env = {};
+const queryClient = new QueryClient({ rootStore: RootStore.create({}, env), env });
 
 beforeEach(() => {
-    queryCache.clear();
+    queryClient.queryStore.clear();
 });
 
 test('query & mutation', async () => {
     const listQuery = createAndCache(ListQuery, {
         request: { id: 'test' },
         env: { api },
+        queryClient
     });
 
     await listQuery.run();
@@ -39,6 +37,7 @@ test('query & mutation', async () => {
     const addItemMutation = createAndCache(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
         env: { api },
+        queryClient
     });
     await addItemMutation.run();
 
@@ -49,20 +48,20 @@ test('query & mutation', async () => {
 });
 
 test('garbage collection', async () => {
-    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api } });
-    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api } });
-    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api } });
+    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api }, queryClient });
+    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api }, queryClient });
+    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api }, queryClient });
 
     await q1.run();
     await q2.run();
-    expect(config.rootStore.itemStore.items.size).toBe(1);
-    expect(config.rootStore.userStore.users.size).toBe(1);
-    expect(config.rootStore.listStore.lists.size).toBe(0);
+    expect(queryClient.rootStore.itemStore.items.size).toBe(1);
+    expect(queryClient.rootStore.userStore.users.size).toBe(1);
+    expect(queryClient.rootStore.listStore.lists.size).toBe(0);
 
     await qc.run();
-    expect(config.rootStore.itemStore.items.size).toBe(4);
-    expect(config.rootStore.userStore.users.size).toBe(4);
-    expect(config.rootStore.listStore.lists.size).toBe(1);
+    expect(queryClient.rootStore.itemStore.items.size).toBe(4);
+    expect(queryClient.rootStore.userStore.users.size).toBe(4);
+    expect(queryClient.rootStore.listStore.lists.size).toBe(1);
 
     expect(models.size).toBe(9);
 
@@ -72,12 +71,12 @@ test('garbage collection', async () => {
     q2.__MstQueryHandler.updateData(itemData, { error: null, isLoading: false });
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
-    queryCache.removeQuery(q1);
+    queryClient.queryStore.removeQuery(q1);
     expect(models.size).toBe(9);
 
-    queryCache.removeQuery(qc);
+    queryClient.queryStore.removeQuery(qc);
     expect(models.size).toBe(2);
 
-    queryCache.removeQuery(q2);
+    queryClient.queryStore.removeQuery(q2);
     expect(models.size).toBe(0);
 });

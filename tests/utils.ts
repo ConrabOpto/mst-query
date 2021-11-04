@@ -1,12 +1,13 @@
 import { IAnyModelType, Instance } from 'mobx-state-tree';
-import { create, queryCache } from '../src';
+import { create } from '../src';
 
 export const createAndCache = <T extends IAnyModelType>(
     query: T,
     options: any
 ): Instance<T> & { run: unknown } => {
     const q = create(query, options);
-    queryCache.setQuery(q);
+    const { queryClient } = options;
+    queryClient.queryStore.setQuery(q);
     return q;
 };
 

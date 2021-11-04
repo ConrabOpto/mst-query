@@ -1,13 +1,13 @@
 import { IAnyModelType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import { SubscriptionModelType } from './SubscriptionModel';
 import type { QueryReturnType, MutationReturnType, SubscriptionReturnType } from './utilityTypes';
-import { config } from './config';
-import queryCache from './QueryCache';
+import { Context } from './QueryClientProvider';
+import { QueryClient } from './QueryClient';
 
-function mergeWithDefaultOptions(key: string, options: any) {
-    return Object.assign({}, (config as any)[key], options);
+function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
+    return Object.assign({ queryClient }, (queryClient.config as any)[key], options);
 }
 
 type Options = {
@@ -32,7 +32,8 @@ export function useLazyQuery<T extends QueryReturnType>(
     query: T,
     options: UseQueryOptions<T> = {}
 ) {
-    options = mergeWithDefaultOptions('queryOptions', options);
+    const queryClient = useContext(Context)! as QueryClient<any>;
+    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     const { key } = options;
     const [q, setQuery] = useState(() => create(query, options));
@@ -49,7 +50,7 @@ export function useLazyQuery<T extends QueryReturnType>(
 
     useEffect(() => {
         if (q) {
-            queryCache.setQuery(q);
+            queryClient.queryStore.setQuery(q);
         }
         return () => {
             if (isStateTreeNode(q)) {
@@ -73,14 +74,15 @@ export function useLazyQuery<T extends QueryReturnType>(
 }
 
 export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryOptions<T> = {}) {
-    options = mergeWithDefaultOptions('queryOptions', options);
+    const queryClient = useContext(Context)! as QueryClient<any>;
+    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     const { key } = options;
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
         if (q) {
-            queryCache.setQuery(q);
+            queryClient.queryStore.setQuery(q);
         }
         return () => {
             if (isStateTreeNode(q)) {
@@ -125,12 +127,15 @@ export function useMutation<T extends MutationReturnType>(
     query: T,
     options: UseMutationOptions<T> = {}
 ) {
+    const queryClient = useContext(Context) as QueryClient<any>;
+    options = { queryClient, ...options } as any;
+
     const { key } = options;
     const [m, setMutation] = useState(() => create(query, options));
 
     useEffect(() => {
         if (m) {
-            queryCache.setQuery(m);
+            queryClient?.queryStore.setQuery(m);
         }
         return () => {
             if (isStateTreeNode(m)) {
@@ -167,12 +172,13 @@ export function useSubscription<T extends SubscriptionReturnType>(
     query: T,
     options: UseSubscriptionOptions<T> = {}
 ): Instance<SubscriptionModelType> {
+    const queryClient = useContext(Context)! as QueryClient<any>;
     const { key } = options;
     const [s, setSubscription] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
         if (s) {
-            queryCache.setQuery(s);
+            queryClient.queryStore.setQuery(s);
         }
         return () => {
             if (isStateTreeNode(s)) {
