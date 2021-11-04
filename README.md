@@ -94,8 +94,8 @@ npm install --save mst-query mobx-state-tree
 
 ## Configuration
 
-```ts
-import { configure, createModelStore, createRootStore } from 'mst-query';
+```tsx
+import { createModelStore, createRootStore, QueryClient, createContext } from 'mst-query';
 
 // Creating a root store for holding your models is recommended (but optional)
 const RootStore = createRootStore({
@@ -103,12 +103,13 @@ const RootStore = createRootStore({
     userStore: types.optional(createModelStore({ users: types.map(UserModel) }), {}),
 });
 
-configureMstQuery({
-    env,
-    rootStore: RootStore.create({}, env),
-    staleTime: number,
-    cacheTime: number,
-});
+const env = {};
+const queryClient = new QueryClient({ rootStore: RootStore.create({}, env) });
+const { QueryClientProvider, useQueryClient, getQueryClient, createOptimisticData } = createContext(queryClient);
+
+function App() {
+    return <QueryClientProvider client={queryClient}>...</QueryClientProvider>;
+}
 ```
 
 ## Models
@@ -181,6 +182,7 @@ const MesssageView = observer((props) => {
         isRefetching,
         isFetchingMore,
         query,
+        cachedAt,
     } = useQuery(MessageQuery, {
         data: snapshot,
         request: { id },
@@ -321,7 +323,8 @@ const AddMessageMutation = createMutation('AddMessage', {
             const { data } = next<typeof AddMessageMutation>();
 
             // add new message to query
-            const messageList = queryCache.find(MessageListQuery);
+            const { queryStore } = getQueryClient(self);
+            const messageList = queryStore.find(MessageListQuery);
             messageList?.addMessage(data);
 
             self.request.reset(); // restore request model to initial state
@@ -361,7 +364,7 @@ const AddMessage = observer((props) => {
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createMutation, createOptimisticData, RequestModel } from 'mst-query';
+import { createMutation, RequestModel } from 'mst-query';
 import { MessageListQueries } from './queries';
 import { MessageModel } from './models';
 import { addMessage } from './api';
@@ -371,7 +374,8 @@ const AddMessageMutation = createMutation('AddMessage', {
     request: RequestModel.props({ message: types.string, userId: types.number }),
 }).actions((self) => ({
     run: flow(function* () {
-        const query = queryCache.find(MessageListQuery);
+        const { queryStore } = getQueryClient(self);
+        const query = queryStore.find(MessageListQuery);
         const optimistic = createOptimisticData(ItemModel, itemData);
         query?.addItem(optimistic);
 
@@ -401,7 +405,7 @@ However, note that mobx-state-tree does not currently support mutable identifers
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createMutation, createOptimisticData, RequestModel } from 'mst-query';
+import { createMutation, RequestModel } from 'mst-query';
 import { MessageListQueries } from './queries';
 import { MessageModel } from './models';
 import { updateMessage } from './api';
@@ -503,7 +507,8 @@ export const NewMessageSubscription = createSubscription('NewMessageSubscription
             return;
         }
 
-        const messageListQuery = queryCache.find(MessageListQuery);
+        const { queryStore } = getQueryClient(self);
+        const messageListQuery = queryStore.find(MessageListQuery);
         messageListQuery?.addMessage(message);
     },
 }));
@@ -524,11 +529,11 @@ export const MessageList: React.FC = observer(props => {
 
 Queries are cached by model type, request arguments and query function passed to run. Stale time is how much time should pass before a cached value needs to be refetched from the server. Cache time controls how long a query will remain in the cache after it is no longer in use.
 
-### `queryCache`
+### `queryStore`
 
 ```tsx
-const query = queryCache.find(MessageQuery);
-const queryWithId = queryCache.find(MessageQuery, (q) => q.request.id === 'message-id');
+const query = queryStore.find(MessageQuery);
+const queryWithId = queryStore.find(MessageQuery, (q) => q.request.id === 'message-id');
 
-const allMessageMutations = queryCache.findAll(UpdateMessageMutation, (q) => true);
+const allMessageMutations = queryStore.findAll(UpdateMessageMutation, (q) => true);
 ```

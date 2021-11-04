@@ -7,14 +7,11 @@ import {
     IAnyType,
     IDisposer,
     Instance,
-    isAlive,
     isStateTreeNode,
     onSnapshot,
-    SnapshotIn,
 } from 'mobx-state-tree';
-import { config } from './config';
 import { merge } from './merge';
-import queryCache from './QueryCache';
+import { QueryClient } from './QueryClient';
 import { QueryStatus } from './utilityTypes';
 import { getSnapshotOrData } from './utils';
 
@@ -54,6 +51,7 @@ export class MstQueryHandler {
     options: any;
     model: any;
     type: any;
+    queryClient!: QueryClient<any>;
 
     disposer?: IDisposer;
     onRequestSnapshotDisposer?: IDisposer;
@@ -92,6 +90,7 @@ export class MstQueryHandler {
 
     init(options: any = {}) {
         this.options = options;
+        this.queryClient = options.queryClient;
 
         if (isStateTreeNode(this.model.request)) {
             this.onRequestSnapshotDisposer =
@@ -147,7 +146,7 @@ export class MstQueryHandler {
             })
             .finally(() => {
                 if (cachedResult?.query.__MstQueryHandler.toBeRemovedTimeout) {
-                    queryCache.removeQuery(cachedResult.query);
+                    this.queryClient.queryStore.removeQuery(cachedResult.query);
                     clearTimeout(cachedResult.query.__MstQueryHandler.toBeRemovedTimeout);
                 }
             });
@@ -266,11 +265,27 @@ export class MstQueryHandler {
     }
 
     prepareData(data: any) {
-        return merge(data, this.type.properties.data, config.env, true);
+        return merge(data, this.type.properties.data, this.queryClient.config.env, true);
+    }
+
+    getCachedQuery() {
+        const req = getSnapshotOrData(this.model.request);
+        const queries = this.queryClient.queryStore.findAll(
+            this.type,
+            (q) =>
+                q.__MstQueryHandler.cachedQueryFn === this.cachedQueryFn &&
+                equal(q.__MstQueryHandler.cachedRequest, req)
+        );
+        if (queries.length) {
+            return queries
+                .filter((q) => q.__MstQueryHandler.cachedAt)
+                .sort((a, b) => b.cachedAt - a.cachedAt)[0];
+        }
+        return null;
     }
 
     getDataFromCache() {
-        const cachedQuery: any = getCachedQuery(this.cachedQueryFn, this.type, this.model.request);
+        const cachedQuery: any = this.getCachedQuery();
         if (!cachedQuery) {
             return null;
         }
@@ -307,7 +322,7 @@ export class MstQueryHandler {
     updateData(data: any, status?: any) {
         if (data) {
             this.model.__MstQueryHandlerAction(() => {
-                this.model.data = merge(data, this.type.properties.data, config.env);
+                this.model.data = merge(data, this.type.properties.data, this.queryClient.config.env);
             });
 
             this.updateCache();
@@ -354,11 +369,11 @@ export class MstQueryHandler {
         const elapsedInMs = currentDate - cachedAt;
         if (elapsedInMs < cacheTimeMs) {
             this.toBeRemovedTimeout = window.setTimeout(() => {
-                queryCache.removeQuery(this.model);
+                this.queryClient.queryStore.removeQuery(this.model);
                 this.toBeRemovedTimeout = undefined;
             }, cacheTimeMs - elapsedInMs);
         } else {
-            queryCache.removeQuery(this.model);
+            this.queryClient.queryStore.removeQuery(this.model);
         }
     }
 
@@ -368,22 +383,6 @@ export class MstQueryHandler {
         this.onRequestSnapshotDisposer?.();
         this.toBeRemovedTimeout && clearTimeout(this.toBeRemovedTimeout);
     }
-}
-
-function getCachedQuery(queryFn: any, queryDef: any, request: any) {
-    const req = getSnapshotOrData(request);
-    const queries = queryCache.findAll(
-        queryDef,
-        (q) =>
-            q.__MstQueryHandler.cachedQueryFn === queryFn &&
-            equal(q.__MstQueryHandler.cachedRequest, req)
-    );
-    if (queries.length) {
-        return queries
-            .filter((q) => q.__MstQueryHandler.cachedAt)
-            .sort((a, b) => b.cachedAt - a.cachedAt)[0];
-    }
-    return null;
 }
 
 function getVariables(model: any) {

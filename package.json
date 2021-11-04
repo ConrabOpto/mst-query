@@ -9,7 +9,7 @@
     "unpkg": "dist/mst-query.umd.js",
     "types": "dist/index.d.ts",
     "scripts": {
-        "build": "microbundle --tsconfig tsconfig.build.json --no-compress --external mobx,mobx-state-tree,react",
+        "build": "microbundle --tsconfig tsconfig.build.json --no-compress --external mobx,mobx-state-tree,react --jsx React.createElement",
         "watch": "jest --watch",
         "test": "jest"
     },

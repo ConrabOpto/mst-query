@@ -9,7 +9,6 @@ import {
 import QueryModel from './QueryModel';
 import MutationModel from './MutationModel';
 import SubscriptionModel from './SubscriptionModel';
-import { config } from './config';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -110,10 +109,11 @@ export function create<T extends IAnyModelType>(
         cacheTime,
         pagination,
         key = query.name,
+        queryClient
     } = options;
 
     const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;
-    const q = query.create({ data: snapshot, request, pagination, env }, config.env);
+    const q = query.create({ data: snapshot, request, pagination, env }, queryClient.config.env);
 
     q.__MstQueryHandler.init({
         data,
@@ -127,6 +127,7 @@ export function create<T extends IAnyModelType>(
         initialResult,
         staleTime,
         cacheTime,
+        queryClient,
         key: key ?? query.name,
     });
 

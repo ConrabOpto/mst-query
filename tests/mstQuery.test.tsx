@@ -1,18 +1,10 @@
 import * as React from 'react';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import {
-    createQuery,
-    queryCache,
-    MstQueryRef,
-    createMutation,
-    useQuery,
-    config,
-    configure,
-} from '../src';
+import { createQuery, MstQueryRef, createMutation, useQuery } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
-import { collectSeenIdentifiers } from '../src/QueryCache';
+import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
-import { render } from '@testing-library/react';
+import { render as r } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { ListQuery } from './models/ListQuery';
@@ -22,26 +14,39 @@ import { AddItemMutation } from './models/AddItemMutation';
 import { RequestModel } from '../src/RequestModel';
 import { api } from './api/api';
 import { createAndCache, wait } from './utils';
+import { QueryClient } from '../src/QueryClient';
+import { createContext } from '../src/QueryClientProvider';
+import { RootStore } from '../src/RootStore';
 
-beforeAll(() => {
-    configure({});
-});
+const env = {};
+const queryClient = new QueryClient({ rootStore: RootStore.create({}, env), env });
+const { QueryClientProvider, createOptimisticData } = createContext(queryClient);
+
+const Wrapper = ({ children }: any) => {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+};
+
+const render = (ui: React.ReactElement, options?: any) =>
+    r(ui, {
+        wrapper: Wrapper,
+        ...options,
+    });
 
 beforeEach(() => {
-    queryCache.clear();
+    queryClient.queryStore.clear();
 });
 
 test('garbage collection', async () => {
-    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api } });
-    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api } });
-    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api } });
+    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api }, queryClient });
+    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api }, queryClient });
+    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api }, queryClient });
 
     await q1.run();
     await q2.run();
-    expect(config.rootStore.models.size).toBe(2);
+    expect(queryClient.rootStore.models.size).toBe(2);
 
     await qc.run();
-    expect(config.rootStore.models.size).toBe(9);
+    expect(queryClient.rootStore.models.size).toBe(9);
 
     qc.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
     q2.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
@@ -49,14 +54,14 @@ test('garbage collection', async () => {
     q2.__MstQueryHandler.updateData(itemData, { error: null, isLoading: false });
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
-    queryCache.removeQuery(q1);
-    expect(config.rootStore.models.size).toBe(9);
+    queryClient.queryStore.removeQuery(q1);
+    expect(queryClient.rootStore.models.size).toBe(9);
 
-    queryCache.removeQuery(qc);
-    expect(config.rootStore.models.size).toBe(2);
+    queryClient.queryStore.removeQuery(qc);
+    expect(queryClient.rootStore.models.size).toBe(2);
 
-    queryCache.removeQuery(q2);
-    expect(config.rootStore.models.size).toBe(0);
+    queryClient.queryStore.removeQuery(q2);
+    expect(queryClient.rootStore.models.size).toBe(0);
 });
 
 test('gc - only walk model props', () => {
@@ -84,12 +89,14 @@ test('mutation updates domain model', async () => {
     const itemQuery = createAndCache(ItemQuery, {
         request: { id: 'test' },
         env: { api },
+        queryClient,
     });
     await itemQuery.run();
 
     const setStatusMutation = createAndCache(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
         env: { api },
+        queryClient,
     });
     await setStatusMutation.run();
     expect(itemQuery.data?.description).toBe('new');
@@ -99,6 +106,7 @@ test('isLoading state', async () => {
     const itemQuery = createAndCache(ItemQuery, {
         request: { id: 'test' },
         env: { api },
+        queryClient,
     });
     expect(itemQuery.isLoading).toBe(false);
     itemQuery.run();
@@ -208,7 +216,7 @@ test('model with optional identifier', async () => {
 
     await when(() => !q.isLoading);
 
-    expect(config.rootStore.models.get('ListModel:optional-1')).not.toBe(undefined);
+    expect(queryClient.rootStore.models.get('ListModel:optional-1')).not.toBe(undefined);
 });
 
 test('refetching query', async () => {
@@ -221,12 +229,14 @@ test('refetching query', async () => {
         request: { id: 'test' },
         env: { api: testApi },
         staleTime: 1,
+        queryClient,
     });
     await itemQuery.run();
 
     const mutation = createAndCache(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
         env: { api: testApi },
+        queryClient,
     });
     await mutation.run();
 
@@ -240,6 +250,7 @@ test('mutation updates query (with optimistic update)', async () => {
     const listQuery = createAndCache(ListQuery, {
         request: { id: 'test' },
         env: { api },
+        queryClient,
     });
 
     await listQuery.run();
@@ -256,6 +267,7 @@ test('mutation updates query (with optimistic update)', async () => {
     const addItemMutation = createAndCache(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
         env: { api },
+        queryClient,
     });
     await addItemMutation.run();
 
@@ -289,7 +301,7 @@ test('merge of date objects', () => {
             },
         },
         ModelA,
-        new Set()
+        queryClient.config.env
     );
     const result = merge(
         {
@@ -299,7 +311,7 @@ test('merge of date objects', () => {
             },
         },
         ModelA,
-        new Set()
+        queryClient.config.env
     );
     expect((getSnapshot(result) as any).changed.at).toBe(1583193600000);
 
@@ -322,18 +334,18 @@ test('deep update of object', () => {
         ref: types.maybe(MstQueryRef(ModelC)),
     });
 
-    const a = ModelA.create({});
+    const a = ModelA.create({}, queryClient.config.env);
     unprotect(a);
     const result = merge(
         { model: { a: 'banana' }, ref: { id: '1', a: 'fruit' } },
         ModelA,
-        new Set()
+        queryClient.config.env
     );
     applySnapshot(a, getSnapshot(result));
     const result2 = merge(
         { model: { a: 'banana', b: 'apple' }, ref: { id: '1', a: 'orange' } },
         ModelA,
-        new Set()
+        queryClient.config.env
     );
     applySnapshot(a, getSnapshot(result2));
 
@@ -353,7 +365,7 @@ test('merge frozen type', () => {
     const QueryModel = createQuery('FrozenQuery', {
         data: ModelWithFrozenProp,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' } });
+    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
     q.__MstQueryHandler.updateData(
         { id: 'test', frozen: { data1: 'data1', data2: 'data2' } },
         { isLoading: false, error: null }
@@ -378,7 +390,7 @@ test('replace arrays on sub properties', () => {
     const QueryModel = createQuery('FrozenQuery', {
         data: Model,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' } });
+    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
     q.__MstQueryHandler.updateData(
         { id: 'test', prop: { ids: [{ baha: 'hey' }, { baha: 'hello' }] } },
         { isLoading: false, error: null }
@@ -402,7 +414,7 @@ test('hasChanged mutation', () => {
     const MutationModel = createMutation('Mutation', {
         request: Rqst,
     });
-    const m = createAndCache(MutationModel, { request: { text: 'hi' } });
+    const m = createAndCache(MutationModel, { request: { text: 'hi' }, queryClient });
     expect(m.request.hasChanges).toBe(false);
 
     m.request.setText('hello');
@@ -429,7 +441,7 @@ test('merge with undefined data and union type', () => {
     const QueryModel = createQuery('TestQuery', {
         data: Model,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' } });
+    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
 
     expect(() =>
         q.__MstQueryHandler.updateData(
@@ -454,20 +466,22 @@ test('findAll', () => {
     const MutationModel = createMutation('Mutation', {
         request: RequestModel,
     });
-    const m = createAndCache(MutationModel, { request: { path: 'test', text: 'hi' } });
+    const m = createAndCache(MutationModel, { request: { path: 'test', text: 'hi' }, queryClient });
 
-    const queries = queryCache.findAll(MutationModel, (mutation) =>
+    const queries = queryClient.queryStore.findAll(MutationModel, (mutation) =>
         mutation.request.text.includes('h')
     );
     expect(queries.length).toBe(1);
 
-    const queries2 = queryCache.findAll(MutationModel, (mutation) =>
+    const queries2 = queryClient.queryStore.findAll(MutationModel, (mutation) =>
         mutation.request.text.includes('o')
     );
     expect(queries2.length).toBe(0);
 });
 
 test('caching - item', async () => {
+    configureMobx({ enforceActions: 'never' });
+
     const getItem = jest.fn(() => Promise.resolve(itemData));
     const testApi = {
         ...api,
@@ -485,15 +499,26 @@ test('caching - item', async () => {
         q = query;
         return <div></div>;
     });
-    const { unmount } = render(<Comp />);
+
+    let show = observable.box(true);
+    const Wrapper = observer(() => {
+        if (show.get()) {
+            return <Comp />
+        }        
+        return null;
+    });
+
+    render(<Wrapper />);
     await when(() => !q.isLoading);
 
-    unmount();
+    show.set(false);
+    await wait(0);
+    show.set(true);
 
-    render(<Comp />);
-    await when(() => !q.isLoading);
     expect(q.data.createdBy.name).toBe('Kim');
     expect(getItem).toBeCalledTimes(1);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('caching - list', async () => {
@@ -610,6 +635,8 @@ test('caching - dont cache different query functions', async () => {
 });
 
 test('caching - cache time', async () => {
+    configureMobx({ enforceActions: 'never' });
+
     const getItems = jest.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
@@ -628,16 +655,25 @@ test('caching - cache time', async () => {
         return <div></div>;
     });
 
-    const { unmount } = render(<Comp />);
+    let show = observable.box(true);
+    const Wrapper = observer(() => {
+        if (show.get()) {
+            return <Comp />
+        }
+        return null;
+    });
+    
+    render(<Wrapper />);
     await when(() => !q.isLoading);
 
-    unmount();
-
+    show.set(false);
     expect(q.__MstQueryHandler.isDisposed).toBe(false);
 
     await wait(20);
 
     expect(q.__MstQueryHandler.isDisposed).toBe(true);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('hook - onSuccess callback called', async () => {
@@ -661,7 +697,7 @@ test('hook - onSuccess callback called', async () => {
         return <div></div>;
     });
 
-    const { unmount } = render(<Comp />);
+    render(<Comp />);
     await when(() => !q.isLoading);
 
     expect(onSuccess).toBeCalledTimes(1);

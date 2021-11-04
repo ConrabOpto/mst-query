@@ -10,10 +10,10 @@ import {
     IAnyComplexType,
 } from 'mobx-state-tree';
 import { observable, action, makeObservable } from 'mobx';
-import { config } from './config';
 import { QueryModelType } from './QueryModel';
 import { MutationModelType } from './MutationModel';
 import { SubscriptionModelType } from './SubscriptionModel';
+import { QueryClient } from './QueryClient';
 
 export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
@@ -23,15 +23,18 @@ export const models = new Map<string, any>();
 
 export const cache = observable.map({}, { deep: false });
 
-export class QueryCache {
+export class QueryStore {
     #scheduledGc = null as null | number;
+    #queryClient: QueryClient<any>;
 
-    constructor() {
+    constructor(queryClient: QueryClient<any>) {
         makeObservable(this, {
             setQuery: action,
             removeQuery: action,
             clear: action,
         });
+
+        this.#queryClient = queryClient;
     }
 
     find<T extends IAnyModelType>(
@@ -71,7 +74,7 @@ export class QueryCache {
 
     removeQuery(query: QueryModelType | MutationModelType | SubscriptionModelType) {
         const type = getType(query);
-        cache.get(type.name).remove(query);
+        cache.get(type.name)?.remove(query);
         destroy(query);
 
         this.#runGc();
@@ -85,7 +88,7 @@ export class QueryCache {
         }
 
         for (let [, obj] of models) {
-            config.rootStore.__MstQueryAction('delete', getType(obj), getIdentifier(obj), obj);
+            this.#queryClient.rootStore.__MstQueryAction('delete', getType(obj), getIdentifier(obj), obj);
         }
 
         models.clear();
@@ -118,7 +121,7 @@ export class QueryCache {
             const identifier = getIdentifier(obj) as string | number;
             if (!seenIdentifiers.has(getKey(getType(obj), identifier))) {
                 models.delete(getKey(getType(obj), getIdentifier(obj) as string));
-                config.rootStore.__MstQueryAction('delete', getType(obj), key, obj);
+                this.#queryClient.rootStore.__MstQueryAction('delete', getType(obj), key, obj);
             }
         }
     }
@@ -156,5 +159,3 @@ export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
         collectSeenIdentifiers(n[key], seenIdentifiers);
     }
 }
-
-export default new QueryCache();
