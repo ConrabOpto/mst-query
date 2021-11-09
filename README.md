@@ -80,10 +80,6 @@ const MesssageView = observer((props) => {
 });
 ```
 
-# Current state
-
-The current version of this library is a beta release, and the api might still change between releases. However, we don't expect any major rewrites and future upgrades should be fairly straightforward.
-
 # Documentation
 
 ## Installation
