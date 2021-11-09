@@ -12,14 +12,13 @@ export const Context = React.createContext<QueryClient<any> | undefined>(undefin
 
 export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>) {
     const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({ client, env, children }) => {
+        const [c] = React.useState(() => client.init(env));
         React.useEffect(() => {
-            client.init(env);
-
             return () => {
                 client.queryStore.clear();
             };
         }, [client]);
-        return <Context.Provider value={client}>{children}</Context.Provider>;
+        return <Context.Provider value={c}>{children}</Context.Provider>;
     };
     const useQueryClient = () => {
         const qc = React.useContext(Context) as QueryClient<T>;

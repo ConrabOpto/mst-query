@@ -39,16 +39,18 @@ export class QueryClient<T extends IAnyModelType> {
 
     init(env = {}) {
         if (this.#initialized) {
-            return;
+            return this;
         }
 
         this.config.env = env;
         this.config.env.queryClient = this;
 
         this.rootStore = this.config.RootStore
-            ? this.config.RootStore.create({}, env)
+            ? this.config.RootStore.create({}, this.config.env)
             : (RootStore.create({}, this.config.env) as Instance<T>);
 
         this.#initialized = true;
+
+        return this;
     }
 }
