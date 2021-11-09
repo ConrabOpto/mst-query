@@ -3,15 +3,18 @@ import * as React from 'react';
 import { mergeOptimisticData } from './merge';
 import { QueryClient } from './QueryClient';
 
-type QueryClientProviderProps<T> = {
+type QueryClientProviderProps<T extends IAnyModelType> = {
     client: QueryClient<T>;
+    env?: any;
 };
 
 export const Context = React.createContext<QueryClient<any> | undefined>(undefined);
 
-export function createContext<T extends Instance<IAnyModelType>>(queryClient: QueryClient<T>) {
-    const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({ client, children }) => {
+export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>) {
+    const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({ client, env, children }) => {
         React.useEffect(() => {
+            client.init(env);
+
             return () => {
                 client.queryStore.clear();
             };

@@ -10,7 +10,8 @@ import { models } from '../src/QueryStore';
 import { QueryClient } from '../src/QueryClient';
 
 const env = {};
-const queryClient = new QueryClient({ rootStore: RootStore.create({}, env), env });
+const queryClient = new QueryClient({ RootStore });
+queryClient.init(env)
 
 beforeEach(() => {
     queryClient.queryStore.clear();

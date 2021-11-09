@@ -19,11 +19,12 @@ import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
 
 const env = {};
-const queryClient = new QueryClient({ rootStore: RootStore.create({}, env), env });
+const queryClient = new QueryClient({ RootStore });
 const { QueryClientProvider, createOptimisticData } = createContext(queryClient);
+queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return <QueryClientProvider client={queryClient} env={env}>{children}</QueryClientProvider>;
 };
 
 const render = (ui: React.ReactElement, options?: any) =>

@@ -104,11 +104,11 @@ const RootStore = createRootStore({
 });
 
 const env = {};
-const queryClient = new QueryClient({ rootStore: RootStore.create({}, env) });
+const queryClient = new QueryClient({ rootStore: RootStore.create({}) });
 const { QueryClientProvider, useQueryClient, getQueryClient, createOptimisticData } = createContext(queryClient);
 
 function App() {
-    return <QueryClientProvider client={queryClient}>...</QueryClientProvider>;
+    return <QueryClientProvider client={queryClient} env={env}>...</QueryClientProvider>;
 }
 ```
 
