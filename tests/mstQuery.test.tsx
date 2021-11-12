@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { createQuery, MstQueryRef, createMutation, useQuery } from '../src';
+import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -17,6 +17,7 @@ import { createAndCache, wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
+import { ItemSubscription } from './models/ItemSubscription';
 
 const env = {};
 const queryClient = new QueryClient({ RootStore });
@@ -702,4 +703,13 @@ test('hook - onSuccess callback called', async () => {
     await when(() => !q.isLoading);
 
     expect(onSuccess).toBeCalledTimes(1);
+});
+
+test('subscription', () => {
+    const Comp = observer((props: any) => {
+        useSubscription(ItemSubscription);        
+        return <div></div>;
+    });
+
+    render(<Comp />);
 });

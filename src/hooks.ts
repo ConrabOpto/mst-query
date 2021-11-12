@@ -173,6 +173,8 @@ export function useSubscription<T extends SubscriptionReturnType>(
     options: UseSubscriptionOptions<T> = {}
 ): Instance<SubscriptionModelType> {
     const queryClient = useContext(Context)! as QueryClient<any>;
+    options = { queryClient, ...options } as any;
+
     const { key } = options;
     const [s, setSubscription] = useState(() => createAndRun(query, options));
 
