@@ -1,4 +1,4 @@
-import { destroy, IAnyModelType, ModelPropertiesDeclaration, types } from 'mobx-state-tree';
+import { destroy, getRoot, IAnyModelType, ModelPropertiesDeclaration, types, unprotect } from 'mobx-state-tree';
 
 const getKey = (type: IAnyModelType, id: string | number) => {
     return `${type.name}:${id}`;
@@ -62,7 +62,10 @@ export const RootStore = types
                     break;
                 case 'delete':
                     self.models.delete(id);
-                    destroy(instance);
+                    unprotect(getRoot(instance));
+                    try {
+                        destroy(instance);
+                    } catch (e) {}
                     break;
             }
         },
