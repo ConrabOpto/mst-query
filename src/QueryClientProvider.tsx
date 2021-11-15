@@ -6,16 +6,24 @@ import { QueryClient } from './QueryClient';
 type QueryClientProviderProps<T extends IAnyModelType> = {
     client: QueryClient<T>;
     env?: any;
+    clearOnUnmount?: boolean;
 };
 
 export const Context = React.createContext<QueryClient<any> | undefined>(undefined);
 
 export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>) {
-    const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({ client, env, children }) => {
+    const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({
+        client,
+        env,
+        children,
+        clearOnUnmount = true,
+    }) => {
         const [c] = React.useState(() => client.init(env));
         React.useEffect(() => {
             return () => {
-                client.queryStore.clear();
+                if (clearOnUnmount) {
+                    client.queryStore.clear();
+                }
             };
         }, [client]);
         return <Context.Provider value={c}>{children}</Context.Provider>;
@@ -30,7 +38,10 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
     const getQueryClient = (node: IStateTreeNode) => {
         return getEnv(node).queryClient as QueryClient<T>;
     };
-    const createOptimisticData = <TNode extends IAnyType>(typeOrNode: TNode | Instance<TNode>, data: any) => {
+    const createOptimisticData = <TNode extends IAnyType>(
+        typeOrNode: TNode | Instance<TNode>,
+        data: any
+    ) => {
         return mergeOptimisticData(typeOrNode, data, queryClient.config.env);
     };
     return {
@@ -38,6 +49,6 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         useQueryClient,
         QueryClientProvider,
         getQueryClient,
-        createOptimisticData
+        createOptimisticData,
     };
 }
