@@ -25,7 +25,11 @@ const { QueryClientProvider, createOptimisticData } = createContext(queryClient)
 queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
-    return <QueryClientProvider client={queryClient} env={env}>{children}</QueryClientProvider>;
+    return (
+        <QueryClientProvider client={queryClient} env={env}>
+            {children}
+        </QueryClientProvider>
+    );
 };
 
 const render = (ui: React.ReactElement, options?: any) =>
@@ -505,8 +509,8 @@ test('caching - item', async () => {
     let show = observable.box(true);
     const Wrapper = observer(() => {
         if (show.get()) {
-            return <Comp />
-        }        
+            return <Comp />;
+        }
         return null;
     });
 
@@ -660,11 +664,11 @@ test('caching - cache time', async () => {
     let show = observable.box(true);
     const Wrapper = observer(() => {
         if (show.get()) {
-            return <Comp />
+            return <Comp />;
         }
         return null;
     });
-    
+
     render(<Wrapper />);
     await when(() => !q.isLoading);
 
@@ -707,9 +711,47 @@ test('hook - onSuccess callback called', async () => {
 
 test('subscription', () => {
     const Comp = observer((props: any) => {
-        useSubscription(ItemSubscription);        
+        useSubscription(ItemSubscription);
         return <div></div>;
     });
 
     render(<Comp />);
+});
+
+test('support map type', () => {
+    const AmountTag = {
+        Limited: 'Limited',
+        Unlimited: 'Unlimited',
+    };
+
+    const AmountLimitModel = types.model('AmountLimit').props({
+        tag: types.maybe(types.enumeration(Object.values(AmountTag))),
+        content: types.maybeNull(
+            types.map(
+                types.model({
+                    tag: types.enumeration(Object.values(AmountTag)),
+                    content: types.maybeNull(types.string),
+                })
+            )
+        ),
+    });
+
+    const QueryModel = createQuery('QueryWithMap', {
+        data: AmountLimitModel,
+    });
+    const q = createAndCache(QueryModel, { queryClient });
+    q.__MstQueryHandler.updateData(
+        {
+            tag: 'Limited',
+            content: {
+                native: {
+                    tag: 'Limited',
+                    content: '1000000',
+                },
+            },
+        },
+        { isLoading: false, error: null }
+    );
+
+    expect(q.data?.content?.get('native')?.tag).toBe('Limited');
 });
