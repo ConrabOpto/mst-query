@@ -7,6 +7,7 @@ import {
     IAnyType,
     Instance,
     isFrozenType,
+    isMapType,
     isStateTreeNode,
     protect,
     unprotect,
@@ -39,6 +40,10 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     const snapshot: any = {};
     for (const key in data) {
         snapshot[key] = merge(data[key], getRealTypeFromObject(typeDef, data, key), ctx);
+    }
+
+    if (isMapType(typeDef)) {
+        return snapshot;
     }
 
     // GQL object with known type, instantiate or recycle MST object
