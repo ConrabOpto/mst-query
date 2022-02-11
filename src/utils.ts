@@ -14,7 +14,7 @@ import { isObservableArray } from 'mobx';
 export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
     const modelOrBaseType = getSubType(typeDef, data[key]);
     if (modelOrBaseType && modelOrBaseType.properties && !modelOrBaseType.properties[key]) {
-        throw new Error(`${key} property missing from ${modelOrBaseType.name} model`);
+        return null;
     }
     const subType =
         modelOrBaseType.properties && !isFrozenType(modelOrBaseType)

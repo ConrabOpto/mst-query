@@ -755,3 +755,33 @@ test('support map type', () => {
 
     expect(q.data?.content?.get('native')?.tag).toBe('Limited');
 });
+
+test('merge with partial data', () => {
+    const Model = types.model({
+        id: types.string,
+        a: types.string,
+    });
+
+    const QueryModel = createQuery('ModelQuery', {
+        data: Model,
+    });
+    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
+
+    expect(() =>
+        q.__MstQueryHandler.updateData(
+            {
+                id: 'test',
+                a: 'a',
+                optionalProps1: 'optional',
+                optionalProps2: ['optional'],
+                optionalProps3: { a: 'a' },
+            },
+            { isLoading: false, error: null }
+        )
+    ).not.toThrow();
+    expect(q.data?.id).toBe('test');
+    expect(q.data?.a).toBe('a');
+    expect(q.data).not.toHaveProperty('optionalProps1');
+    expect(q.data).not.toHaveProperty('optionalProps2');
+    expect(q.data).not.toHaveProperty('optionalProps3');
+});
