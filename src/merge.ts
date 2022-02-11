@@ -17,7 +17,11 @@ import { getRealTypeFromObject, getSubType, isObject } from './utils';
 
 let optimisticId = 1;
 
-export function mergeOptimisticData<T extends IAnyType>(typeOrNode: T | Instance<T>, data: any, env: any) {
+export function mergeOptimisticData<T extends IAnyType>(
+    typeOrNode: T | Instance<T>,
+    data: any,
+    env: any
+) {
     const type: IAnyType = isStateTreeNode(typeOrNode) ? getType(typeOrNode) : typeOrNode;
     const instance = merge(
         { ...data, [type.identifierAttribute ?? '']: `optimistic-${optimisticId}` },
@@ -39,7 +43,9 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     // convert values deeply first to MST objects as much as possible
     const snapshot: any = {};
     for (const key in data) {
-        snapshot[key] = merge(data[key], getRealTypeFromObject(typeDef, data, key), ctx);
+        const realType = getRealTypeFromObject(typeDef, data, key);
+        if (!realType) continue;
+        snapshot[key] = merge(data[key], realType, ctx);
     }
 
     if (isMapType(typeDef)) {
@@ -80,6 +86,7 @@ export function mergeObjects(instance: any, data: any, typeDef: any): any {
     const properties = data && isStateTreeNode(data) ? (getType(data) as any).properties : data;
     for (const key in properties) {
         const realType = getRealTypeFromObject(typeDef, data, key);
+        if (!realType) continue;
         if (
             !isFrozenType(realType) &&
             isObject(data[key]) &&
