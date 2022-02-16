@@ -785,3 +785,27 @@ test('merge with partial data', () => {
     expect(q.data).not.toHaveProperty('optionalProps2');
     expect(q.data).not.toHaveProperty('optionalProps3');
 });
+
+test('very large stale time exceeds setTimeout limit', async () => {
+    jest.useFakeTimers();
+    const getItem = jest.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem,
+    };
+    const itemQuery = createAndCache(ItemQuery, {
+        request: { id: 'test' },
+        env: { api: testApi },
+        staleTime: 0x7fffffff / 1000 + 1,
+        queryClient,
+    });
+    await itemQuery.run();
+
+    expect(getItem).toHaveBeenCalledTimes(1);
+
+    jest.advanceTimersByTime(10);
+
+    await itemQuery.run();
+
+    expect(getItem).toHaveBeenCalledTimes(1);
+});
