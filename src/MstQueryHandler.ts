@@ -39,6 +39,8 @@ export type QueryFnType = (options: QueryOptions, query: any) => Promise<any>;
 
 export class DisposedError extends Error {}
 
+const MAX_TIMEOUT = 0x7fffffff;
+
 export class MstQueryHandler {
     isLoading = false;
     isRefetching = false;
@@ -322,7 +324,11 @@ export class MstQueryHandler {
     updateData(data: any, status?: any) {
         if (data) {
             this.model.__MstQueryHandlerAction(() => {
-                this.model.data = merge(data, this.type.properties.data, this.queryClient.config.env);
+                this.model.data = merge(
+                    data,
+                    this.type.properties.data,
+                    this.queryClient.config.env
+                );
             });
 
             this.updateCache();
@@ -349,10 +355,15 @@ export class MstQueryHandler {
         this.cachedAt = new Date();
         this.cachedRequest = getSnapshotOrData(this.model.request);
 
+        const staleTime =
+            this.options.staleTime * 1000 > MAX_TIMEOUT
+                ? MAX_TIMEOUT
+                : this.options.staleTime * 1000;
+
         if (this.options.staleTime) {
             setTimeout(() => {
                 this.status = QueryStatus.Stale;
-            }, this.options.staleTime * 1000);
+            }, staleTime);
         } else {
             this.status = QueryStatus.Stale;
         }
@@ -363,7 +374,11 @@ export class MstQueryHandler {
             return;
         }
 
-        const cacheTimeMs = this.options.cacheTime * 1000;
+        const cacheTimeMs =
+            this.options.cacheTime * 1000 > MAX_TIMEOUT
+                ? MAX_TIMEOUT
+                : this.options.cacheTime * 1000;
+
         const currentDate = new Date().getTime();
         const cachedAt = this.cachedAt?.getTime() ?? 0;
         const elapsedInMs = currentDate - cachedAt;
