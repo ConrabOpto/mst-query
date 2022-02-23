@@ -20,6 +20,7 @@ Query library for mobx-state-tree
 # Examples
 
 -   [Queries & cache](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
+-   [Use with mobx-state-tree (Bookshop)](https://codesandbox.io/s/mst-query-bookshop-0kljt?file=/src/index.js)
 
 # Basic Usage
 
