@@ -1,8 +1,13 @@
-import { IAnyModelType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { IAnyModelType, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import { SubscriptionModelType } from './SubscriptionModel';
-import type { QueryReturnType, MutationReturnType, SubscriptionReturnType } from './utilityTypes';
+import type {
+    QueryReturnType,
+    MutationReturnType,
+    SubscriptionReturnType,
+    AnyQueryType,
+} from './utilityTypes';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 
@@ -16,7 +21,7 @@ type Options = {
     key?: string;
 };
 
-type UseQueryOptions<T extends QueryReturnType> = Options & {
+type QueryOptions<T extends IAnyType> = Options & {
     data?: SnapshotIn<T>['data'] | IAnyModelType;
     request?: SnapshotIn<T>['request'];
     env?: SnapshotIn<T>['env'];
@@ -27,6 +32,8 @@ type UseQueryOptions<T extends QueryReturnType> = Options & {
     staleTime?: number;
     cacheTime?: number;
 };
+
+type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
 
 export function useLazyQuery<T extends QueryReturnType>(
     query: T,
@@ -115,13 +122,15 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
     };
 }
 
-type UseMutationOptions<T extends MutationReturnType> = Options & {
+type MutationOptions<T extends IAnyType> = Options & {
     data?: SnapshotIn<T>['data'];
     request?: SnapshotIn<T>['request'];
     env?: SnapshotIn<T>['env'];
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
 };
+
+type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
 
 export function useMutation<T extends MutationReturnType>(
     query: T,
@@ -162,11 +171,13 @@ export function useMutation<T extends MutationReturnType>(
     return [m.run, result] as [typeof m['run'], typeof result];
 }
 
-type UseSubscriptionOptions<T extends SubscriptionReturnType> = Options & {
+type SubscriptionOptions<T extends IAnyType> = Options & {
     onUpdate?: any;
     data?: SnapshotIn<T>['data'];
     env?: SnapshotIn<T>['env'];
 };
+
+type UseSubscriptionOptions<T extends SubscriptionReturnType> = SubscriptionOptions<T>;
 
 export function useSubscription<T extends SubscriptionReturnType>(
     query: T,
@@ -202,3 +213,11 @@ export function useSubscription<T extends SubscriptionReturnType>(
 
     return { ...s, subscription: s };
 }
+
+export type CommandOptions<T extends AnyQueryType> = T extends QueryReturnType
+    ? QueryOptions<T>
+    : T extends MutationReturnType
+    ? MutationOptions<T>
+    : T extends SubscriptionReturnType
+    ? SubscriptionOptions<T>
+    : never;

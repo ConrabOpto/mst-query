@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
+import { types, unprotect, applySnapshot, getSnapshot, flow, destroy } from 'mobx-state-tree';
 import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
@@ -18,10 +18,13 @@ import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
 import { ItemSubscription } from './models/ItemSubscription';
+import { ItemModel } from './models/ItemModel';
 
 const env = {};
 const queryClient = new QueryClient({ RootStore });
-const { QueryClientProvider, createOptimisticData } = createContext(queryClient);
+const { QueryClientProvider, createOptimisticData, createQueryStore, create } = createContext(
+    queryClient
+);
 queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
@@ -40,6 +43,68 @@ const render = (ui: React.ReactElement, options?: any) =>
 
 beforeEach(() => {
     queryClient.queryStore.clear();
+});
+
+afterEach(() => {
+    jest.useRealTimers();
+});
+
+test('custom query store', async () => {
+    const Item = types
+        .model({
+            model: MstQueryRef(ItemModel),
+        })
+        .volatile((self) => ({
+            itemQuery: create(ItemQuery, {
+                data: self.model.id,
+                request: { id: self.model.id },
+                env: { api },
+            }),
+            setDescriptionMutation: create(SetDescriptionMutation, {
+                request: { id: self.model.id },
+                env: { api },
+            }),
+        }))
+        .actions(self => ({
+            beforeDestroy() {
+                self.itemQuery.dispose();
+                self.setDescriptionMutation.dispose();
+            }
+        }))
+
+    const ListQueryStore = types
+        .model({
+            items: types.array(Item),
+        })
+        .volatile((self) => ({
+            listQuery: create(ListQuery, { request: { id: 'test' }, env: { api } }),
+            selectedItem: null,
+        }))
+        .actions((self) => ({
+            afterCreate() {
+                this.init();
+            },
+            init: flow(function* () {
+                const { data } = yield self.listQuery.run();
+                self.items.replace(data.items.map((item: any) => ({ model: item.id })));
+            }),
+            beforeDestroy() {
+                self.listQuery.dispose();
+            }
+        }));
+
+    const store = createQueryStore(ListQueryStore);
+    await wait();
+    expect(store.items.length).toBe(4);
+    expect(store.items[0].model.data).toBe(undefined);
+    
+    store.items[0].itemQuery.run();
+    await wait();
+    expect(store.items[0].model.data?.name).toBe('test');
+
+    expect(queryClient.rootStore.models.size).toBe(9);
+    destroy(store);
+    expect(queryClient.rootStore.models.size).toBe(0);
 });
 
 test('garbage collection', async () => {
