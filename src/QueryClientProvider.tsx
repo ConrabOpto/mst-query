@@ -39,7 +39,7 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         return qc;
     };
     const getQueryClient = (node: IStateTreeNode) => {
-        return getEnv(node).quryClient as QueryClient<T>;
+        return getEnv(node).queryClient as QueryClient<T>;
     };
     const createOptimisticData = <TNode extends IAnyType>(
         typeOrNode: TNode | Instance<TNode>,

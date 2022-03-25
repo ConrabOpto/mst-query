@@ -21,7 +21,7 @@ export const QueryModelBase = types
             },
             dispose() {
                 self.__MstQueryHandler.remove();
-            }
+            },
         };
     });
 
