@@ -19,6 +19,9 @@ export const QueryModelBase = types
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
+            dispose() {
+                self.__MstQueryHandler.remove();
+            },
         };
     });
 
