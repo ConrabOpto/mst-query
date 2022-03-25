@@ -2,26 +2,28 @@ import { reaction } from 'mobx';
 import { AddItemMutation } from './models/AddItemMutation';
 import { ListQuery } from './models/ListQuery';
 import { api } from './api/api';
-import { createAndCache, wait } from './utils';
+import { wait } from './utils';
 import { RootStore } from './models/RootStore';
 import { itemData, listData } from './api/data';
 import { ItemQuery } from './models/ItemQuery';
 import { models } from '../src/QueryStore';
 import { QueryClient } from '../src/QueryClient';
+import { createContext } from '../src';
 
 const env = {};
 const queryClient = new QueryClient({ RootStore });
 queryClient.init(env)
+
+const { create } = createContext(queryClient);
 
 beforeEach(() => {
     queryClient.queryStore.clear();
 });
 
 test('query & mutation', async () => {
-    const listQuery = createAndCache(ListQuery, {
+    const listQuery = create(ListQuery, {
         request: { id: 'test' },
-        env: { api },
-        queryClient
+        env: { api }
     });
 
     await listQuery.run();
@@ -35,10 +37,9 @@ test('query & mutation', async () => {
         }
     );
 
-    const addItemMutation = createAndCache(AddItemMutation, {
+    const addItemMutation = create(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
-        env: { api },
-        queryClient
+        env: { api }
     });
     await addItemMutation.run();
 
@@ -49,9 +50,9 @@ test('query & mutation', async () => {
 });
 
 test('garbage collection', async () => {
-    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api }, queryClient });
-    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api }, queryClient });
-    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api }, queryClient });
+    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api } });
+    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api } });
+    const qc = create(ListQuery, { request: { id: 'test' }, env: { api } });
 
     await q1.run();
     await q2.run();

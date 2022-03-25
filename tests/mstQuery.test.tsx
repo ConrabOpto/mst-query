@@ -13,7 +13,7 @@ import { SetDescriptionMutation } from './models/SetDescriptionMutation';
 import { AddItemMutation } from './models/AddItemMutation';
 import { RequestModel } from '../src/RequestModel';
 import { api } from './api/api';
-import { createAndCache, wait } from './utils';
+import { wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
@@ -108,9 +108,9 @@ test('custom query store', async () => {
 });
 
 test('garbage collection', async () => {
-    const q1 = createAndCache(ItemQuery, { request: { id: 'test' }, env: { api }, queryClient });
-    const q2 = createAndCache(ItemQuery, { request: { id: 'test2' }, env: { api }, queryClient });
-    const qc = createAndCache(ListQuery, { request: { id: 'test' }, env: { api }, queryClient });
+    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api } });
+    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api } });
+    const qc = create(ListQuery, { request: { id: 'test' }, env: { api } });
 
     await q1.run();
     await q2.run();
@@ -157,27 +157,24 @@ test('gc - only walk model props', () => {
 });
 
 test('mutation updates domain model', async () => {
-    const itemQuery = createAndCache(ItemQuery, {
+    const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api },
-        queryClient,
     });
     await itemQuery.run();
 
-    const setStatusMutation = createAndCache(SetDescriptionMutation, {
+    const setStatusMutation = create(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
         env: { api },
-        queryClient,
     });
     await setStatusMutation.run();
     expect(itemQuery.data?.description).toBe('new');
 });
 
 test('isLoading state', async () => {
-    const itemQuery = createAndCache(ItemQuery, {
+    const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api },
-        queryClient,
     });
     expect(itemQuery.isLoading).toBe(false);
     itemQuery.run();
@@ -296,18 +293,16 @@ test('refetching query', async () => {
         ...api,
         getItem,
     };
-    const itemQuery = createAndCache(ItemQuery, {
+    const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api: testApi },
-        staleTime: 1,
-        queryClient,
+        staleTime: 1,        
     });
     await itemQuery.run();
 
-    const mutation = createAndCache(SetDescriptionMutation, {
+    const mutation = create(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
         env: { api: testApi },
-        queryClient,
     });
     await mutation.run();
 
@@ -318,10 +313,9 @@ test('refetching query', async () => {
 });
 
 test('mutation updates query (with optimistic update)', async () => {
-    const listQuery = createAndCache(ListQuery, {
+    const listQuery = create(ListQuery, {
         request: { id: 'test' },
         env: { api },
-        queryClient,
     });
 
     await listQuery.run();
@@ -335,10 +329,9 @@ test('mutation updates query (with optimistic update)', async () => {
         }
     );
 
-    const addItemMutation = createAndCache(AddItemMutation, {
+    const addItemMutation = create(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
         env: { api },
-        queryClient,
     });
     await addItemMutation.run();
 
@@ -436,7 +429,7 @@ test('merge frozen type', () => {
     const QueryModel = createQuery('FrozenQuery', {
         data: ModelWithFrozenProp,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
+    const q = create(QueryModel, { request: { path: 'test' } });
     q.__MstQueryHandler.updateData(
         { id: 'test', frozen: { data1: 'data1', data2: 'data2' } },
         { isLoading: false, error: null }
@@ -461,7 +454,7 @@ test('replace arrays on sub properties', () => {
     const QueryModel = createQuery('FrozenQuery', {
         data: Model,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
+    const q = create(QueryModel, { request: { path: 'test' } });
     q.__MstQueryHandler.updateData(
         { id: 'test', prop: { ids: [{ baha: 'hey' }, { baha: 'hello' }] } },
         { isLoading: false, error: null }
@@ -485,7 +478,7 @@ test('hasChanged mutation', () => {
     const MutationModel = createMutation('Mutation', {
         request: Rqst,
     });
-    const m = createAndCache(MutationModel, { request: { text: 'hi' }, queryClient });
+    const m = create(MutationModel, { request: { text: 'hi' } });
     expect(m.request.hasChanges).toBe(false);
 
     m.request.setText('hello');
@@ -512,7 +505,7 @@ test('merge with undefined data and union type', () => {
     const QueryModel = createQuery('TestQuery', {
         data: Model,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
+    const q = create(QueryModel, { request: { path: 'test' } });
 
     expect(() =>
         q.__MstQueryHandler.updateData(
@@ -537,7 +530,7 @@ test('findAll', () => {
     const MutationModel = createMutation('Mutation', {
         request: RequestModel,
     });
-    const m = createAndCache(MutationModel, { request: { path: 'test', text: 'hi' }, queryClient });
+    const m = create(MutationModel, { request: { path: 'test', text: 'hi' } });
 
     const queries = queryClient.queryStore.findAll(MutationModel, (mutation) =>
         mutation.request.text.includes('h')
@@ -804,7 +797,7 @@ test('support map type', () => {
     const QueryModel = createQuery('QueryWithMap', {
         data: AmountLimitModel,
     });
-    const q = createAndCache(QueryModel, { queryClient });
+    const q = create(QueryModel);
     q.__MstQueryHandler.updateData(
         {
             tag: 'Limited',
@@ -830,7 +823,7 @@ test('merge with partial data', () => {
     const QueryModel = createQuery('ModelQuery', {
         data: Model,
     });
-    const q = createAndCache(QueryModel, { request: { path: 'test' }, queryClient });
+    const q = create(QueryModel, { request: { path: 'test' } });
 
     expect(() =>
         q.__MstQueryHandler.updateData(
@@ -858,11 +851,10 @@ test('very large stale time exceeds setTimeout limit', async () => {
         ...api,
         getItem,
     };
-    const itemQuery = createAndCache(ItemQuery, {
+    const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api: testApi },
-        staleTime: 0x7fffffff / 1000 + 1,
-        queryClient,
+        staleTime: 0x7fffffff / 1000 + 1
     });
     await itemQuery.run();
 

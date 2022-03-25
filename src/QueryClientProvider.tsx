@@ -47,8 +47,10 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
     ) => {
         return mergeOptimisticData(typeOrNode, data, queryClient.config.env);
     };
-    const create = <T extends AnyQueryType>(type: T, options: CommandOptions<T>) => {
-        return internalCreate(type, { ...options, queryClient });
+    const create = <T extends AnyQueryType>(type: T, options?: CommandOptions<T>) => {
+        const q = internalCreate(type, { ...options, queryClient });
+        queryClient.queryStore.setQuery(q);
+        return q;
     };
     const createQueryStore = <T extends IAnyModelType>(model: T, data?: any) => {
         return model.create(data, queryClient.config.env);
