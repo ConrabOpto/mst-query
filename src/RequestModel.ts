@@ -3,7 +3,7 @@ import { observable } from 'mobx';
 import { applySnapshot, getSnapshot, types } from 'mobx-state-tree';
 
 export const RequestModel = types.model('RequestModel', {}).extend((self) => {
-    let storedSnapshot: any = observable.box(getSnapshot(self));
+    let storedSnapshot: any = observable.box(getSnapshot(self), { deep: false });
     return {
         views: {
             get hasChanges() {
