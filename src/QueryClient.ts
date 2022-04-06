@@ -20,19 +20,20 @@ const defaultConfig = {
 };
 
 export class QueryClient<T extends IAnyModelType> {
-    config = defaultConfig as QueryClientConfig<T>;
+    config: QueryClientConfig<T>;
     rootStore!: Instance<T>;
     queryStore: QueryStore;
     #initialized = false;
 
     constructor(config: Partial<QueryClientConfig<T>> = {}) {
-        Object.assign(this.config, {
+        this.config = {
+            ...defaultConfig,
             ...config,
             queryOptions: {
-                ...this.config.queryOptions,
+                ...defaultConfig.queryOptions,
                 ...config.queryOptions,
             },
-        });
+        };
 
         this.queryStore = new QueryStore(this);
     }
@@ -50,6 +51,7 @@ export class QueryClient<T extends IAnyModelType> {
             : (RootStore.create({}, this.config.env) as Instance<T>);
 
         this.#initialized = true;
+
 
         return this;
     }

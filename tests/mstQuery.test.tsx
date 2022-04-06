@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { types, unprotect, applySnapshot, getSnapshot, flow, destroy } from 'mobx-state-tree';
+import { cast, types, unprotect, applySnapshot, getSnapshot, flow, destroy } from 'mobx-state-tree';
 import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
@@ -21,10 +21,10 @@ import { ItemSubscription } from './models/ItemSubscription';
 import { ItemModel } from './models/ItemModel';
 
 const env = {};
+
 const queryClient = new QueryClient({ RootStore });
-const { QueryClientProvider, createOptimisticData, createQueryStore, create } = createContext(
-    queryClient
-);
+
+const { QueryClientProvider, createOptimisticData, create } = createContext(queryClient);
 queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
@@ -51,33 +51,24 @@ afterEach(() => {
 
 test('custom query store', async () => {
     const Item = types
-        .model({
-            model: MstQueryRef(ItemModel),
+        .model('Item', {
+            item: MstQueryRef(ItemModel),
+            itemQuery: types.optional(ItemQuery, {}),
+            setDescriptionMutation: types.optional(SetDescriptionMutation, {}),
         })
-        .volatile((self) => ({
-            itemQuery: create(ItemQuery, {
-                data: self.model.id,
-                request: { id: self.model.id },
-                env: { api },
-            }),
-            setDescriptionMutation: create(SetDescriptionMutation, {
-                request: { id: self.model.id },
-                env: { api },
-            }),
-        }))
-        .actions(self => ({
-            beforeDestroy() {
-                self.itemQuery.dispose();
-                self.setDescriptionMutation.dispose();
-            }
-        }))
+        .actions((self) => ({
+            afterCreate() {
+                self.itemQuery = cast({ env: { api } });
+                self.setDescriptionMutation = cast({ env: { api } });
+            },
+        }));
 
-    const ListQueryStore = types
-        .model({
+    const ListStore = types
+        .model('ListQueryStore', {
             items: types.array(Item),
+            listQuery: types.optional(ListQuery, { env: { api } }),
         })
         .volatile((self) => ({
-            listQuery: create(ListQuery, { request: { id: 'test' }, env: { api } }),
             selectedItem: null,
         }))
         .actions((self) => ({
@@ -86,25 +77,43 @@ test('custom query store', async () => {
             },
             init: flow(function* () {
                 const { data } = yield self.listQuery.run();
-                self.items.replace(data.items.map((item: any) => ({ model: item.id })));
+                self.items.replace(data.items.map((item: any) => ({ item: item.id })));
             }),
-            beforeDestroy() {
-                self.listQuery.dispose();
-            }
         }));
 
-    const store = createQueryStore(ListQueryStore);
+    const NewRootStore = RootStore.named('NewRootStore')
+        .props({
+            listStores: types.array(ListStore),
+        })
+        .actions((self) => ({
+            addStore(key: string) {
+                (self as any)[key].push({});
+            },
+            removeStore(key: string, store: any) {
+                (self as any)[key].remove(store);
+            },
+        }));
+
+    const qc = new QueryClient({ RootStore: NewRootStore });
+    qc.init();
+
+    qc.rootStore.addStore('listStores');
+
+    const store = qc.rootStore.listStores[0];
+
     await wait();
     expect(store.items.length).toBe(4);
-    expect(store.items[0].model.data).toBe(undefined);
-    
+    expect(store.items[0].item.data).toBe(undefined);
+
     store.items[0].itemQuery.run();
     await wait();
-    expect(store.items[0].model.data?.name).toBe('test');
+    expect(store.items[0].item.data?.name).toBe('test');
 
-    expect(queryClient.rootStore.models.size).toBe(9);
-    destroy(store);
-    expect(queryClient.rootStore.models.size).toBe(0);
+    expect(qc.rootStore.models.size).toBe(9);
+    qc.rootStore.removeStore('listStores', store);
+    expect(qc.rootStore.models.size).toBe(0);
+
+    qc.queryStore.clear();
 });
 
 test('garbage collection', async () => {
@@ -114,6 +123,7 @@ test('garbage collection', async () => {
 
     await q1.run();
     await q2.run();
+
     expect(queryClient.rootStore.models.size).toBe(2);
 
     await qc.run();
@@ -125,13 +135,13 @@ test('garbage collection', async () => {
     q2.__MstQueryHandler.updateData(itemData, { error: null, isLoading: false });
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
-    queryClient.queryStore.removeQuery(q1);
+    destroy(q1);
     expect(queryClient.rootStore.models.size).toBe(9);
 
-    queryClient.queryStore.removeQuery(qc);
+    destroy(qc);
     expect(queryClient.rootStore.models.size).toBe(2);
 
-    queryClient.queryStore.removeQuery(q2);
+    destroy(q2);
     expect(queryClient.rootStore.models.size).toBe(0);
 });
 
@@ -284,7 +294,8 @@ test('model with optional identifier', async () => {
 
     await when(() => !q.isLoading);
 
-    expect(queryClient.rootStore.models.get('ListModel:optional-1')).not.toBe(undefined);
+    const model = queryClient.rootStore.models.get('ListModel:optional-1');
+    expect(model).not.toBe(undefined);
 });
 
 test('refetching query', async () => {
@@ -296,7 +307,7 @@ test('refetching query', async () => {
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api: testApi },
-        staleTime: 1,        
+        staleTime: 1,
     });
     await itemQuery.run();
 
@@ -854,7 +865,7 @@ test('very large stale time exceeds setTimeout limit', async () => {
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
         env: { api: testApi },
-        staleTime: 0x7fffffff / 1000 + 1
+        staleTime: 0x7fffffff / 1000 + 1,
     });
     await itemQuery.run();
 
@@ -866,3 +877,24 @@ test('very large stale time exceeds setTimeout limit', async () => {
 
     expect(getItem).toHaveBeenCalledTimes(1);
 });
+
+// test.only('test', () => {
+//     const QueryModel = createQuery('ModelQuery', {
+//         data: types.frozen(),
+//     }).actions((self) => {
+//         const s = self as any;
+//         console.log(Object.getOwnPropertyNames(s.$treenode));
+//         // TODO: Defer options creation with setOptions
+//         // TODO: Move creation logic into MstQueryHandler
+//         // TODO: Move dispose into constructor
+//         s.$treenode.registerHook('afterCreate', (node: any, hook: any) => {
+//             console.log('after create 1');
+//         });
+//         return {
+//             afterCreate() {
+//                 console.log('after create 2');
+//             },
+//         };
+//     });
+//     const q = create(QueryModel, { request: { path: 'test' } });
+// });

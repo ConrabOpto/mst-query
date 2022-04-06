@@ -4,7 +4,7 @@ import { ListModel } from './ListModel';
 
 export const ListQuery = createQuery('ListQuery', {
     data: MstQueryRef(ListModel),
-    request: types.model({ id: types.string }),
+    request: types.optional(types.model({ id: '' }), {}),
     pagination: types.optional(types.model({ offset: types.optional(types.number, 0) }), {}),
 }).actions((self) => ({
     run: flow(function* () {
@@ -21,7 +21,7 @@ export const ListQuery = createQuery('ListQuery', {
         self.pagination.offset += 4;
 
         const next = yield* self.queryMore(self.env.api.getItems);
-        const { data } = next<typeof ListQuery>();
+        const { data } = next();
         if (data?.items) {
             self.data?.addItems(data.items);
         }

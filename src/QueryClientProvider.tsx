@@ -1,6 +1,6 @@
 import { getEnv, IAnyModelType, IAnyType, Instance, IStateTreeNode } from 'mobx-state-tree';
 import * as React from 'react';
-import { CommandOptions } from './hooks';
+import { AnyQueryOptions } from './hooks';
 import { mergeOptimisticData } from './merge';
 import { create as internalCreate } from './create';
 import { QueryClient } from './QueryClient';
@@ -47,13 +47,9 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
     ) => {
         return mergeOptimisticData(typeOrNode, data, queryClient.config.env);
     };
-    const create = <T extends AnyQueryType>(type: T, options?: CommandOptions<T>) => {
+    const create = <T extends AnyQueryType>(type: T, options?: AnyQueryOptions<T>) => {
         const q = internalCreate(type, { ...options, queryClient });
-        queryClient.queryStore.setQuery(q);
         return q;
-    };
-    const createQueryStore = <T extends IAnyModelType>(model: T, data?: any) => {
-        return model.create(data, queryClient.config.env);
     };
     return {
         queryClient,
@@ -61,7 +57,6 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         QueryClientProvider,
         getQueryClient,
         createOptimisticData,
-        createQueryStore,
         create
     };
 }
