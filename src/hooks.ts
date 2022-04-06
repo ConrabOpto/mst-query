@@ -1,7 +1,6 @@
-import { IAnyModelType, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { destroy, IAnyModelType, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
-import { SubscriptionModelType } from './SubscriptionModel';
 import type {
     QueryReturnType,
     MutationReturnType,
@@ -50,21 +49,15 @@ export function useLazyQuery<T extends QueryReturnType>(
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                q.__MstQueryHandler.remove();
+                destroy(q);
             }
-        }
-    }, [key]);
-
-    useEffect(() => {
-        if (q) {
-            queryClient.queryStore.setQuery(q);
         }
         return () => {
             if (isStateTreeNode(q)) {
-                q.__MstQueryHandler.remove();
+                destroy(q);
             }
         };
-    }, [q]);
+    }, [key]);
 
     return {
         run: q.run as typeof q['run'],
@@ -88,24 +81,16 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
-        if (q) {
-            queryClient.queryStore.setQuery(q);
-        }
-        return () => {
-            if (isStateTreeNode(q)) {
-                q.__MstQueryHandler.remove();
-            }
-        };
-    }, [q]);
-
-    useEffect(() => {
         if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = createAndRun(query, options);
             setQuery(newQuery);
-            if (isStateTreeNode(q)) {
-                q.__MstQueryHandler.remove();
-            }
+            destroy(q);
         }
+        return () => {
+            if (isStateTreeNode(q)) {
+                destroy(q);
+            }
+        };
     }, [key]);
 
     return {
@@ -143,24 +128,16 @@ export function useMutation<T extends MutationReturnType>(
     const [m, setMutation] = useState(() => create(query, options));
 
     useEffect(() => {
-        if (m) {
-            queryClient?.queryStore.setQuery(m);
-        }
-        return () => {
-            if (isStateTreeNode(m)) {
-                m.__MstQueryHandler.remove();
-            }
-        };
-    }, [m]);
-
-    useEffect(() => {
         if (key && key !== m.__MstQueryHandler.options.key) {
             const newMutation = create(query, options);
             setMutation(newMutation);
-            if (isStateTreeNode(m)) {
-                m.__MstQueryHandler.remove();
-            }
+            destroy(m);
         }
+        return () => {
+            if (isStateTreeNode(m)) {
+                destroy(m);
+            }
+        };
     }, [key]);
 
     const result = {
@@ -182,7 +159,7 @@ type UseSubscriptionOptions<T extends SubscriptionReturnType> = SubscriptionOpti
 export function useSubscription<T extends SubscriptionReturnType>(
     query: T,
     options: UseSubscriptionOptions<T> = {}
-): Instance<SubscriptionModelType> {
+): Instance<SubscriptionReturnType> {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = { queryClient, ...options } as any;
 
@@ -190,31 +167,25 @@ export function useSubscription<T extends SubscriptionReturnType>(
     const [s, setSubscription] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
-        if (s) {
-            queryClient.queryStore.setQuery(s);
-        }
-        return () => {
-            if (isStateTreeNode(s)) {
-                s.__MstQueryHandler.remove();
-            }
-        };
-    }, [s]);
-
-    useEffect(() => {
         if (key && key !== s.__MstQueryHandler.options.key) {
             const newSubscription = create(query, options);
             setSubscription(newSubscription);
             if (isStateTreeNode(s)) {
-                s.__MstQueryHandler.remove();
+                destroy(s);
             }
             (newSubscription as any).run();
         }
+        return () => {
+            if (isStateTreeNode(s)) {
+                destroy(s);
+            }
+        };
     }, [key]);
 
     return { ...s, subscription: s };
 }
 
-export type CommandOptions<T extends AnyQueryType> = T extends QueryReturnType
+export type AnyQueryOptions<T extends AnyQueryType> = T extends QueryReturnType
     ? QueryOptions<T>
     : T extends MutationReturnType
     ? MutationOptions<T>

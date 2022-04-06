@@ -5,7 +5,7 @@ import { ItemModel } from './ItemModel';
 
 export const SetDescriptionMutation = createMutation('SetDescriptionMutation', {
     data: MstQueryRef(ItemModel),
-    request: RequestModel.props({ id: types.string, description: '' }),
+    request: types.optional(RequestModel.props({ id: '', description: '' }), {}),
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.mutate(self.env.api.setDescription);

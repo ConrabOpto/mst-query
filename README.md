@@ -102,10 +102,16 @@ const RootStore = createRootStore({
 
 const env = {};
 const queryClient = new QueryClient({ RootStore });
-const { QueryClientProvider, useQueryClient, getQueryClient, createOptimisticData } = createContext(queryClient);
+const { QueryClientProvider, useQueryClient, getQueryClient, createOptimisticData } = createContext(
+    queryClient
+);
 
 function App() {
-    return <QueryClientProvider client={queryClient} env={env}>...</QueryClientProvider>;
+    return (
+        <QueryClientProvider client={queryClient} env={env}>
+            ...
+        </QueryClientProvider>
+    );
 }
 ```
 
@@ -533,4 +539,75 @@ const query = queryStore.find(MessageQuery);
 const queryWithId = queryStore.find(MessageQuery, (q) => q.request.id === 'message-id');
 
 const allMessageMutations = queryStore.findAll(UpdateMessageMutation, (q) => true);
+```
+
+## Queries as properties (Experimental)
+
+Queries can be put as normal properties on any model that is part of your root store.
+This can be useful to serialize and store client state for later use, or if you prefer to build your application according to a [MVVM pattern](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93viewmodel).
+
+```ts
+const UserModel = types.model('UserModel', {
+    id: types.identifier,
+    name: types.string,
+    age: types.number,
+});
+
+const UserViewModel = types
+    .model({
+        data: types.model({
+            name: '',
+            age: '',
+        },
+        user: MstQuerRef(UserModel),
+        getUser: types.optional(GetUserQuery, {}),
+        updateUser: types.optional(UpdateUserMutation, {}),
+    })
+    .views((self) => ({
+        get userId() {
+            return self.user?.id ?? self.user;
+        },
+        get errorMessage() {
+            return self.getUser.errorMessage || self.updateUser.errorMessage;
+        },
+        get isLoading() {
+            return self.getUser.isLoading || self.updateUser.isLoading;
+        },
+    }))
+    .actions((self) => ({
+        afterCreate() {
+            self.getUser.setOptions({ staleTime: 5000 });
+        },
+        afterAttach() {
+            self.readFromLocalStorage();
+            onSnapshot(self, (json) => {
+               window.localStorage.setItem(`user:${self.user.id}`, JSON.stringify(json));
+            });
+        },
+        update() {
+            self.updateUser.run({ id: self.userId, ...self.data });
+        },
+        async refresh() {
+            const userData = await self.getUser.run(self.userId);
+            applySnapshot(self.data, {
+                name: userData.name,
+                age: userData.toString(),
+            });
+        },
+        readFromLocalStorage() {
+            const data = window.localStorage.getItem(`user:${self.user.id}`);
+            if (!data) return;
+
+            applySnapshot(self, JSON.parse(data));
+
+            if (!self.user) {
+                self.refresh();
+            }
+        },
+    }));
+
+const RootStore = createRootStore({
+    userStore: types.optional(createModelStore({ users: types.map(UserModel) }), {}),
+    userViewModels: types.array(UserViewModel),
+});
 ```

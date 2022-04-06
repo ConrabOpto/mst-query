@@ -17,7 +17,7 @@ export const AddItemMutation = createMutation('AddMutation', {
         query?.addItem(optimistic);
 
         const next = yield* self.mutate(self.env.api.addItem);
-        const { data } = next<typeof AddItemMutation>();
+        const { data } = next();
 
         query?.removeItem(optimistic);
         query?.addItem(data);

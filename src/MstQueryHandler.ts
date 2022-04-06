@@ -2,11 +2,11 @@ import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
+    detach,
+    getEnv,
     getSnapshot,
     getType,
-    IAnyType,
     IDisposer,
-    Instance,
     isStateTreeNode,
     onSnapshot,
 } from 'mobx-state-tree';
@@ -15,8 +15,8 @@ import { QueryClient } from './QueryClient';
 import { QueryStatus } from './utilityTypes';
 import { getSnapshotOrData } from './utils';
 
-type QueryReturn<T extends IAnyType, TResult> = {
-    data: Instance<T>['data'];
+type QueryReturn<TData, TResult> = {
+    data: TData;
     error: any;
     result: TResult;
 };
@@ -66,9 +66,16 @@ export class MstQueryHandler {
 
     isDisposed = false;
 
-    constructor(model: any) {
+    constructor(model: any, options?: any) {
         this.model = model;
         this.type = getType(model) as any;
+
+        this.options = options ?? {};
+        this.queryClient = getEnv(this.model).queryClient;
+
+        this.model.$treenode.registerHook('afterCreate', () => this.onAfterCreate());
+        this.model.$treenode.registerHook('beforeDestroy', () => this.onBeforeDestroy());
+        this.disposer = addDisposer(this.model, () => this.onDispose());
 
         makeObservable(this, {
             isLoading: observable,
@@ -86,29 +93,16 @@ export class MstQueryHandler {
             refetch: action.bound,
             remove: action.bound,
             abort: action.bound,
+            onAfterCreate: action.bound,
+            onBeforeDestroy: action.bound,
             updateDataFromSnapshot: action.bound,
         });
-    }
-
-    init(options: any = {}) {
-        this.options = options;
-        this.queryClient = options.queryClient;
-
-        if (isStateTreeNode(this.model.request)) {
-            this.onRequestSnapshotDisposer =
-                options.onRequestSnapshot &&
-                onSnapshot(this.model.request, options.onRequestSnapshot);
-        }
     }
 
     run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = false) {
         this.cachedQueryFn = queryFn;
 
         this.abortController = new AbortController();
-
-        if (!this.disposer) {
-            this.disposer = addDisposer(this.model, () => this.onDispose());
-        }
 
         const getCachedData = useCache && !this.isRefetching;
         const cachedResult = getCachedData ? this.getDataFromCache() : null;
@@ -154,10 +148,10 @@ export class MstQueryHandler {
             });
     }
 
-    query(
+    query<TData, TResult>(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
+    ): Promise<() => QueryReturn<TData, TResult>> {
         const opts = {
             ...getVariables(this.model),
             ...options,
@@ -168,10 +162,10 @@ export class MstQueryHandler {
         );
     }
 
-    mutate(
+    mutate<TData, TResult>(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
+    ): Promise<() => QueryReturn<TData, TResult>> {
         const opts = {
             ...getVariables(this.model),
             ...options,
@@ -182,10 +176,10 @@ export class MstQueryHandler {
         );
     }
 
-    queryMore(
+    queryMore<TData, TResult>(
         queryFn: QueryFnType,
         options: QueryOptions = {}
-    ): Promise<<TData extends IAnyType, TResult = any>() => QueryReturn<TData, TResult>> {
+    ): Promise<() => QueryReturn<TData, TResult>> {
         this.isFetchingMore = true;
 
         const opts = {
@@ -266,17 +260,23 @@ export class MstQueryHandler {
         this.error = error;
     }
 
+    setOptions(options: any) {
+        this.options = options ?? {};
+    }
+
     prepareData(data: any) {
         return merge(data, this.type.properties.data, this.queryClient.config.env, true);
     }
 
     getCachedQuery() {
         const req = getSnapshotOrData(this.model.request);
+
         const queries = this.queryClient.queryStore.findAll(
             this.type,
             (q) =>
                 q.__MstQueryHandler.cachedQueryFn === this.cachedQueryFn &&
-                equal(q.__MstQueryHandler.cachedRequest, req)
+                equal(q.__MstQueryHandler.cachedRequest, req),
+            true
         );
         if (queries.length) {
             return queries
@@ -389,6 +389,23 @@ export class MstQueryHandler {
             }, cacheTimeMs - elapsedInMs);
         } else {
             this.queryClient.queryStore.removeQuery(this.model);
+        }
+    }
+
+    onBeforeDestroy() {
+        this.model = detach(this.model);
+
+        this.remove();
+    }
+
+    onAfterCreate() {
+        this.queryClient.queryStore.setQuery(this.model);
+
+        if (this.options.onRequestSnapshot && isStateTreeNode(this.model.request)) {
+            this.onRequestSnapshotDisposer = onSnapshot(
+                this.model.request,
+                this.options.onRequestSnapshot
+            );
         }
     }
 
