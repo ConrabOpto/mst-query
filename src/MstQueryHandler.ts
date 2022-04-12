@@ -73,8 +73,6 @@ export class MstQueryHandler {
         this.options = options ?? {};
         this.queryClient = getEnv(this.model).queryClient;
 
-        // const root = getRoot(model) as any;
-        // root & root.$treenode.registerHook('beforeDetach', () => this.onBeforeRootDetach());
         this.model.$treenode.registerHook('afterCreate', () => this.onAfterCreate());
         this.model.$treenode.registerHook('beforeDestroy', () => this.onBeforeDestroy());
         this.disposer = addDisposer(this.model, () => this.onDispose());
