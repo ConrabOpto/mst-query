@@ -877,24 +877,3 @@ test('very large stale time exceeds setTimeout limit', async () => {
 
     expect(getItem).toHaveBeenCalledTimes(1);
 });
-
-// test.only('test', () => {
-//     const QueryModel = createQuery('ModelQuery', {
-//         data: types.frozen(),
-//     }).actions((self) => {
-//         const s = self as any;
-//         console.log(Object.getOwnPropertyNames(s.$treenode));
-//         // TODO: Defer options creation with setOptions
-//         // TODO: Move creation logic into MstQueryHandler
-//         // TODO: Move dispose into constructor
-//         s.$treenode.registerHook('afterCreate', (node: any, hook: any) => {
-//             console.log('after create 1');
-//         });
-//         return {
-//             afterCreate() {
-//                 console.log('after create 2');
-//             },
-//         };
-//     });
-//     const q = create(QueryModel, { request: { path: 'test' } });
-// });
