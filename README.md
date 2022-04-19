@@ -555,10 +555,10 @@ const UserModel = types.model('UserModel', {
 
 const UserViewModel = types
     .model({
-        data: types.optional(types.model({
+        data: types.model({
             name: '',
             age: '',
-        }, {}),
+        },
         user: MstQuerRef(UserModel),
         getUser: types.optional(GetUserQuery, {}),
         updateUser: types.optional(UpdateUserMutation, {}),
