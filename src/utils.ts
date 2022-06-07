@@ -24,6 +24,7 @@ export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
 export function getSubType(t: any, data?: any): any {
     if (isUnionType(t)) {
         const actualType = t.determineType && data !== undefined && t.determineType(data);
+
         if (actualType) {
             return actualType;
         }

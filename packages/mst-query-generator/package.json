@@ -1,0 +1,46 @@
+{
+    "name": "mst-query-generator",
+    "version": "1.0.0-alpha.0",
+    "description": "Code generator for mst-query",
+    "source": "src/index.ts",
+    "main": "dist/generate.cjs",
+    "module": "dist/generate.module.js",
+    "type": "module",
+    "target": "node",
+    "scripts": {
+        "watch": "vitest",
+        "test": "vitest run",
+        "build": "microbundle --target node --tsconfig tsconfig.build.json --no-compress --external mobx,mobx-state-tree,react,react-dom,graphql"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ConrabOpto/mst-query.git"
+    },
+    "author": "Conrab Opto (www.conrabopto.se)",
+    "license": "MIT",
+    "dependencies": {
+        "arg": "^5.0.0",
+        "camelcase": "^6.2.0",
+        "pluralize": "^8.0.0",
+        "graphql": "16.6.0",
+        "cosmiconfig": "^7.0.0"
+    },
+    "devDependencies": {
+        "@types/graphql": "^14.5.0",
+        "@types/node": "^17.0.38",
+        "@types/pluralize": "^0.0.29",
+        "microbundle": "^0.13.3",
+        "mobx": "^6.2.0",
+        "mobx-react": "^7.1.0",
+        "mobx-state-tree": "^5.0.1",
+        "prettier": "^2.2.1",
+        "react": "^17.0.2",
+        "react-dom": "^17.0.2",
+        "typescript": "^4.4.4",
+        "mst-query": "1.0.10",
+        "vitest": "^0.18.0"
+    },
+    "volta": {
+        "extends": "../../package.json"
+    }
+}

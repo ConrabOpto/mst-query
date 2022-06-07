@@ -6,14 +6,13 @@
         "lib": ["ESNext", "dom"],
         "declaration": true,
         "skipLibCheck": true,
-        "strict": true,
-        "noImplicitAny": true,
-        "alwaysStrict": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "alwaysStrict": false,
         "moduleResolution": "node",
         "experimentalDecorators": true,
         "downlevelIteration": true,
-        "esModuleInterop": true,
-        "allowJs": true
+        "allowSyntheticDefaultImports": true
     },
-    "include": ["./src", "./tests"]
+    "include": ["./src", "./generator"]
 }
