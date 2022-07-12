@@ -8,7 +8,9 @@ import {
     isArrayType,
     getIdentifier,
     IAnyComplexType,
-    detach,
+    getRoot,
+    unprotect,
+    protect
 } from 'mobx-state-tree';
 import { observable, action, makeObservable} from 'mobx';
 import { QueryClient } from './QueryClient';
@@ -74,7 +76,11 @@ export class QueryStore {
     removeQuery(query: Instance<AnyQueryType>) {
         const type = getType(query);
         this.#cache.get(type.name)?.remove(query);
-        detach(query);
+        
+        const root = getRoot(query);
+        root && unprotect(root);
+        destroy(query);
+        root && protect(root);
 
         this.#runGc();
     }

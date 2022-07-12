@@ -1,9 +1,10 @@
 import * as React from 'react';
-import { cast, types, unprotect, applySnapshot, getSnapshot, flow, destroy } from 'mobx-state-tree';
+import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
+import { gc } from '../src/gc';
 import { render as r } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
@@ -18,7 +19,6 @@ import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
 import { ItemSubscription } from './models/ItemSubscription';
-import { ItemModel } from './models/ItemModel';
 
 const env = {};
 
@@ -49,77 +49,10 @@ afterEach(() => {
     jest.useRealTimers();
 });
 
-test('custom query store', async () => {
-    const Item = types
-        .model('Item', {
-            item: MstQueryRef(ItemModel),
-            itemQuery: types.optional(ItemQuery, {}),
-            setDescriptionMutation: types.optional(SetDescriptionMutation, {}),
-        })
-        .actions((self) => ({
-            afterCreate() {
-                self.itemQuery = cast({ env: { api } });
-                self.setDescriptionMutation = cast({ env: { api } });
-            },
-        }));
-
-    const ListStore = types
-        .model('ListQueryStore', {
-            items: types.array(Item),
-            listQuery: types.optional(ListQuery, { env: { api } }),
-        })
-        .volatile((self) => ({
-            selectedItem: null,
-        }))
-        .actions((self) => ({
-            afterCreate() {
-                this.init();
-            },
-            init: flow(function* () {
-                const { data } = yield self.listQuery.run();
-                self.items.replace(data.items.map((item: any) => ({ item: item.id })));
-            }),
-        }));
-
-    const NewRootStore = RootStore.named('NewRootStore')
-        .props({
-            listStores: types.array(ListStore),
-        })
-        .actions((self) => ({
-            addStore(key: string) {
-                (self as any)[key].push({});
-            },
-            removeStore(key: string, store: any) {
-                (self as any)[key].remove(store);
-            },
-        }));
-
-    const qc = new QueryClient({ RootStore: NewRootStore });
-    qc.init();
-
-    qc.rootStore.addStore('listStores');
-
-    const store = qc.rootStore.listStores[0];
-
-    await wait();
-    expect(store.items.length).toBe(4);
-    expect(store.items[0].item.data).toBe(undefined);
-
-    store.items[0].itemQuery.run();
-    await wait();
-    expect(store.items[0].item.data?.name).toBe('test');
-
-    expect(qc.rootStore.models.size).toBe(9);
-    qc.rootStore.removeStore('listStores', store);
-    expect(qc.rootStore.models.size).toBe(0);
-
-    qc.queryStore.clear();
-});
-
 test('garbage collection', async () => {
-    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api } });
-    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api } });
-    const qc = create(ListQuery, { request: { id: 'test' }, env: { api } });
+    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api }, cacheTime: 0 });
+    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api }, cacheTime: 0 });
+    const qc = create(ListQuery, { request: { id: 'test' }, env: { api }, cacheTime: 0 });
 
     await q1.run();
     await q2.run();
@@ -135,13 +68,13 @@ test('garbage collection', async () => {
     q2.__MstQueryHandler.updateData(itemData, { error: null, isLoading: false });
     qc.__MstQueryHandler.updateData(listData, { error: null, isLoading: false });
     await wait();
-    destroy(q1);
+    await gc(q1);
     expect(queryClient.rootStore.models.size).toBe(9);
 
-    destroy(qc);
+    await gc(qc);
     expect(queryClient.rootStore.models.size).toBe(2);
 
-    destroy(q2);
+    await gc(q2);
     expect(queryClient.rootStore.models.size).toBe(0);
 });
 

@@ -1,4 +1,10 @@
-import { destroy, IAnyModelType, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import {
+    IAnyModelType,
+    IAnyType,
+    Instance,
+    isStateTreeNode,
+    SnapshotIn,
+} from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import type {
@@ -49,12 +55,12 @@ export function useLazyQuery<T extends QueryReturnType>(
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
-                destroy(q);
+                q.__MstQueryHandler.remove();
             }
         }
         return () => {
             if (isStateTreeNode(q)) {
-                destroy(q);
+                q.__MstQueryHandler.remove();
             }
         };
     }, [key]);
@@ -84,11 +90,11 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
         if (key && key !== q.__MstQueryHandler.options.key) {
             const newQuery = createAndRun(query, options);
             setQuery(newQuery);
-            destroy(q);
+            q.__MstQueryHandler.remove();
         }
         return () => {
             if (isStateTreeNode(q)) {
-                destroy(q);
+                q.__MstQueryHandler.remove();
             }
         };
     }, [key]);
@@ -131,11 +137,11 @@ export function useMutation<T extends MutationReturnType>(
         if (key && key !== m.__MstQueryHandler.options.key) {
             const newMutation = create(query, options);
             setMutation(newMutation);
-            destroy(m);
+            m.__MstQueryHandler.remove();
         }
         return () => {
             if (isStateTreeNode(m)) {
-                destroy(m);
+                m.__MstQueryHandler.remove();
             }
         };
     }, [key]);
@@ -171,13 +177,13 @@ export function useSubscription<T extends SubscriptionReturnType>(
             const newSubscription = create(query, options);
             setSubscription(newSubscription);
             if (isStateTreeNode(s)) {
-                destroy(s);
+                s.__MstQueryHandler.remove();
             }
             (newSubscription as any).run();
         }
         return () => {
             if (isStateTreeNode(s)) {
-                destroy(s);
+                s.__MstQueryHandler.remove();
             }
         };
     }, [key]);
