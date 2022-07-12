@@ -1,4 +1,5 @@
 import { reaction } from 'mobx';
+import { destroy, flow, types } from 'mobx-state-tree';
 import { AddItemMutation } from './models/AddItemMutation';
 import { ListQuery } from './models/ListQuery';
 import { api } from './api/api';
@@ -8,10 +9,12 @@ import { itemData, listData } from './api/data';
 import { ItemQuery } from './models/ItemQuery';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src';
+import { gc } from '../src/gc';
+import { SetDescriptionMutation } from './models/SetDescriptionMutation';
 
 const env = {};
 const queryClient = new QueryClient({ RootStore });
-queryClient.init(env)
+queryClient.init(env);
 
 const { create } = createContext(queryClient);
 
@@ -19,10 +22,54 @@ beforeEach(() => {
     queryClient.queryStore.clear();
 });
 
+test('custom query store', async () => {
+    const NewRootStore = RootStore.named('NewRootStore')
+        .props({
+            itemQuery: types.optional(ItemQuery, { env: { api } }),
+            listQuery: types.optional(ListQuery, { env: { api } }),
+            setDescriptionMutation: types.optional(SetDescriptionMutation, { env: { api } }),
+        })
+        .views((self) => ({
+            get items() {
+                return self.listQuery.data?.items ?? [];
+            },
+        }))
+        .actions((self) => ({
+            afterCreate() {
+                self.listQuery.setOptions({ cacheTime: 1 });
+                self.itemQuery.setOptions({ cacheTime: 1 });
+                self.listQuery.run();
+            },
+            cleanup: flow(function* () {
+                yield gc(self);
+                destroy(self);
+            }),
+        }));
+
+    const qc = new QueryClient({ RootStore: NewRootStore });
+    qc.init();
+    
+    const store = qc.rootStore;
+
+    await wait();
+    expect(store.items.length).toBe(4);
+    expect(store.items[0].data).toBe(undefined);
+
+    store.itemQuery.run();
+    await wait();
+    expect(store.items[0].data?.name).toBe('test');
+
+    expect(qc.queryStore.models.size).toBe(9);
+    await store.cleanup();
+    expect(qc.queryStore.models.size).toBe(0);
+
+    qc.queryStore.clear();
+});
+
 test('query & mutation', async () => {
     const listQuery = create(ListQuery, {
         request: { id: 'test' },
-        env: { api }
+        env: { api },
     });
 
     await listQuery.run();
@@ -38,7 +85,7 @@ test('query & mutation', async () => {
 
     const addItemMutation = create(AddItemMutation, {
         request: { path: 'test', message: 'testing' },
-        env: { api }
+        env: { api },
     });
     await addItemMutation.run();
 

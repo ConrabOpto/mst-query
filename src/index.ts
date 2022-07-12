@@ -1,4 +1,5 @@
 export type { QueryFnType } from './MstQueryHandler';
+export { gc } from './gc';
 export { useQuery, useLazyQuery, useMutation, useSubscription } from './hooks';
 export { createQuery, createMutation, createSubscription } from './create';
 export { MstQueryRef } from './MstQueryRef';

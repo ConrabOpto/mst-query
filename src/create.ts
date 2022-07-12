@@ -60,7 +60,10 @@ export function createQuery<
             pagination,
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self),
+            __MstQueryHandler: new MstQueryHandler(self, {
+                staleTime: 0,
+                cacheTime: 300,
+            }),
         }))
         .views((self) => ({
             get isLoading() {
@@ -119,7 +122,10 @@ export function createMutation<
             env,
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self),
+            __MstQueryHandler: new MstQueryHandler(self, {
+                staleTime: 0,
+                cacheTime: 0,
+            }),
         }))
         .views((self) => ({
             get isLoading() {

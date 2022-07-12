@@ -2,7 +2,6 @@ import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
-    detach,
     getEnv,
     getSnapshot,
     getType,
@@ -74,7 +73,6 @@ export class MstQueryHandler {
         this.queryClient = getEnv(this.model).queryClient;
 
         this.model.$treenode.registerHook('afterCreate', () => this.onAfterCreate());
-        this.model.$treenode.registerHook('beforeDestroy', () => this.onBeforeDestroy());
         this.disposer = addDisposer(this.model, () => this.onDispose());
 
         makeObservable(this, {
@@ -94,7 +92,6 @@ export class MstQueryHandler {
             remove: action.bound,
             abort: action.bound,
             onAfterCreate: action.bound,
-            onBeforeDestroy: action.bound,
             updateDataFromSnapshot: action.bound,
         });
     }
@@ -261,7 +258,7 @@ export class MstQueryHandler {
     }
 
     setOptions(options: any) {
-        this.options = options ?? {};
+        this.options = { ...this.options, ...options };
     }
 
     prepareData(data: any) {
@@ -382,20 +379,19 @@ export class MstQueryHandler {
         const currentDate = new Date().getTime();
         const cachedAt = this.cachedAt?.getTime() ?? 0;
         const elapsedInMs = currentDate - cachedAt;
-        if (elapsedInMs < cacheTimeMs) {
-            this.toBeRemovedTimeout = window.setTimeout(() => {
+
+        return new Promise((resolve) => {
+            if (elapsedInMs < cacheTimeMs) {
+                this.toBeRemovedTimeout = window.setTimeout(() => {
+                    this.queryClient.queryStore.removeQuery(this.model);
+                    this.toBeRemovedTimeout = undefined;
+                    resolve(this.model);
+                }, cacheTimeMs - elapsedInMs);
+            } else {
                 this.queryClient.queryStore.removeQuery(this.model);
-                this.toBeRemovedTimeout = undefined;
-            }, cacheTimeMs - elapsedInMs);
-        } else {
-            this.queryClient.queryStore.removeQuery(this.model);
-        }
-    }
-
-    onBeforeDestroy() {
-        this.model = detach(this.model);
-
-        this.remove();
+                resolve(this.model);
+            }
+        });
     }
 
     onAfterCreate() {
