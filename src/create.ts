@@ -176,6 +176,9 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
             __MstQueryHandler: new MstQueryHandler(self),
         }))
         .actions((self) => ({
+            __MstQueryHandlerAction(action: any) {
+                return action();
+            },
             subscribe(queryFn: any, variables = {}, options = {}) {
                 const opts = {
                     variables,
