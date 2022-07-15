@@ -1,3 +1,4 @@
+import { beforeEach, test, expect } from 'vitest';
 import { reaction } from 'mobx';
 import { destroy, flow, types } from 'mobx-state-tree';
 import { AddItemMutation } from './models/AddItemMutation';
@@ -36,8 +37,8 @@ test('custom query store', async () => {
         }))
         .actions((self) => ({
             afterCreate() {
-                self.listQuery.setOptions({ cacheTime: 1 });
-                self.itemQuery.setOptions({ cacheTime: 1 });
+                self.listQuery.setOptions({ cacheTime: 0.01 });
+                self.itemQuery.setOptions({ cacheTime: 0.01 });
                 self.listQuery.run();
             },
             cleanup: flow(function* () {

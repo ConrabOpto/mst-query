@@ -10,8 +10,8 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "microbundle --tsconfig tsconfig.build.json --no-compress --external mobx,mobx-state-tree,react --jsx React.createElement",
-        "watch": "jest --watch",
-        "test": "jest"
+        "watch": "vitest",
+        "test": "vitest run"
     },
     "repository": {
         "type": "git",
@@ -23,19 +23,18 @@
         "dist"
     ],
     "devDependencies": {
-        "@testing-library/react": "^11.2.6",
-        "@types/jest": "^26.0.22",
+        "@testing-library/react": "^12.1.5",
         "@types/react": "^17.0.3",
-        "jest": "^26.6.3",
-        "microbundle": "^0.13.3",
+        "jsdom": "^20.0.0",
+        "microbundle": "^0.15.0",
         "mobx": "^6.2.0",
         "mobx-react": "^7.1.0",
         "mobx-state-tree": "^5.0.1",
         "prettier": "^2.2.1",
         "react": "^17.0.2",
         "react-dom": "^17.0.2",
-        "ts-jest": "^26.5.5",
-        "typescript": "^4.4.4"
+        "typescript": "^4.4.4",
+        "vitest": "^0.18.0"
     },
     "peerDependencies": {
         "mobx": "^6.0.0",
