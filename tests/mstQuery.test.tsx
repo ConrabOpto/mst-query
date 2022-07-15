@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { beforeEach, afterEach, test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
@@ -46,7 +47,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
 });
 
 test('garbage collection', async () => {
@@ -127,7 +128,7 @@ test('isLoading state', async () => {
     expect(itemQuery.isLoading).toBe(false);
 });
 
-test('useQuery', (done) => {
+test('useQuery', async () => {
     let loadingStates: any[] = [];
     let renders = 0;
     let result = null as any;
@@ -142,12 +143,14 @@ test('useQuery', (done) => {
         return <div></div>;
     });
     render(<Comp />);
-    setTimeout(() => {
-        expect(result).not.toBe(null);
-        expect(loadingStates).toStrictEqual([true, false]);
-        expect(renders).toBe(2);
-        done();
-    }, 0);
+    return new Promise<void>((resolve) => {
+        setTimeout(() => {
+            expect(result).not.toBe(null);
+            expect(loadingStates).toStrictEqual([true, false]);
+            expect(renders).toBe(2);
+            resolve();
+        }, 0);
+    });
 });
 
 test('query more - with initial result', async () => {
@@ -179,7 +182,7 @@ test('query more - with initial result', async () => {
     expect(q.data.items.length).toBe(7);
 });
 
-test('useQuery - with error', (done) => {
+test('useQuery - with error', () => {
     let err: any = null;
     const customError = new Error();
     const apiWithError = {
@@ -196,10 +199,12 @@ test('useQuery - with error', (done) => {
         return <div></div>;
     });
     render(<Comp />);
-    setTimeout(() => {
-        expect(err).toEqual(customError);
-        done();
-    }, 0);
+    return new Promise<void>((resolve) => {
+        setTimeout(() => {
+            expect(err).toEqual(customError);
+            resolve();
+        }, 0);
+    });
 });
 
 test('model with optional identifier', async () => {
@@ -232,10 +237,10 @@ test('model with optional identifier', async () => {
 });
 
 test('refetching query', async () => {
-    const getItem = jest.fn(() => Promise.resolve(itemData));
+    const getItem = vi.fn(() => Promise.resolve(itemData));
     const testApi = {
         ...api,
-        getItem,
+        getItem: () => getItem(),
     };
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
@@ -490,10 +495,10 @@ test('findAll', () => {
 test('caching - item', async () => {
     configureMobx({ enforceActions: 'never' });
 
-    const getItem = jest.fn(() => Promise.resolve(itemData));
+    const getItem = vi.fn(() => Promise.resolve(itemData));
     const testApi = {
         ...api,
-        getItem,
+        getItem: () => getItem(),
     };
 
     let q: any;
@@ -568,10 +573,10 @@ test('caching - list', async () => {
 });
 
 test('caching - reuse same key', async () => {
-    const getItems = jest.fn(() => Promise.resolve(listData));
+    const getItems = vi.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
-        getItems,
+        getItems: () => getItems(),
     };
 
     let id = observable.box('test');
@@ -620,8 +625,10 @@ test('caching - dont cache different query functions', async () => {
 
     await when(() => !q1.isLoading);
 
+    const getItems = vi.fn(() => Promise.resolve(listData));
+
     const differentApi = {
-        getItems: jest.fn(() => Promise.resolve(listData)),
+        getItems: () => getItems(),
     };
 
     let q2: any;
@@ -639,16 +646,16 @@ test('caching - dont cache different query functions', async () => {
 
     await when(() => !q2.isLoading);
 
-    expect(differentApi.getItems).toBeCalledTimes(1);
+    expect(getItems).toBeCalledTimes(1);
 });
 
 test('caching - cache time', async () => {
     configureMobx({ enforceActions: 'never' });
 
-    const getItems = jest.fn(() => Promise.resolve(listData));
+    const getItems = vi.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
-        getItems,
+        getItems: () => getItems(),
     };
 
     let q: any;
@@ -685,11 +692,11 @@ test('caching - cache time', async () => {
 });
 
 test('hook - onSuccess callback called', async () => {
-    const onSuccess = jest.fn();
-    const getItems = jest.fn(() => Promise.resolve(listData));
+    const onSuccess = vi.fn();
+    const getItems = vi.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
-        getItems,
+        getItems: () => getItems(),
     };
 
     let q: any;
@@ -789,11 +796,11 @@ test('merge with partial data', () => {
 });
 
 test('very large stale time exceeds setTimeout limit', async () => {
-    jest.useFakeTimers();
-    const getItem = jest.fn(() => Promise.resolve(itemData));
+    vi.useFakeTimers();
+    const getItem = vi.fn(() => Promise.resolve(itemData));
     const testApi = {
         ...api,
-        getItem,
+        getItem: () => getItem(),
     };
     const itemQuery = create(ItemQuery, {
         request: { id: 'test' },
@@ -804,7 +811,7 @@ test('very large stale time exceeds setTimeout limit', async () => {
 
     expect(getItem).toHaveBeenCalledTimes(1);
 
-    jest.advanceTimersByTime(10);
+    vi.advanceTimersByTime(10);
 
     await itemQuery.run();
 
