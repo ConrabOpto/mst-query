@@ -12,24 +12,8 @@ import { MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
-type CreateBaseOptions<TData extends IAnyType, TEnv extends IAnyType> = {
+type CreateOptions<TData extends IAnyType> = {
     data?: TData;
-    env?: TEnv;
-};
-
-type CreateOptions<
-    TRequest extends IAnyType,
-    TData extends IAnyType,
-    TEnv extends IAnyType
-> = CreateBaseOptions<TData, TEnv> & { request?: TRequest };
-
-type CreateQueryOptions<
-    TRequest extends IAnyType,
-    TData extends IAnyType,
-    TEnv extends IAnyType,
-    TPagination extends IAnyType
-> = CreateOptions<TRequest, TData, TEnv> & {
-    pagination?: TPagination;
 };
 
 type QueryOptions<T, TData> = {
@@ -40,24 +24,15 @@ type QueryOptions<T, TData> = {
     cacheTime?: number;
 };
 
-export function createQuery<
-    TRequest extends IAnyType,
-    TData extends IAnyType,
-    TEnv extends IAnyType,
-    TPagination extends IAnyType
->(name: string, options: CreateQueryOptions<TRequest, TData, TEnv, TPagination> = {}) {
-    const {
-        data = types.frozen() as TypeOrFrozen<TData>,
-        request = types.frozen() as TypeOrFrozen<TRequest>,
-        env = types.frozen() as TypeOrFrozen<TEnv>,
-        pagination = types.frozen() as TypeOrFrozen<TPagination>,
-    } = options;
+export function createQuery<TData extends IAnyType>(
+    name: string,
+    options: CreateOptions<TData> = {}
+) {
+    const { data = types.frozen() as TypeOrFrozen<TData> } = options;
     return types
         .model(name, {
             data: types.maybeNull(data),
-            request: request,
-            env,
-            pagination,
+            variables: types.frozen<any>({}),
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
@@ -105,21 +80,15 @@ export function createQuery<
         }));
 }
 
-export function createMutation<
-    TRequest extends IAnyType,
-    TData extends IAnyType,
-    TEnv extends IAnyType
->(name: string, options: CreateOptions<TRequest, TData, TEnv> = {}) {
-    const {
-        data = types.frozen() as TypeOrFrozen<TData>,
-        request = types.frozen() as TypeOrFrozen<TRequest>,
-        env = types.frozen() as TypeOrFrozen<TEnv>,
-    } = options;
+export function createMutation<TData extends IAnyType>(
+    name: string,
+    options: CreateOptions<TData> = {}
+) {
+    const { data = types.frozen() as TypeOrFrozen<TData> } = options;
     return types
         .model(name, {
             data: types.maybeNull(data),
-            request,
-            env,
+            variables: types.frozen({}),
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
@@ -161,16 +130,14 @@ type SubscriptionOptions = {
 
 export function createSubscription<TData extends IAnyType, TEnv extends IAnyType>(
     name: string,
-    options: CreateBaseOptions<TData, TEnv> = {}
+    options: CreateOptions<TData> = {}
 ) {
     const {
-        data = types.frozen() as TypeOrFrozen<TData>,
-        env = types.frozen() as TypeOrFrozen<TEnv>,
+        data = types.frozen() as TypeOrFrozen<TData>
     } = options;
     return types
         .model(name, {
-            data: types.maybeNull(data),
-            env,
+            data: types.maybeNull(data)
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self),
@@ -220,7 +187,9 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
 
 export function createAndRun<T extends IAnyModelType>(query: T, options: any = {}) {
     const q = create(query, options);
-    q.run();
+    
+    const { request, pagination } = options;
+    q.run(request, pagination);
 
     return q;
 }
@@ -231,30 +200,26 @@ export function create<T extends IAnyModelType>(
 ): Instance<T> & { run: unknown } {
     let {
         data,
-        request,
-        env,
+        initialState,
         onSuccess,
         onError,
         onUpdate,
-        onRequestSnapshot,
         afterCreate,
         onFetched,
         staleTime,
         cacheTime,
-        pagination,
         key = query.name,
         queryClient,
     } = options;
 
     const snapshot = data && isStateTreeNode(data) ? getSnapshot(data) : data;
-    const q = query.create({ data: snapshot, request, pagination, env }, queryClient.config.env);
+    const q = query.create({ data: snapshot, ...initialState }, queryClient.config.env);
 
     q.__MstQueryHandler.setOptions({
         onSuccess,
         onError,
         onUpdate,
         onFetched,
-        onRequestSnapshot,
         staleTime,
         cacheTime,
         key: key ?? query.name,

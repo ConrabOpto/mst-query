@@ -1,10 +1,4 @@
-import {
-    IAnyModelType,
-    IAnyType,
-    Instance,
-    isStateTreeNode,
-    SnapshotIn,
-} from 'mobx-state-tree';
+import { IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import type {
@@ -21,34 +15,40 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
 }
 
 type Options = {
-    onRequestSnapshot?: (snapshot: any) => any;
     afterCreate?: (self: any) => any;
     key?: string;
 };
 
-type QueryOptions<T extends IAnyType> = Options & {
-    data?: SnapshotIn<T>['data'] | IAnyModelType;
-    request?: SnapshotIn<T>['request'];
-    env?: SnapshotIn<T>['env'];
-    pagination?: SnapshotIn<T>['pagination'];
+type QueryOptions<T extends IAnyType, TRequest, TPagination> = Options & {
+    request?: TRequest;
+    pagination?: TPagination;
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     cacheTime?: number;
+    initialState?: SnapshotIn<T>;
 };
 
-type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
+type UseQueryOptions<T extends QueryReturnType, TRequest, TPagination> = QueryOptions<
+    T,
+    TRequest,
+    TPagination
+>;
 
 export function useLazyQuery<T extends QueryReturnType>(
-    query: T,
-    options: UseQueryOptions<T> = {}
+    query: T & { run: (...args: unknown[]) => unknown },
+    options: UseQueryOptions<
+        T,
+        Parameters<typeof query['run']>[0],
+        Parameters<typeof query['run']>[1]
+    > = {}
 ) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     const { key } = options;
-    const [q, setQuery] = useState(() => create(query, options));
+    const [q, setQuery] = useState(() => create(query as T, options));
 
     useEffect(() => {
         if (key && key !== q.__MstQueryHandler.options.key) {
@@ -79,7 +79,19 @@ export function useLazyQuery<T extends QueryReturnType>(
     };
 }
 
-export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryOptions<T> = {}) {
+type GetParameters<T extends unknown> = T extends (...args: infer P) => any ? P : never;
+
+export function useQuery<
+    T extends QueryReturnType,
+    TInstance extends Instance<T> & { run: unknown }
+>(
+    query: T,
+    options: UseQueryOptions<
+        T,
+        GetParameters<TInstance['run']>[0],
+        GetParameters<TInstance['run']>[1]
+    > = {}
+) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
@@ -114,11 +126,9 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
 }
 
 type MutationOptions<T extends IAnyType> = Options & {
-    data?: SnapshotIn<T>['data'];
-    request?: SnapshotIn<T>['request'];
-    env?: SnapshotIn<T>['env'];
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    initialState?: SnapshotIn<T>;
 };
 
 type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
@@ -156,8 +166,7 @@ export function useMutation<T extends MutationReturnType>(
 
 type SubscriptionOptions<T extends IAnyType> = Options & {
     onUpdate?: any;
-    data?: SnapshotIn<T>['data'];
-    env?: SnapshotIn<T>['env'];
+    initialState?: SnapshotIn<T>;
 };
 
 type UseSubscriptionOptions<T extends SubscriptionReturnType> = SubscriptionOptions<T>;
@@ -192,7 +201,7 @@ export function useSubscription<T extends SubscriptionReturnType>(
 }
 
 export type AnyQueryOptions<T extends AnyQueryType> = T extends QueryReturnType
-    ? QueryOptions<T>
+    ? QueryOptions<T, any, any>
     : T extends MutationReturnType
     ? MutationOptions<T>
     : T extends SubscriptionReturnType

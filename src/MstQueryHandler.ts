@@ -7,7 +7,6 @@ import {
     getType,
     IDisposer,
     isStateTreeNode,
-    onSnapshot,
 } from 'mobx-state-tree';
 import { merge } from './merge';
 import { QueryClient } from './QueryClient';
@@ -50,12 +49,12 @@ export class MstQueryHandler {
     status = QueryStatus.Active;
     result: any;
     options: any;
+    previousVariables: any
     model: any;
     type: any;
     queryClient!: QueryClient<any>;
 
     disposer?: IDisposer;
-    onRequestSnapshotDisposer?: IDisposer;
     abortController?: AbortController;
     toBeRemovedTimeout?: number;
 
@@ -98,6 +97,7 @@ export class MstQueryHandler {
 
     run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = false) {
         this.cachedQueryFn = queryFn;
+        this.setVariables({ request: options.request, pagination: options.pagination });
 
         this.abortController = new AbortController();
 
@@ -149,11 +149,7 @@ export class MstQueryHandler {
         queryFn: QueryFnType,
         options: QueryOptions = {}
     ): Promise<() => QueryReturn<TData, TResult>> {
-        const opts = {
-            ...getVariables(this.model),
-            ...options,
-        };
-        return this.run(queryFn, opts, true).then(
+        return this.run(queryFn, options, true).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
@@ -163,11 +159,7 @@ export class MstQueryHandler {
         queryFn: QueryFnType,
         options: QueryOptions = {}
     ): Promise<() => QueryReturn<TData, TResult>> {
-        const opts = {
-            ...getVariables(this.model),
-            ...options,
-        };
-        return this.run(queryFn, opts).then(
+        return this.run(queryFn, options).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
@@ -179,11 +171,7 @@ export class MstQueryHandler {
     ): Promise<() => QueryReturn<TData, TResult>> {
         this.isFetchingMore = true;
 
-        const opts = {
-            ...getVariables(this.model),
-            ...options,
-        };
-        return this.run(queryFn, opts).then(
+        return this.run(queryFn, options).then(
             (result) => this.onSuccess(result, false),
             (err) => this.onError(err, false)
         );
@@ -247,6 +235,7 @@ export class MstQueryHandler {
     abort() {
         this.abortController?.abort();
         this.abortController = undefined;
+        this.revertVariables();
     }
 
     setResult(result: any) {
@@ -261,12 +250,25 @@ export class MstQueryHandler {
         this.options = { ...this.options, ...options };
     }
 
+    setVariables(variables: any) {
+        this.previousVariables = this.model.variables;
+        this.model.__MstQueryHandlerAction(() => {
+            this.model.variables = normalizeVariables(variables);
+        });
+    }
+
+    revertVariables() {
+        this.model.__MstQueryHandlerAction(() => {
+            this.model.variables = this.previousVariables;
+        });
+    }
+
     prepareData(data: any) {
         return merge(data, this.type.properties.data, this.queryClient.config.env, true);
     }
 
     getCachedQuery() {
-        const req = getSnapshotOrData(this.model.request);
+        const req = getSnapshotOrData(this.model.variables.request);
 
         const queries = this.queryClient.queryStore.findAll(
             this.type,
@@ -350,7 +352,7 @@ export class MstQueryHandler {
 
     updateCache() {
         this.cachedAt = new Date();
-        this.cachedRequest = getSnapshotOrData(this.model.request);
+        this.cachedRequest = getSnapshotOrData(this.model.variables.request);
 
         const staleTime =
             this.options.staleTime * 1000 > MAX_TIMEOUT
@@ -396,34 +398,26 @@ export class MstQueryHandler {
 
     onAfterCreate() {
         this.queryClient.queryStore.setQuery(this.model);
-
-        if (this.options.onRequestSnapshot && isStateTreeNode(this.model.request)) {
-            this.onRequestSnapshotDisposer = onSnapshot(
-                this.model.request,
-                this.options.onRequestSnapshot
-            );
-        }
     }
 
     onDispose() {
         this.isDisposed = true;
         this.abort();
-        this.onRequestSnapshotDisposer?.();
         this.toBeRemovedTimeout && clearTimeout(this.toBeRemovedTimeout);
     }
 }
 
-function getVariables(model: any) {
+function normalizeVariables({ request, pagination }: { request: any, pagination: any }) {
     let variables: any = {};
-    if (model.request) {
-        variables.request = isStateTreeNode(model.request)
-            ? getSnapshot(model.request)
-            : model.request;
+    if (request) {
+        variables.request = isStateTreeNode(request)
+            ? getSnapshot(request)
+            : request;
     }
-    if (model.pagination) {
-        variables.pagination = isStateTreeNode(model.pagination)
-            ? getSnapshot(model.pagination)
-            : model.pagination;
+    if (pagination) {
+        variables.pagination = isStateTreeNode(pagination)
+            ? getSnapshot(pagination)
+            : pagination;
     }
     return variables;
 }
