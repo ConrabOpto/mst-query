@@ -3,6 +3,7 @@ import { createQuery, MstQueryRef } from '../../src';
 import { ItemModel } from './ItemModel';
 
 export const ItemQuery = createQuery('ItemQuery', {
+    request: types.model({ id: types.string }),
     data: MstQueryRef(ItemModel),
 })
     .props({

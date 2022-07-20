@@ -19,9 +19,9 @@ type Options = {
     key?: string;
 };
 
-type QueryOptions<T extends IAnyType, TRequest, TPagination> = Options & {
-    request?: TRequest;
-    pagination?: TPagination;
+type QueryOptions<T extends IAnyType> = Options & {
+    request?: SnapshotIn<T>['request'];
+    pagination?: SnapshotIn<T>['pagination'];
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
@@ -30,19 +30,11 @@ type QueryOptions<T extends IAnyType, TRequest, TPagination> = Options & {
     initialState?: SnapshotIn<T>;
 };
 
-type UseQueryOptions<T extends QueryReturnType, TRequest, TPagination> = QueryOptions<
-    T,
-    TRequest,
-    TPagination
->;
+type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
 
 export function useLazyQuery<T extends QueryReturnType>(
     query: T & { run: (...args: unknown[]) => unknown },
-    options: UseQueryOptions<
-        T,
-        Parameters<typeof query['run']>[0],
-        Parameters<typeof query['run']>[1]
-    > = {}
+    options: UseQueryOptions<T> = {}
 ) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
@@ -79,19 +71,7 @@ export function useLazyQuery<T extends QueryReturnType>(
     };
 }
 
-type GetParameters<T extends unknown> = T extends (...args: infer P) => any ? P : never;
-
-export function useQuery<
-    T extends QueryReturnType,
-    TInstance extends Instance<T> & { run: unknown }
->(
-    query: T,
-    options: UseQueryOptions<
-        T,
-        GetParameters<TInstance['run']>[0],
-        GetParameters<TInstance['run']>[1]
-    > = {}
-) {
+export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryOptions<T> = {}) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
@@ -201,7 +181,7 @@ export function useSubscription<T extends SubscriptionReturnType>(
 }
 
 export type AnyQueryOptions<T extends AnyQueryType> = T extends QueryReturnType
-    ? QueryOptions<T, any, any>
+    ? QueryOptions<T>
     : T extends MutationReturnType
     ? MutationOptions<T>
     : T extends SubscriptionReturnType

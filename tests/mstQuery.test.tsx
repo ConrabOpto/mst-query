@@ -450,12 +450,12 @@ test('findAll', () => {
     itemQuery.run({ id: 'test' });
 
     const queries = queryClient.queryStore.findAll(ItemQuery, (query) =>
-        query.variables.request.id.includes('t')
+        !!query.variables.request?.id.includes('t')
     );
     expect(queries.length).toBe(1);
 
     const queries2 = queryClient.queryStore.findAll(ItemQuery, (query) =>
-        query.variables.request.id.includes('o')
+        !!query.variables.request?.id.includes('o')
     );
     expect(queries2.length).toBe(0);
 });

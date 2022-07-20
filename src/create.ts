@@ -12,8 +12,20 @@ import { MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
-type CreateOptions<TData extends IAnyType> = {
+type CreateBaseOptions<TData extends IAnyType> = {
     data?: TData;
+};
+
+type CreateOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateBaseOptions<TData> & {
+    request?: TRequest;
+};
+
+type CreateQueryOptions<
+    TData extends IAnyType,
+    TRequest extends IAnyType,
+    TPagination extends IAnyType
+> = CreateOptions<TData, TRequest> & {
+    pagination?: TPagination;
 };
 
 type QueryOptions<T, TData> = {
@@ -24,15 +36,26 @@ type QueryOptions<T, TData> = {
     cacheTime?: number;
 };
 
-export function createQuery<TData extends IAnyType>(
-    name: string,
-    options: CreateOptions<TData> = {}
-) {
-    const { data = types.frozen() as TypeOrFrozen<TData> } = options;
+export function createQuery<
+    TData extends IAnyType,
+    TRequest extends IAnyType,
+    TPagination extends IAnyType
+>(name: string, options: CreateQueryOptions<TData, TRequest, TPagination>) {
+    const {
+        data = types.frozen() as TypeOrFrozen<TData>,
+        request = types.frozen() as TypeOrFrozen<TRequest>,
+        pagination = types.frozen() as TypeOrFrozen<TPagination>,
+    } = options;
     return types
         .model(name, {
             data: types.maybeNull(data),
-            variables: types.frozen<any>({}),
+            variables: types.optional(
+                types.model({
+                    request: types.maybeNull(request),
+                    pagination: types.maybeNull(pagination),
+                }),
+                { request: null, pagination: null }
+            ),
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
@@ -80,15 +103,23 @@ export function createQuery<TData extends IAnyType>(
         }));
 }
 
-export function createMutation<TData extends IAnyType>(
+export function createMutation<TData extends IAnyType, TRequest extends IAnyType>(
     name: string,
-    options: CreateOptions<TData> = {}
+    options: CreateOptions<TData, TRequest> = {}
 ) {
-    const { data = types.frozen() as TypeOrFrozen<TData> } = options;
+    const {
+        data = types.frozen() as TypeOrFrozen<TData>,
+        request = types.frozen() as TypeOrFrozen<TRequest>,
+    } = options;
     return types
         .model(name, {
             data: types.maybeNull(data),
-            variables: types.frozen({}),
+            variables: types.optional(
+                types.model({
+                    request: types.maybeNull(request),
+                }),
+                { request: null }
+            ),
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
@@ -130,14 +161,12 @@ type SubscriptionOptions = {
 
 export function createSubscription<TData extends IAnyType, TEnv extends IAnyType>(
     name: string,
-    options: CreateOptions<TData> = {}
+    options: CreateBaseOptions<TData> = {}
 ) {
-    const {
-        data = types.frozen() as TypeOrFrozen<TData>
-    } = options;
+    const { data = types.frozen() as TypeOrFrozen<TData> } = options;
     return types
         .model(name, {
-            data: types.maybeNull(data)
+            data: types.maybeNull(data),
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self),
@@ -187,7 +216,7 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
 
 export function createAndRun<T extends IAnyModelType>(query: T, options: any = {}) {
     const q = create(query, options);
-    
+
     const { request, pagination } = options;
     q.run(request, pagination);
 
