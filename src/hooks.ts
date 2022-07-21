@@ -1,4 +1,4 @@
-import { IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { flow, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import type {
@@ -25,6 +25,7 @@ type QueryOptions<T extends IAnyType> = Options & {
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onQueryMore?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     cacheTime?: number;
     initialState?: SnapshotIn<T>;
@@ -94,8 +95,13 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
 
     const samePagination = equal(options.pagination, q.variables.pagination);
     useEffect(() => {
-        if (options.pagination && !samePagination && !q.__MstQueryHandler.isDisposed) {
-            q.queryMore({ request: options.request, pagination: options.pagination });
+        const { request, pagination } = options;
+        if (pagination && !samePagination && !q.__MstQueryHandler.isDisposed) {
+            q.__MstQueryHandlerAction(flow(function* () {
+                const next = yield* q.queryMore({ request, pagination });
+                const { data } = next();
+                options.onQueryMore?.(data, q);
+            }));
         }
     }, [samePagination]);
 

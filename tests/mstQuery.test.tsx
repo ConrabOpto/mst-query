@@ -112,7 +112,7 @@ test('mutation updates domain model', async () => {
 
     await prefetch(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
-        queryFn: api.setDescription
+        queryFn: api.setDescription,
     });
 
     expect(itemQuery.data?.description).toBe('new');
@@ -143,15 +143,15 @@ test('useQuery', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    
+
     await wait(0);
-    
+
     expect(result).not.toBe(null);
     expect(loadingStates).toStrictEqual([true, false]);
     expect(renders).toBe(2);
 });
 
-test.only('useQuery - reactive request', async () => {
+test('useQuery - reactive request', async () => {
     configureMobx({ enforceActions: 'never' });
 
     let id = observable.box('test');
@@ -165,10 +165,10 @@ test.only('useQuery - reactive request', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    
+
     await wait(0);
     expect(q.data.id).toBe('test');
-    
+
     id.set('different-test');
     await wait(0);
     expect(q.data.id).toBe('different-test');
@@ -178,6 +178,8 @@ test.only('useQuery - reactive request', async () => {
 });
 
 test('query more - with initial result', async () => {
+    configureMobx({ enforceActions: 'never' });
+
     const customApi = {
         ...api,
         async getItems(options: any, query: any) {
@@ -188,12 +190,19 @@ test('query more - with initial result', async () => {
         },
     };
 
+    let offset = observable.box(0);
+
     let q: any;
     const Comp = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            pagination: { offset: 0 },
+            pagination: { offset: offset.get() },
             queryFn: customApi.getItems,
+            onQueryMore(data, self) {
+                if (data?.items) {
+                    self.data?.addItems(data.items);
+                }
+            },
         });
         q = query;
         return <div></div>;
@@ -202,9 +211,13 @@ test('query more - with initial result', async () => {
 
     await when(() => !q.isLoading);
 
-    await q.fetchMore(4);
+    offset.set(4);
+    await wait(0);
+    await when(() => !q.isFetchingMore);
 
     expect(q.data.items.length).toBe(7);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('useQuery - with error', async () => {
@@ -224,7 +237,7 @@ test('useQuery - with error', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    
+
     await wait(0);
 
     expect(err).toEqual(customError);
@@ -272,7 +285,7 @@ test('refetching query', async () => {
     await itemQuery.run({ id: 'test' });
 
     const mutation = create(SetDescriptionMutation, {
-        queryFn: testApi.setDescription
+        queryFn: testApi.setDescription,
     });
     await mutation.run({ id: 'test', description: 'new' });
 
@@ -299,7 +312,7 @@ test('mutation updates query (with optimistic update)', async () => {
     );
 
     const addItemMutation = create(AddItemMutation, {
-        queryFn: api.addItem
+        queryFn: api.addItem,
     });
     await addItemMutation.run({ path: 'test', message: 'testing' });
 
@@ -456,7 +469,7 @@ test('merge with undefined data and union type', () => {
 test('findAll', () => {
     const itemQuery = prefetch(ItemQuery, {
         request: { id: 'test' },
-        queryFn: api.getItem
+        queryFn: api.getItem,
     });
 
     const queries = queryClient.queryStore.findAll(
@@ -515,12 +528,21 @@ test('caching - item', async () => {
 });
 
 test('caching - list', async () => {
+    configureMobx({ enforceActions: 'never' });
+
+    let offset = observable.box(0);
+
     let q1: any;
     const Comp1 = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             queryFn: api.getItems,
-            pagination: { offset: 0 },
+            pagination: { offset: offset.get() },
+            onQueryMore(data, self) {
+                if (data?.items) {
+                    self.data?.addItems(data.items);
+                }
+            },
             staleTime: 1,
         });
         q1 = query;
@@ -530,7 +552,10 @@ test('caching - list', async () => {
 
     await when(() => !q1.isLoading);
 
-    await q1.fetchMore(4);
+    offset.set(4);
+    await wait(0);
+    await when(() => !q1.isFetchingMore);
+    
     expect(q1.data.items.length).toBe(7);
 
     let q2: any;
@@ -550,6 +575,8 @@ test('caching - list', async () => {
 
     expect(q1.data.items.length).toBe(7);
     expect(q2.data.items.length).toBe(7);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('caching - hit cached request', async () => {
@@ -784,7 +811,7 @@ test('very large stale time exceeds setTimeout limit', async () => {
     const itemQuery = await prefetch(ItemQuery, {
         staleTime: 0x7fffffff / 1000 + 1,
         queryFn: testApi.getItem,
-        request: { id: 'test' }
+        request: { id: 'test' },
     });
 
     expect(getItem).toHaveBeenCalledTimes(1);

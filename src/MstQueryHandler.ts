@@ -172,8 +172,10 @@ export class MstQueryHandler {
 
         return this.run(options).then(
             (result) => this.onSuccess(result, false),
-            (err) => this.onError(err, false)
-        );
+            (err) => this.onError(err, false)            
+        ).finally(() => {
+            this.isFetchingMore = false;
+        })
     }
 
     refetch(...params: any) {
@@ -337,9 +339,6 @@ export class MstQueryHandler {
         }
         if (this.isRefetching) {
             this.isRefetching = false;
-        }
-        if (this.isFetchingMore) {
-            this.isFetchingMore = false;
         }
         if (status) {
             this.error = status.error;

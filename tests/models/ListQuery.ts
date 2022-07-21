@@ -21,15 +21,5 @@ export const ListQuery = createQuery('ListQuery', {
         },
         removeItem(item: any) {
             self.data?.removeItem(item);
-        },
-        fetchMore: flow(function* (offset: number) {
-            const next = yield* self.queryMore({
-                request: self.variables.request,
-                pagination: { offset }
-            });
-            const { data } = next();
-            if (data?.items) {
-                self.data?.addItems(data.items);
-            }
-        }),
+        }
     }));
