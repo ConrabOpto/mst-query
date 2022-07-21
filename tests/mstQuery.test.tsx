@@ -19,6 +19,7 @@ import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
 import { ItemSubscription } from './models/ItemSubscription';
+import { useEffect } from 'react';
 
 const env = {};
 
@@ -142,14 +143,38 @@ test('useQuery', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            expect(result).not.toBe(null);
-            expect(loadingStates).toStrictEqual([true, false]);
-            expect(renders).toBe(2);
-            resolve();
-        }, 0);
+    
+    await wait(0);
+    
+    expect(result).not.toBe(null);
+    expect(loadingStates).toStrictEqual([true, false]);
+    expect(renders).toBe(2);
+});
+
+test.only('useQuery - reactive request', async () => {
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ItemQuery, {
+            request: { id: id.get() },
+            queryFn: api.getItem,
+        });
+        q = query;
+        return <div></div>;
     });
+    render(<Comp />);
+    
+    await wait(0);
+    expect(q.data.id).toBe('test');
+    
+    id.set('different-test');
+    await wait(0);
+    expect(q.data.id).toBe('different-test');
+    expect(q.variables.request.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('query more - with initial result', async () => {
@@ -182,7 +207,7 @@ test('query more - with initial result', async () => {
     expect(q.data.items.length).toBe(7);
 });
 
-test('useQuery - with error', () => {
+test('useQuery - with error', async () => {
     let err: any = null;
     const customError = new Error();
     const apiWithError = {
@@ -199,12 +224,10 @@ test('useQuery - with error', () => {
         return <div></div>;
     });
     render(<Comp />);
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            expect(err).toEqual(customError);
-            resolve();
-        }, 0);
-    });
+    
+    await wait(0);
+
+    expect(err).toEqual(customError);
 });
 
 test('model with optional identifier', async () => {

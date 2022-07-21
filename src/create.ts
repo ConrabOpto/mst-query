@@ -193,6 +193,11 @@ export function createSubscription<TData extends IAnyType, TEnv extends IAnyType
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self),
         }))
+        .views((self) => ({
+            get error() {
+                return self.__MstQueryHandler.error;
+            }
+        }))
         .actions((self) => ({
             __MstQueryHandlerAction(action: any) {
                 return action();

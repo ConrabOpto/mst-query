@@ -94,7 +94,7 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
 
     const samePagination = equal(options.pagination, q.variables.pagination);
     useEffect(() => {
-        if (options.pagination && !samePagination) {
+        if (options.pagination && !samePagination && !q.__MstQueryHandler.isDisposed) {
             q.queryMore({ request: options.request, pagination: options.pagination });
         }
     }, [samePagination]);
@@ -129,21 +129,15 @@ export function useMutation<T extends MutationReturnType>(
     const queryClient = useContext(Context) as QueryClient<any>;
     options = { queryClient, ...options } as any;
 
-    const { key } = options;
-    const [m, setMutation] = useState(() => create(query, options));
+    const [m] = useState(() => create(query, options));
 
     useEffect(() => {
-        if (key && key !== m.__MstQueryHandler.options.key) {
-            const newMutation = create(query, options);
-            setMutation(newMutation);
-            m.__MstQueryHandler.remove();
-        }
         return () => {
             if (isStateTreeNode(m)) {
                 m.__MstQueryHandler.remove();
             }
         };
-    }, [key]);
+    }, []);
 
     const result = {
         ...m,
@@ -163,30 +157,26 @@ type UseSubscriptionOptions<T extends SubscriptionReturnType> = SubscriptionOpti
 export function useSubscription<T extends SubscriptionReturnType>(
     query: T,
     options: UseSubscriptionOptions<T> = {}
-): Instance<SubscriptionReturnType> {
+) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = { queryClient, ...options } as any;
 
-    const { key } = options;
-    const [s, setSubscription] = useState(() => createAndRun(query, options));
+    const [s] = useState(() => createAndRun(query, options));
 
     useEffect(() => {
-        if (key && key !== s.__MstQueryHandler.options.key) {
-            const newSubscription = create(query, options);
-            setSubscription(newSubscription);
-            if (isStateTreeNode(s)) {
-                s.__MstQueryHandler.remove();
-            }
-            (newSubscription as any).run();
-        }
         return () => {
             if (isStateTreeNode(s)) {
                 s.__MstQueryHandler.remove();
             }
         };
-    }, [key]);
+    }, []);
 
-    return { ...s, subscription: s };
+    return {
+        run: s.run as typeof s['run'],
+        data: s.data as typeof s['data'],
+        error: s.error,
+        subscription: s
+    };
 }
 
 export type AnyQueryOptions<T extends AnyQueryType> = T extends QueryReturnType

@@ -48,7 +48,15 @@ export class MstQueryHandler {
 
     status = QueryStatus.Active;
     result: any;
-    options: { queryFn: QueryFnType };
+    options: {
+        queryFn: QueryFnType;
+        onSuccess: any;
+        onError: any;
+        onFetched: any;
+        cacheTime: any;
+        staleTime: any;
+    };
+
     previousVariables: any;
     model: any;
     type: any;

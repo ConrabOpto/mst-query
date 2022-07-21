@@ -1,7 +1,13 @@
 import { itemData, moreListData, listData } from './data';
 
 export const api = {
-    async getItem() {
+    async getItem({ request }: any) {
+        if (request.id === 'different-test') {
+            return {
+                ...itemData,
+                id: 'different-test',
+            };
+        }
         return itemData;
     },
     async getItems({ pagination }: any = {}) {
