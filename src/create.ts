@@ -7,6 +7,8 @@ import {
     getSnapshot,
     toGeneratorFunction,
     addDisposer,
+    flow,
+    SnapshotIn,
 } from 'mobx-state-tree';
 import { MstQueryHandler } from './MstQueryHandler';
 
@@ -18,6 +20,7 @@ type CreateBaseOptions<TData extends IAnyType> = {
 
 type CreateOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateBaseOptions<TData> & {
     request?: TRequest;
+    queryFn?: any;
 };
 
 type CreateQueryOptions<
@@ -26,14 +29,6 @@ type CreateQueryOptions<
     TPagination extends IAnyType
 > = CreateOptions<TData, TRequest> & {
     pagination?: TPagination;
-};
-
-type QueryOptions<T, TData> = {
-    onFetched?: (data: TData, self: T) => void;
-    onSuccess?: (data: TData, self: T) => void;
-    onError?: (data: TData, self: T) => void;
-    staleTime?: number;
-    cacheTime?: number;
 };
 
 export function createQuery<
@@ -45,6 +40,7 @@ export function createQuery<
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
         pagination = types.frozen() as TypeOrFrozen<TPagination>,
+        queryFn,
     } = options;
     return types
         .model(name, {
@@ -59,6 +55,7 @@ export function createQuery<
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
+                queryFn,
                 staleTime: 0,
                 cacheTime: 300,
             }),
@@ -97,10 +94,23 @@ export function createQuery<
             ),
             refetch: self.__MstQueryHandler.refetch,
             abort: self.__MstQueryHandler.abort,
-            setOptions(options: QueryOptions<typeof self, typeof self['data']>) {
+            setOptions(options: any) {
                 self.__MstQueryHandler.setOptions(options);
             },
         }));
+}
+
+export function createQueryWithRun<
+    TData extends IAnyType,
+    TRequest extends IAnyType,
+    TPagination extends IAnyType
+>(name: string, options: CreateQueryOptions<TData, TRequest, TPagination>) {
+    return createQuery(name, options).actions((self) => ({
+        run: flow(function* (request?: SnapshotIn<TRequest>, pagination?: SnapshotIn<TPagination>) {
+            const next = yield* (self as any).query({ request, pagination });
+            next();
+        }),
+    }));
 }
 
 export function createMutation<TData extends IAnyType, TRequest extends IAnyType>(
@@ -110,6 +120,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
+        queryFn,
     } = options;
     return types
         .model(name, {
@@ -123,6 +134,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, {
+                queryFn,
                 staleTime: 0,
                 cacheTime: 0,
             }),
@@ -147,12 +159,22 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                     self.__MstQueryHandler.mutate<typeof self['data'], TResult>(...args)
             ),
             abort: self.__MstQueryHandler.abort,
-            setOptions(
-                options: Exclude<QueryOptions<typeof self, typeof self['data']>, 'onFetched'>
-            ) {
+            setOptions(options: any) {
                 self.__MstQueryHandler.setOptions(options);
             },
         }));
+}
+
+export function createMutationWithRun<TData extends IAnyType, TRequest extends IAnyType>(
+    name: string,
+    options: CreateOptions<TData, TRequest> = {}
+) {
+    return createMutation(name, options).actions((self) => ({
+        run: flow(function* (request?: SnapshotIn<TRequest>) {
+            const next = yield* (self as any).mutate({ request });
+            next();
+        }),
+    }));
 }
 
 type SubscriptionOptions = {
@@ -238,6 +260,7 @@ export function create<T extends IAnyModelType>(
         staleTime,
         cacheTime,
         key = query.name,
+        queryFn,
         queryClient,
     } = options;
 
@@ -251,6 +274,7 @@ export function create<T extends IAnyModelType>(
         onFetched,
         staleTime,
         cacheTime,
+        queryFn,
         key: key ?? query.name,
     });
 

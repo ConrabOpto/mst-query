@@ -26,9 +26,9 @@ beforeEach(() => {
 test('custom query store', async () => {
     const NewRootStore = RootStore.named('NewRootStore')
         .props({
-            itemQuery: types.optional(ItemQuery, { env: { api } }),
-            listQuery: types.optional(ListQuery, { env: { api } }),
-            setDescriptionMutation: types.optional(SetDescriptionMutation, { env: { api } }),
+            itemQuery: types.optional(ItemQuery, {}),
+            listQuery: types.optional(ListQuery, {}),
+            setDescriptionMutation: types.optional(SetDescriptionMutation, {}),
         })
         .views((self) => ({
             get items() {
@@ -37,8 +37,8 @@ test('custom query store', async () => {
         }))
         .actions((self) => ({
             afterCreate() {
-                self.listQuery.setOptions({ cacheTime: 0.01 });
-                self.itemQuery.setOptions({ cacheTime: 0.01 });
+                self.listQuery.setOptions({ queryFn: api.getItems, cacheTime: 0.01 });
+                self.itemQuery.setOptions({ queryFn: api.getItem, cacheTime: 0.01 });
                 self.listQuery.run({ id: 'test' });
             },
             cleanup: flow(function* () {
@@ -69,7 +69,7 @@ test('custom query store', async () => {
 
 test('query & mutation', async () => {
     const listQuery = create(ListQuery, {
-        initialState: { env: { api } },
+        queryFn: api.getItems
     });
 
     await listQuery.run({ id: 'test' });
@@ -84,7 +84,7 @@ test('query & mutation', async () => {
     );
 
     const addItemMutation = create(AddItemMutation, {
-        initialState: { env: { api } }
+        queryFn: api.addItem
     });
     await addItemMutation.run({ path: 'test', message: 'testing' });
 
@@ -95,9 +95,9 @@ test('query & mutation', async () => {
 });
 
 test('garbage collection', async () => {
-    const q1 = create(ItemQuery, { initialState: { env: { api } } });
-    const q2 = create(ItemQuery, { initialState: { env: { api } } });
-    const qc = create(ListQuery, { initialState: { env: { api } } });
+    const q1 = create(ItemQuery, { queryFn: api.getItem });
+    const q2 = create(ItemQuery, { queryFn: api.getItem });
+    const qc = create(ListQuery, { queryFn: api.getItems });
 
     await q1.run({ id: 'test' });
     await q2.run({ id: 'test2' });

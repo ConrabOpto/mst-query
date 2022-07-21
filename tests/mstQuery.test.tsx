@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { beforeEach, afterEach, test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
+import { createQuery, MstQueryRef, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -24,7 +24,7 @@ const env = {};
 
 const queryClient = new QueryClient({ RootStore });
 
-const { QueryClientProvider, createOptimisticData, create } = createContext(queryClient);
+const { QueryClientProvider, createOptimisticData, prefetch, create } = createContext(queryClient);
 queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
@@ -50,16 +50,23 @@ afterEach(() => {
 });
 
 test('garbage collection', async () => {
-    const q1 = create(ItemQuery, { initialState: { env: { api } }, cacheTime: 0 });
-    const q2 = create(ItemQuery, { initialState: { env: { api } }, cacheTime: 0 });
-    const qc = create(ListQuery, { initialState: { env: { api } }, cacheTime: 0 });
-
-    await q1.run({ id: 'test' });
-    await q2.run({ id: 'test2' });
-
+    const q1 = await prefetch(ItemQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItem,
+        cacheTime: 0,
+    });
+    const q2 = await prefetch(ItemQuery, {
+        request: { id: 'test2' },
+        queryFn: api.getItem,
+        cacheTime: 0,
+    });
     expect(queryClient.rootStore.models.size).toBe(2);
 
-    await qc.run({ id: 'test' });
+    const qc = await prefetch(ListQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItems,
+        cacheTime: 0,
+    });
     expect(queryClient.rootStore.models.size).toBe(9);
 
     qc.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
@@ -100,22 +107,18 @@ test('gc - only walk model props', () => {
 });
 
 test('mutation updates domain model', async () => {
-    const itemQuery = create(ItemQuery, {
-        initialState: { env: { api } },
-    });
-    await itemQuery.run({ id: 'test' });
+    const itemQuery = await prefetch(ItemQuery, { request: { id: 'test' }, queryFn: api.getItem });
 
-    const setStatusMutation = create(SetDescriptionMutation, {
-        initialState: { env: { api } },
+    await prefetch(SetDescriptionMutation, {
+        request: { id: 'test', description: 'new' },
+        queryFn: api.setDescription
     });
-    await setStatusMutation.run({ id: 'test', description: 'new' });
+
     expect(itemQuery.data?.description).toBe('new');
 });
 
 test('isLoading state', async () => {
-    const itemQuery = create(ItemQuery, {
-        initialState: { env: { api } },
-    });
+    const itemQuery = create(ItemQuery, { queryFn: api.getItem });
     expect(itemQuery.isLoading).toBe(false);
     itemQuery.run({ id: 'test' });
     expect(itemQuery.isLoading).toBe(true);
@@ -131,9 +134,7 @@ test('useQuery', async () => {
     const Comp = observer((props: any) => {
         const { query, isLoading } = useQuery(ItemQuery, {
             request: { id: 'test' },
-            initialState: {
-                env: { api },
-            },
+            queryFn: api.getItem,
         });
         renders++;
         loadingStates.push(isLoading);
@@ -167,9 +168,7 @@ test('query more - with initial result', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: {
-                env: { api: customApi },
-            },
+            queryFn: customApi.getItems,
         });
         q = query;
         return <div></div>;
@@ -194,9 +193,7 @@ test('useQuery - with error', () => {
     const Comp = observer((props: any) => {
         const { error } = useQuery(ItemQuery, {
             request: { id: 'test ' },
-            initialState: {
-                env: { api: apiWithError },
-            },
+            queryFn: apiWithError.getItem,
         });
         err = error;
         return <div></div>;
@@ -226,9 +223,7 @@ test('model with optional identifier', async () => {
     const Comp = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            initialState: {
-                env: { api: customApi },
-            },
+            queryFn: customApi.getItems,
         });
         q = query;
         return <div></div>;
@@ -248,17 +243,13 @@ test('refetching query', async () => {
         getItem: () => getItem(),
     };
     const itemQuery = create(ItemQuery, {
-        initialState: {
-            env: { api: testApi },
-        },
+        queryFn: testApi.getItem,
         staleTime: 1,
     });
     await itemQuery.run({ id: 'test' });
 
     const mutation = create(SetDescriptionMutation, {
-        initialState: {
-            env: { api: testApi },
-        },
+        queryFn: testApi.setDescription
     });
     await mutation.run({ id: 'test', description: 'new' });
 
@@ -270,9 +261,7 @@ test('refetching query', async () => {
 
 test('mutation updates query (with optimistic update)', async () => {
     const listQuery = create(ListQuery, {
-        initialState: {
-            env: { api },
-        },
+        queryFn: api.getItems,
     });
 
     await listQuery.run({ id: 'test' });
@@ -287,9 +276,7 @@ test('mutation updates query (with optimistic update)', async () => {
     );
 
     const addItemMutation = create(AddItemMutation, {
-        initialState: {
-            env: { api },
-        },
+        queryFn: api.addItem
     });
     await addItemMutation.run({ path: 'test', message: 'testing' });
 
@@ -444,18 +431,20 @@ test('merge with undefined data and union type', () => {
 });
 
 test('findAll', () => {
-    const itemQuery = create(ItemQuery, {
-        initialState: { env: { api } },
+    const itemQuery = prefetch(ItemQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItem
     });
-    itemQuery.run({ id: 'test' });
 
-    const queries = queryClient.queryStore.findAll(ItemQuery, (query) =>
-        !!query.variables.request?.id.includes('t')
+    const queries = queryClient.queryStore.findAll(
+        ItemQuery,
+        (query) => !!query.variables.request?.id.includes('t')
     );
     expect(queries.length).toBe(1);
 
-    const queries2 = queryClient.queryStore.findAll(ItemQuery, (query) =>
-        !!query.variables.request?.id.includes('o')
+    const queries2 = queryClient.queryStore.findAll(
+        ItemQuery,
+        (query) => !!query.variables.request?.id.includes('o')
     );
     expect(queries2.length).toBe(0);
 });
@@ -473,7 +462,7 @@ test('caching - item', async () => {
     const Comp = observer((props: any) => {
         const { query } = useQuery(ItemQuery, {
             request: { id: 'test' },
-            initialState: { env: { api: testApi } },
+            queryFn: testApi.getItem,
             cacheTime: 1,
             staleTime: 1,
         });
@@ -507,8 +496,8 @@ test('caching - list', async () => {
     const Comp1 = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
+            queryFn: api.getItems,
             pagination: { offset: 0 },
-            initialState: { env: { api } },
             staleTime: 1,
         });
         q1 = query;
@@ -526,7 +515,7 @@ test('caching - list', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: { env: { api } },
+            queryFn: api.getItems,
             staleTime: 1,
         });
         q2 = query;
@@ -540,7 +529,7 @@ test('caching - list', async () => {
     expect(q2.data.items.length).toBe(7);
 });
 
-test('caching - reuse same key', async () => {
+test('caching - hit cached request', async () => {
     const getItems = vi.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
@@ -554,9 +543,8 @@ test('caching - reuse same key', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: id.get() },
             pagination: { offset: 0 },
-            initialState: { env: { api: testApi } },
+            queryFn: testApi.getItems,
             staleTime: 1,
-            key: id.get(),
         });
         q = query;
         if (q.isLoading || !q.data) {
@@ -583,7 +571,7 @@ test('caching - dont cache different query functions', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: { env: { api } },
+            queryFn: api.getItems,
             staleTime: 1,
         });
         q1 = query;
@@ -604,7 +592,7 @@ test('caching - dont cache different query functions', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: { env: { api: differentApi } },
+            queryFn: differentApi.getItems,
             staleTime: 1,
         });
         q2 = query;
@@ -631,7 +619,7 @@ test('caching - cache time', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: { env: { api: testApi } },
+            queryFn: testApi.getItems,
             cacheTime: 0.01,
         });
         q = query;
@@ -672,7 +660,7 @@ test('hook - onSuccess callback called', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            initialState: { env: { api: testApi } },
+            queryFn: testApi.getItems,
             cacheTime: 0.01,
             onSuccess: onSuccess,
         });
@@ -770,11 +758,11 @@ test('very large stale time exceeds setTimeout limit', async () => {
         ...api,
         getItem: () => getItem(),
     };
-    const itemQuery = create(ItemQuery, {
+    const itemQuery = await prefetch(ItemQuery, {
         staleTime: 0x7fffffff / 1000 + 1,
-        initialState: { env: { api: testApi } },
+        queryFn: testApi.getItem,
+        request: { id: 'test' }
     });
-    await itemQuery.run({ id: 'test' });
 
     expect(getItem).toHaveBeenCalledTimes(1);
 

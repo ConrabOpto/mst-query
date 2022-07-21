@@ -2,7 +2,7 @@ import { getEnv, IAnyModelType, IAnyType, Instance, IStateTreeNode } from 'mobx-
 import * as React from 'react';
 import { AnyQueryOptions } from './hooks';
 import { mergeOptimisticData } from './merge';
-import { create as internalCreate } from './create';
+import { create as internalCreate, createAndRun } from './create';
 import { QueryClient } from './QueryClient';
 import { AnyQueryType } from './utilityTypes';
 
@@ -51,12 +51,21 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         const q = internalCreate(type, { ...options, queryClient });
         return q;
     };
+    const prefetch = async <T extends AnyQueryType>(type: T, options?: any) => {
+        const q: any = internalCreate(type, { ...options, queryClient });
+
+        const { request, pagination } = options;
+        await q.run(request, pagination);
+
+        return q;
+    };
     return {
         queryClient,
         useQueryClient,
         QueryClientProvider,
         getQueryClient,
         createOptimisticData,
-        create
+        create,
+        prefetch
     };
 }

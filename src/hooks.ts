@@ -9,6 +9,7 @@ import type {
 } from './utilityTypes';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
+import equal from '@wry/equality';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
     return Object.assign({ queryClient }, (queryClient.config as any)[key], options);
@@ -16,7 +17,6 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
 
 type Options = {
     afterCreate?: (self: any) => any;
-    key?: string;
 };
 
 type QueryOptions<T extends IAnyType> = Options & {
@@ -28,6 +28,7 @@ type QueryOptions<T extends IAnyType> = Options & {
     staleTime?: number;
     cacheTime?: number;
     initialState?: SnapshotIn<T>;
+    queryFn?: any;
 };
 
 type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
@@ -39,11 +40,11 @@ export function useLazyQuery<T extends QueryReturnType>(
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
-    const { key } = options;
     const [q, setQuery] = useState(() => create(query as T, options));
 
+    const sameRequest = equal(options.request, q.variables.request);
     useEffect(() => {
-        if (key && key !== q.__MstQueryHandler.options.key) {
+        if (!sameRequest) {
             const newQuery = create(query, options);
             setQuery(newQuery);
             if (isStateTreeNode(q)) {
@@ -55,7 +56,7 @@ export function useLazyQuery<T extends QueryReturnType>(
                 q.__MstQueryHandler.remove();
             }
         };
-    }, [key]);
+    }, [sameRequest]);
 
     return {
         run: q.run as typeof q['run'],
@@ -75,11 +76,11 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
-    const { key } = options;
     const [q, setQuery] = useState(() => createAndRun(query, options));
 
+    const sameRequest = equal(options.request, q.variables.request);
     useEffect(() => {
-        if (key && key !== q.__MstQueryHandler.options.key) {
+        if (!sameRequest) {
             const newQuery = createAndRun(query, options);
             setQuery(newQuery);
             q.__MstQueryHandler.remove();
@@ -89,7 +90,14 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
                 q.__MstQueryHandler.remove();
             }
         };
-    }, [key]);
+    }, [sameRequest]);
+
+    const samePagination = equal(options.pagination, q.variables.pagination);
+    useEffect(() => {
+        if (options.pagination && !samePagination) {
+            q.queryMore({ request: options.request, pagination: options.pagination });
+        }
+    }, [samePagination]);
 
     return {
         run: q.run as typeof q['run'],
@@ -109,6 +117,7 @@ type MutationOptions<T extends IAnyType> = Options & {
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
     initialState?: SnapshotIn<T>;
+    queryFn?: any;
 };
 
 type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;

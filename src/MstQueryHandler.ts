@@ -48,8 +48,8 @@ export class MstQueryHandler {
 
     status = QueryStatus.Active;
     result: any;
-    options: any;
-    previousVariables: any
+    options: { queryFn: QueryFnType };
+    previousVariables: any;
     model: any;
     type: any;
     queryClient!: QueryClient<any>;
@@ -58,7 +58,6 @@ export class MstQueryHandler {
     abortController?: AbortController;
     toBeRemovedTimeout?: number;
 
-    cachedQueryFn: any;
     cachedAt?: Date;
     cachedRequest: any;
 
@@ -95,8 +94,7 @@ export class MstQueryHandler {
         });
     }
 
-    run(queryFn: QueryFnType, options: QueryOptions = {}, useCache = false) {
-        this.cachedQueryFn = queryFn;
+    run(options: QueryOptions = {}, useCache = false) {
         this.setVariables({ request: options.request, pagination: options.pagination });
 
         this.abortController = new AbortController();
@@ -124,7 +122,7 @@ export class MstQueryHandler {
                     ...options?.context,
                 },
             };
-            promise = queryFn(opts, this.model);
+            promise = this.options.queryFn(opts, this.model);
         }
 
         return promise
@@ -145,33 +143,26 @@ export class MstQueryHandler {
             });
     }
 
-    query<TData, TResult>(
-        queryFn: QueryFnType,
-        options: QueryOptions = {}
-    ): Promise<() => QueryReturn<TData, TResult>> {
-        return this.run(queryFn, options, true).then(
+    query<TData, TResult>(options: QueryOptions = {}): Promise<() => QueryReturn<TData, TResult>> {
+        return this.run(options, true).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
     }
 
-    mutate<TData, TResult>(
-        queryFn: QueryFnType,
-        options: QueryOptions = {}
-    ): Promise<() => QueryReturn<TData, TResult>> {
-        return this.run(queryFn, options).then(
+    mutate<TData, TResult>(options: QueryOptions = {}): Promise<() => QueryReturn<TData, TResult>> {
+        return this.run(options).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
     }
 
     queryMore<TData, TResult>(
-        queryFn: QueryFnType,
         options: QueryOptions = {}
     ): Promise<() => QueryReturn<TData, TResult>> {
         this.isFetchingMore = true;
 
-        return this.run(queryFn, options).then(
+        return this.run(options).then(
             (result) => this.onSuccess(result, false),
             (err) => this.onError(err, false)
         );
@@ -273,7 +264,7 @@ export class MstQueryHandler {
         const queries = this.queryClient.queryStore.findAll(
             this.type,
             (q) =>
-                q.__MstQueryHandler.cachedQueryFn === this.cachedQueryFn &&
+                q.__MstQueryHandler.options.queryFn === this.options.queryFn &&
                 equal(q.__MstQueryHandler.cachedRequest, req),
             true
         );
@@ -407,17 +398,13 @@ export class MstQueryHandler {
     }
 }
 
-function normalizeVariables({ request, pagination }: { request: any, pagination: any }) {
+function normalizeVariables({ request, pagination }: { request: any; pagination: any }) {
     let variables: any = {};
     if (request) {
-        variables.request = isStateTreeNode(request)
-            ? getSnapshot(request)
-            : request;
+        variables.request = isStateTreeNode(request) ? getSnapshot(request) : request;
     }
     if (pagination) {
-        variables.pagination = isStateTreeNode(pagination)
-            ? getSnapshot(pagination)
-            : pagination;
+        variables.pagination = isStateTreeNode(pagination) ? getSnapshot(pagination) : pagination;
     }
     return variables;
 }

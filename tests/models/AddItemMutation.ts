@@ -7,11 +7,8 @@ import { mergeOptimisticData } from '../../src/merge';
 
 export const AddItemMutation = createMutation('AddMutation', {
     data: MstQueryRef(ItemModel),
-})
-    .props({
-        env: types.frozen(),
-    })
-    .actions((self) => ({
+    request: types.model({ path: types.string, message: types.string })
+}).actions((self) => ({
         run: flow(function* (request: { path: string, message: string }) {
             const query = getEnv(self).queryClient.queryStore.find(
                 ListQuery,
@@ -23,9 +20,7 @@ export const AddItemMutation = createMutation('AddMutation', {
             const optimistic = mergeOptimisticData(ItemModel, itemData, getEnv(self));
             query?.addItem(optimistic);
 
-            const next = yield* self.mutate(self.env.api.addItem, {
-                request
-            });
+            const next = yield* self.mutate({ request });
             const { data } = next();
 
             query?.removeItem(optimistic);
