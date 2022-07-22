@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { beforeEach, afterEach, test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { createQuery, MstQueryRef, createMutation, useQuery, useSubscription } from '../src';
+import { createQuery, MstQueryRef, useQuery, useSubscription } from '../src';
 import { configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -13,7 +13,6 @@ import { ListQuery } from './models/ListQuery';
 import { itemData, listData } from './api/data';
 import { SetDescriptionMutation } from './models/SetDescriptionMutation';
 import { AddItemMutation } from './models/AddItemMutation';
-import { RequestModel } from '../src/RequestModel';
 import { api } from './api/api';
 import { wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
@@ -25,7 +24,7 @@ const env = {};
 
 const queryClient = new QueryClient({ RootStore });
 
-const { QueryClientProvider, createOptimisticData, create } = createContext(queryClient);
+const { QueryClientProvider, createOptimisticData, prefetch, create } = createContext(queryClient);
 queryClient.init(env);
 
 const Wrapper = ({ children }: any) => {
@@ -51,16 +50,23 @@ afterEach(() => {
 });
 
 test('garbage collection', async () => {
-    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api }, cacheTime: 0 });
-    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api }, cacheTime: 0 });
-    const qc = create(ListQuery, { request: { id: 'test' }, env: { api }, cacheTime: 0 });
-
-    await q1.run();
-    await q2.run();
-
+    const q1 = await prefetch(ItemQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItem,
+        cacheTime: 0,
+    });
+    const q2 = await prefetch(ItemQuery, {
+        request: { id: 'test2' },
+        queryFn: api.getItem,
+        cacheTime: 0,
+    });
     expect(queryClient.rootStore.models.size).toBe(2);
 
-    await qc.run();
+    const qc = await prefetch(ListQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItems,
+        cacheTime: 0,
+    });
     expect(queryClient.rootStore.models.size).toBe(9);
 
     qc.__MstQueryHandler.updateData(null, { error: null, isLoading: false });
@@ -101,27 +107,20 @@ test('gc - only walk model props', () => {
 });
 
 test('mutation updates domain model', async () => {
-    const itemQuery = create(ItemQuery, {
-        request: { id: 'test' },
-        env: { api },
-    });
-    await itemQuery.run();
+    const itemQuery = await prefetch(ItemQuery, { request: { id: 'test' }, queryFn: api.getItem });
 
-    const setStatusMutation = create(SetDescriptionMutation, {
+    await prefetch(SetDescriptionMutation, {
         request: { id: 'test', description: 'new' },
-        env: { api },
+        queryFn: api.setDescription,
     });
-    await setStatusMutation.run();
+
     expect(itemQuery.data?.description).toBe('new');
 });
 
 test('isLoading state', async () => {
-    const itemQuery = create(ItemQuery, {
-        request: { id: 'test' },
-        env: { api },
-    });
+    const itemQuery = create(ItemQuery, { queryFn: api.getItem });
     expect(itemQuery.isLoading).toBe(false);
-    itemQuery.run();
+    itemQuery.run({ id: 'test' });
     expect(itemQuery.isLoading).toBe(true);
 
     await when(() => !itemQuery.isLoading);
@@ -133,9 +132,9 @@ test('useQuery', async () => {
     let renders = 0;
     let result = null as any;
     const Comp = observer((props: any) => {
-        const { query, isLoading } = useQuery(ItemQuery, {
+        const { query, isLoading, data, refetch } = useQuery(ItemQuery, {
             request: { id: 'test' },
-            env: { api },
+            queryFn: api.getItem,
         });
         renders++;
         loadingStates.push(isLoading);
@@ -143,17 +142,43 @@ test('useQuery', async () => {
         return <div></div>;
     });
     render(<Comp />);
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            expect(result).not.toBe(null);
-            expect(loadingStates).toStrictEqual([true, false]);
-            expect(renders).toBe(2);
-            resolve();
-        }, 0);
+
+    await wait(0);
+
+    expect(result).not.toBe(null);
+    expect(loadingStates).toStrictEqual([true, false]);
+    expect(renders).toBe(2);
+});
+
+test('useQuery - reactive request', async () => {
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    let q: any;
+    const Comp = observer((props: any) => {
+        const { query } = useQuery(ItemQuery, {
+            request: { id: id.get() },
+            queryFn: api.getItem,
+        });
+        q = query;
+        return <div></div>;
     });
+    render(<Comp />);
+
+    await wait(0);
+    expect(q.data.id).toBe('test');
+
+    id.set('different-test');
+    await wait(0);
+    expect(q.data.id).toBe('different-test');
+    expect(q.variables.request.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('query more - with initial result', async () => {
+    configureMobx({ enforceActions: 'never' });
+
     const customApi = {
         ...api,
         async getItems(options: any, query: any) {
@@ -164,11 +189,19 @@ test('query more - with initial result', async () => {
         },
     };
 
+    let offset = observable.box(0);
+
     let q: any;
     const Comp = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            env: { api: customApi },
+            pagination: { offset: offset.get() },
+            queryFn: customApi.getItems,
+            onQueryMore(data, self) {
+                if (data?.items) {
+                    self.data?.addItems(data.items);
+                }
+            },
         });
         q = query;
         return <div></div>;
@@ -177,12 +210,16 @@ test('query more - with initial result', async () => {
 
     await when(() => !q.isLoading);
 
-    await q.fetchMore();
+    offset.set(4);
+    await wait(0);
+    await when(() => !q.isFetchingMore);
 
     expect(q.data.items.length).toBe(7);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
-test('useQuery - with error', () => {
+test('useQuery - with error', async () => {
     let err: any = null;
     const customError = new Error();
     const apiWithError = {
@@ -193,18 +230,16 @@ test('useQuery - with error', () => {
     const Comp = observer((props: any) => {
         const { error } = useQuery(ItemQuery, {
             request: { id: 'test ' },
-            env: { api: apiWithError },
+            queryFn: apiWithError.getItem,
         });
         err = error;
         return <div></div>;
     });
     render(<Comp />);
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            expect(err).toEqual(customError);
-            resolve();
-        }, 0);
-    });
+
+    await wait(0);
+
+    expect(err).toEqual(customError);
 });
 
 test('model with optional identifier', async () => {
@@ -223,7 +258,7 @@ test('model with optional identifier', async () => {
     const Comp = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            env: { api: customApi },
+            queryFn: customApi.getItems,
         });
         q = query;
         return <div></div>;
@@ -243,19 +278,17 @@ test('refetching query', async () => {
         getItem: () => getItem(),
     };
     const itemQuery = create(ItemQuery, {
-        request: { id: 'test' },
-        env: { api: testApi },
+        queryFn: testApi.getItem,
         staleTime: 1,
     });
-    await itemQuery.run();
+    await itemQuery.run({ id: 'test' });
 
     const mutation = create(SetDescriptionMutation, {
-        request: { id: 'test', description: 'new' },
-        env: { api: testApi },
+        queryFn: testApi.setDescription,
     });
-    await mutation.run();
+    await mutation.run({ id: 'test', description: 'new' });
 
-    await itemQuery.refetch();
+    await itemQuery.__MstQueryHandler.callWithNext(itemQuery.refetch);
 
     expect(itemQuery.data?.description).toBe('Test item');
     expect(getItem).toHaveBeenCalledTimes(2);
@@ -263,11 +296,10 @@ test('refetching query', async () => {
 
 test('mutation updates query (with optimistic update)', async () => {
     const listQuery = create(ListQuery, {
-        request: { id: 'test' },
-        env: { api },
+        queryFn: api.getItems,
     });
 
-    await listQuery.run();
+    await listQuery.run({ id: 'test' });
     expect(listQuery.data?.items.length).toBe(4);
 
     let observeCount = 0;
@@ -279,10 +311,9 @@ test('mutation updates query (with optimistic update)', async () => {
     );
 
     const addItemMutation = create(AddItemMutation, {
-        request: { path: 'test', message: 'testing' },
-        env: { api },
+        queryFn: api.addItem,
     });
-    await addItemMutation.run();
+    await addItemMutation.run({ path: 'test', message: 'testing' });
 
     expect(observeCount).toBe(2);
     expect(listQuery.data?.items.length).toBe(5);
@@ -415,36 +446,6 @@ test('replace arrays on sub properties', () => {
     expect(q.data?.prop.ids[0].baha).toBe('hey2');
 });
 
-test('hasChanged mutation', () => {
-    const Rqst = RequestModel.props({
-        text: types.string,
-    }).actions((self) => ({
-        setText(text: string) {
-            self.text = text;
-        },
-    }));
-
-    const MutationModel = createMutation('Mutation', {
-        request: Rqst,
-    });
-    const m = create(MutationModel, { request: { text: 'hi' } });
-    expect(m.request.hasChanges).toBe(false);
-
-    m.request.setText('hello');
-    expect(m.request.hasChanges).toBe(true);
-
-    m.request.reset();
-    expect(m.request.hasChanges).toBe(false);
-    expect(m.request.text).toBe('hi');
-
-    m.request.setText('hi');
-    expect(m.request.hasChanges).toBe(false);
-
-    m.request.setText('hiya');
-    m.request.commit();
-    expect(m.request.hasChanges).toBe(false);
-});
-
 test('merge with undefined data and union type', () => {
     const Model = types.model({
         folderPath: types.string,
@@ -465,29 +466,20 @@ test('merge with undefined data and union type', () => {
 });
 
 test('findAll', () => {
-    const RequestModel = types
-        .model({
-            path: types.string,
-            text: types.string,
-        })
-        .actions((self) => ({
-            setText(text: string) {
-                self.text = text;
-            },
-        }));
-
-    const MutationModel = createMutation('Mutation', {
-        request: RequestModel,
+    const itemQuery = prefetch(ItemQuery, {
+        request: { id: 'test' },
+        queryFn: api.getItem,
     });
-    const m = create(MutationModel, { request: { path: 'test', text: 'hi' } });
 
-    const queries = queryClient.queryStore.findAll(MutationModel, (mutation) =>
-        mutation.request.text.includes('h')
+    const queries = queryClient.queryStore.findAll(
+        ItemQuery,
+        (query) => !!query.variables.request?.id.includes('t')
     );
     expect(queries.length).toBe(1);
 
-    const queries2 = queryClient.queryStore.findAll(MutationModel, (mutation) =>
-        mutation.request.text.includes('o')
+    const queries2 = queryClient.queryStore.findAll(
+        ItemQuery,
+        (query) => !!query.variables.request?.id.includes('o')
     );
     expect(queries2.length).toBe(0);
 });
@@ -505,7 +497,7 @@ test('caching - item', async () => {
     const Comp = observer((props: any) => {
         const { query } = useQuery(ItemQuery, {
             request: { id: 'test' },
-            env: { api: testApi },
+            queryFn: testApi.getItem,
             cacheTime: 1,
             staleTime: 1,
         });
@@ -535,12 +527,21 @@ test('caching - item', async () => {
 });
 
 test('caching - list', async () => {
+    configureMobx({ enforceActions: 'never' });
+
+    let offset = observable.box(0);
+
     let q1: any;
     const Comp1 = observer((props: any) => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
-            pagination: { offset: 0 },
-            env: { api },
+            queryFn: api.getItems,
+            pagination: { offset: offset.get() },
+            onQueryMore(data, self) {
+                if (data?.items) {
+                    self.data?.addItems(data.items);
+                }
+            },
             staleTime: 1,
         });
         q1 = query;
@@ -550,7 +551,10 @@ test('caching - list', async () => {
 
     await when(() => !q1.isLoading);
 
-    await q1.fetchMore();
+    offset.set(4);
+    await wait(0);
+    await when(() => !q1.isFetchingMore);
+    
     expect(q1.data.items.length).toBe(7);
 
     let q2: any;
@@ -558,7 +562,7 @@ test('caching - list', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            env: { api },
+            queryFn: api.getItems,
             staleTime: 1,
         });
         q2 = query;
@@ -570,9 +574,11 @@ test('caching - list', async () => {
 
     expect(q1.data.items.length).toBe(7);
     expect(q2.data.items.length).toBe(7);
+
+    configureMobx({ enforceActions: 'observed' });
 });
 
-test('caching - reuse same key', async () => {
+test('caching - hit cached request', async () => {
     const getItems = vi.fn(() => Promise.resolve(listData));
     const testApi = {
         ...api,
@@ -586,9 +592,8 @@ test('caching - reuse same key', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: id.get() },
             pagination: { offset: 0 },
-            env: { api: testApi },
+            queryFn: testApi.getItems,
             staleTime: 1,
-            key: id.get(),
         });
         q = query;
         if (q.isLoading || !q.data) {
@@ -615,7 +620,7 @@ test('caching - dont cache different query functions', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            env: { api },
+            queryFn: api.getItems,
             staleTime: 1,
         });
         q1 = query;
@@ -636,7 +641,7 @@ test('caching - dont cache different query functions', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            env: { api: differentApi },
+            queryFn: differentApi.getItems,
             staleTime: 1,
         });
         q2 = query;
@@ -663,7 +668,7 @@ test('caching - cache time', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            env: { api: testApi },
+            queryFn: testApi.getItems,
             cacheTime: 0.01,
         });
         q = query;
@@ -704,7 +709,7 @@ test('hook - onSuccess callback called', async () => {
         const { query } = useQuery(ListQuery, {
             request: { id: 'test' },
             pagination: { offset: 0 },
-            env: { api: testApi },
+            queryFn: testApi.getItems,
             cacheTime: 0.01,
             onSuccess: onSuccess,
         });
@@ -802,18 +807,17 @@ test('very large stale time exceeds setTimeout limit', async () => {
         ...api,
         getItem: () => getItem(),
     };
-    const itemQuery = create(ItemQuery, {
-        request: { id: 'test' },
-        env: { api: testApi },
+    const itemQuery = await prefetch(ItemQuery, {
         staleTime: 0x7fffffff / 1000 + 1,
+        queryFn: testApi.getItem,
+        request: { id: 'test' },
     });
-    await itemQuery.run();
 
     expect(getItem).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(10);
 
-    await itemQuery.run();
+    await itemQuery.run({ id: 'test' });
 
     expect(getItem).toHaveBeenCalledTimes(1);
 });

@@ -1,4 +1,4 @@
-import { flow, getEnv } from 'mobx-state-tree';
+import { flow, getEnv, types } from 'mobx-state-tree';
 import { createMutation, MstQueryRef } from '../../src';
 import { ItemModel } from './ItemModel';
 import { ListQuery } from './ListQuery';
@@ -7,19 +7,23 @@ import { mergeOptimisticData } from '../../src/merge';
 
 export const AddItemMutation = createMutation('AddMutation', {
     data: MstQueryRef(ItemModel),
+    request: types.model({ path: types.string, message: types.string })
 }).actions((self) => ({
-    run: flow(function* () {
-        const query = getEnv(self).queryClient.queryStore.find(
-            ListQuery,
-            (q: any) => q.request.id === 'test'
-        );
-        const optimistic = mergeOptimisticData(ItemModel, itemData, getEnv(self));
-        query?.addItem(optimistic);
+        run: flow(function* (request: { path: string, message: string }) {
+            const query = getEnv(self).queryClient.queryStore.find(
+                ListQuery,
+                (q: any) => {
+                    return q.variables.request.id === 'test'
+                }
+            );
 
-        const next = yield* self.mutate(self.env.api.addItem);
-        const { data } = next();
+            const optimistic = mergeOptimisticData(ItemModel, itemData, getEnv(self));
+            query?.addItem(optimistic);
 
-        query?.removeItem(optimistic);
-        query?.addItem(data);
-    })
-}));
+            const next = yield* self.mutate({ request });
+            const { data } = next();
+
+            query?.removeItem(optimistic);
+            query?.addItem(data);
+        }),
+    }));

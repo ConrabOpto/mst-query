@@ -26,9 +26,9 @@ beforeEach(() => {
 test('custom query store', async () => {
     const NewRootStore = RootStore.named('NewRootStore')
         .props({
-            itemQuery: types.optional(ItemQuery, { env: { api } }),
-            listQuery: types.optional(ListQuery, { env: { api } }),
-            setDescriptionMutation: types.optional(SetDescriptionMutation, { env: { api } }),
+            itemQuery: types.optional(ItemQuery, {}),
+            listQuery: types.optional(ListQuery, {}),
+            setDescriptionMutation: types.optional(SetDescriptionMutation, {}),
         })
         .views((self) => ({
             get items() {
@@ -37,9 +37,9 @@ test('custom query store', async () => {
         }))
         .actions((self) => ({
             afterCreate() {
-                self.listQuery.setOptions({ cacheTime: 0.01 });
-                self.itemQuery.setOptions({ cacheTime: 0.01 });
-                self.listQuery.run();
+                self.listQuery.setOptions({ queryFn: api.getItems, cacheTime: 0.01 });
+                self.itemQuery.setOptions({ queryFn: api.getItem, cacheTime: 0.01 });
+                self.listQuery.run({ id: 'test' });
             },
             cleanup: flow(function* () {
                 yield gc(self);
@@ -49,14 +49,14 @@ test('custom query store', async () => {
 
     const qc = new QueryClient({ RootStore: NewRootStore });
     qc.init();
-    
+
     const store = qc.rootStore;
 
     await wait();
     expect(store.items.length).toBe(4);
     expect(store.items[0].data).toBe(undefined);
 
-    store.itemQuery.run();
+    store.itemQuery.run({ id: 'test' });
     await wait();
     expect(store.items[0].data?.name).toBe('test');
 
@@ -69,11 +69,10 @@ test('custom query store', async () => {
 
 test('query & mutation', async () => {
     const listQuery = create(ListQuery, {
-        request: { id: 'test' },
-        env: { api },
+        queryFn: api.getItems
     });
 
-    await listQuery.run();
+    await listQuery.run({ id: 'test' });
     expect(listQuery.data?.items.length).toBe(4);
 
     let observeCount = 0;
@@ -85,10 +84,9 @@ test('query & mutation', async () => {
     );
 
     const addItemMutation = create(AddItemMutation, {
-        request: { path: 'test', message: 'testing' },
-        env: { api },
+        queryFn: api.addItem
     });
-    await addItemMutation.run();
+    await addItemMutation.run({ path: 'test', message: 'testing' });
 
     expect(observeCount).toBe(2);
     expect(listQuery.data?.items.length).toBe(5);
@@ -97,17 +95,17 @@ test('query & mutation', async () => {
 });
 
 test('garbage collection', async () => {
-    const q1 = create(ItemQuery, { request: { id: 'test' }, env: { api } });
-    const q2 = create(ItemQuery, { request: { id: 'test2' }, env: { api } });
-    const qc = create(ListQuery, { request: { id: 'test' }, env: { api } });
+    const q1 = create(ItemQuery, { queryFn: api.getItem });
+    const q2 = create(ItemQuery, { queryFn: api.getItem });
+    const qc = create(ListQuery, { queryFn: api.getItems });
 
-    await q1.run();
-    await q2.run();
+    await q1.run({ id: 'test' });
+    await q2.run({ id: 'test2' });
     expect(queryClient.rootStore.itemStore.items.size).toBe(1);
     expect(queryClient.rootStore.userStore.users.size).toBe(1);
     expect(queryClient.rootStore.listStore.lists.size).toBe(0);
 
-    await qc.run();
+    await qc.run({ id: 'test' });
     expect(queryClient.rootStore.itemStore.items.size).toBe(4);
     expect(queryClient.rootStore.userStore.users.size).toBe(4);
     expect(queryClient.rootStore.listStore.lists.size).toBe(1);
