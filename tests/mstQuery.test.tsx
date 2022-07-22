@@ -19,7 +19,6 @@ import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { RootStore } from '../src/RootStore';
 import { ItemSubscription } from './models/ItemSubscription';
-import { useEffect } from 'react';
 
 const env = {};
 
@@ -133,7 +132,7 @@ test('useQuery', async () => {
     let renders = 0;
     let result = null as any;
     const Comp = observer((props: any) => {
-        const { query, isLoading } = useQuery(ItemQuery, {
+        const { query, isLoading, data, refetch } = useQuery(ItemQuery, {
             request: { id: 'test' },
             queryFn: api.getItem,
         });
@@ -289,7 +288,7 @@ test('refetching query', async () => {
     });
     await mutation.run({ id: 'test', description: 'new' });
 
-    await itemQuery.refetch();
+    await itemQuery.__MstQueryHandler.callWithNext(itemQuery.refetch);
 
     expect(itemQuery.data?.description).toBe('Test item');
     expect(getItem).toHaveBeenCalledTimes(2);

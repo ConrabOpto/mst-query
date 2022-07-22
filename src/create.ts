@@ -92,7 +92,10 @@ export function createQuery<
                 <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.queryMore>) =>
                     self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(...args)
             ),
-            refetch: self.__MstQueryHandler.refetch,
+            refetch: toGeneratorFunction(
+                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.refetch>) =>
+                    self.__MstQueryHandler.refetch<typeof self['data'], TResult>(...args)
+            ),
             abort: self.__MstQueryHandler.abort,
             setOptions(options: any) {
                 self.__MstQueryHandler.setOptions(options);
@@ -260,6 +263,7 @@ export function create<T extends IAnyModelType>(
         onSuccess,
         onError,
         onUpdate,
+        onQueryMore,
         afterCreate,
         onFetched,
         staleTime,
@@ -277,6 +281,7 @@ export function create<T extends IAnyModelType>(
         onError,
         onUpdate,
         onFetched,
+        onQueryMore,
         staleTime,
         cacheTime,
         queryFn,

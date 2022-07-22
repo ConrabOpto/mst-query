@@ -2,6 +2,7 @@ import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
+    flow,
     getEnv,
     getSnapshot,
     getType,
@@ -55,6 +56,7 @@ export class MstQueryHandler {
         onFetched: any;
         cacheTime: any;
         staleTime: any;
+        onQueryMore?: any;
     };
 
     previousVariables: any;
@@ -172,16 +174,22 @@ export class MstQueryHandler {
 
         return this.run(options).then(
             (result) => this.onSuccess(result, false),
-            (err) => this.onError(err, false)            
-        ).finally(() => {
-            this.isFetchingMore = false;
-        })
+            (err) => this.onError(err, false)
+        );
     }
 
-    refetch(...params: any) {
+    refetch<TData, TResult>(
+        options: QueryOptions = {}
+    ): Promise<() => QueryReturn<TData, TResult>> {
         this.isRefetching = true;
 
-        return this.model.run(...params);
+        options.request = options.request ?? this.model.variables.request;
+        options.pagination = options.pagination ?? this.model.variables.pagination;
+
+        return this.run(options).then(
+            (result) => this.onSuccess(result),
+            (err) => this.onError(err)
+        );
     }
 
     onSuccess(result: any, shouldUpdate = true) {
@@ -206,6 +214,15 @@ export class MstQueryHandler {
             } else {
                 data = this.prepareData(result);
             }
+            
+            if (this.isRefetching) {
+                this.isRefetching = false;
+            }
+            
+            if (this.isFetchingMore) {
+                this.isFetchingMore = false;
+                this.options.onQueryMore?.(data, this.model);
+            }
 
             this.options.onSuccess?.(data, this.model);
 
@@ -225,6 +242,14 @@ export class MstQueryHandler {
 
             if (shouldUpdate) {
                 this.updateData(null, { isLoading: false, error: err });
+            }
+
+            if (this.isRefetching) {
+                this.isRefetching = false;
+            }
+            
+            if (this.isFetchingMore) {
+                this.isFetchingMore = false;
             }
 
             this.options.onError?.(err, this.model);
@@ -337,9 +362,6 @@ export class MstQueryHandler {
             this.isFetched = true;
             this.options.onFetched?.(this.model.data, this.model);
         }
-        if (this.isRefetching) {
-            this.isRefetching = false;
-        }
         if (status) {
             this.error = status.error;
             this.isLoading = status.isLoading;
@@ -391,6 +413,17 @@ export class MstQueryHandler {
                 this.queryClient.queryStore.removeQuery(this.model);
                 resolve(this.model);
             }
+        });
+    }
+
+    callWithNext(fn: any, ...args: any[]) {
+        return new Promise((resolve) => {
+            this.model.__MstQueryHandlerAction(
+                flow(function* () {
+                    const next = yield* fn(...args);
+                    resolve(next());
+                })
+            );
         });
     }
 

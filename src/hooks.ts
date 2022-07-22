@@ -95,26 +95,20 @@ export function useQuery<T extends QueryReturnType>(query: T, options: UseQueryO
 
     const samePagination = equal(options.pagination, q.variables.pagination);
     useEffect(() => {
-        const { request, pagination } = options;
-        if (pagination && !samePagination && !q.__MstQueryHandler.isDisposed) {
-            q.__MstQueryHandlerAction(flow(function* () {
-                const next = yield* q.queryMore({ request, pagination });
-                const { data } = next();
-                options.onQueryMore?.(data, q);
-            }));
+        if (options.pagination && !samePagination && !q.__MstQueryHandler.isDisposed) {
+            q.__MstQueryHandler.callWithNext(q.queryMore, options);
         }
     }, [samePagination]);
 
     return {
-        run: q.run as typeof q['run'],
         data: q.data as typeof q['data'],
-        refetch: (q.refetch as unknown) as typeof q['run'],
         error: q.error,
         isFetched: q.isFetched,
         isLoading: q.isLoading,
         isRefetching: q.isRefetching,
         isFetchingMore: q.isFetchingMore,
         query: q,
+        refetch: (() => (q.__MstQueryHandler.callWithNext(q.refetch) as any)) as typeof q['refetch'],
         cachedAt: q.__MstQueryHandler.cachedAt,
     };
 }
@@ -146,8 +140,10 @@ export function useMutation<T extends MutationReturnType>(
     }, []);
 
     const result = {
-        ...m,
-        mutation: m,
+        data: m.data as typeof m['data'],
+        error: m.error,
+        isLoading: m.isLoading,
+        mutation: m
     };
 
     return [m.run, result] as [typeof m['run'], typeof result];
@@ -181,7 +177,7 @@ export function useSubscription<T extends SubscriptionReturnType>(
         run: s.run as typeof s['run'],
         data: s.data as typeof s['data'],
         error: s.error,
-        subscription: s
+        subscription: s,
     };
 }
 
