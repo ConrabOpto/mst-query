@@ -54,7 +54,7 @@ const MessageQuery = createQuery('MessageQuery', {
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItem);
-        const { data, result, error } = next<typeof MessageQuery>();
+        const { data, result, error } = next();
     }),
 }));
 ```
@@ -158,7 +158,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
 }).actions((self) => ({
     run: flow(function* () {
         const next = yield* self.query(getItems);
-        const { result, error, data } = next<typeof MessageListQuery>();
+        const { result, error, data } = next();
     }),
 }));
 ```
@@ -268,7 +268,7 @@ const MessageListQuery = createQuery('MessageListQuery', {
         self.pagination.offset = offset;
 
         const next = yield * self.queryMore(getItems);
-        const { data } = next<typeof MessageListQuery>();
+        const { data } = next();
 
         self.data.items.push(data.items);
     },
@@ -323,7 +323,7 @@ const AddMessageMutation = createMutation('AddMessage', {
     .actions((self) => ({
         run: flow(function* () {
             const next = yield* self.mutate(addMessage);
-            const { data } = next<typeof AddMessageMutation>();
+            const { data } = next();
 
             // add new message to query
             const { queryStore } = getQueryClient(self);
@@ -383,7 +383,7 @@ const AddMessageMutation = createMutation('AddMessage', {
         query?.addItem(optimistic);
 
         const next = yield* self.mutate(addMessage);
-        const { data } = next<typeof AddMessageMutation>();
+        const { data } = next();
 
         query?.removeItem(optimistic);
         query?.addItem(data);
