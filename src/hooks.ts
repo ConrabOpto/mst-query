@@ -1,4 +1,4 @@
-import { flow, IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { IAnyType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { create, createAndRun } from './create';
 import type {
