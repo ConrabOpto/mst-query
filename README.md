@@ -22,6 +22,10 @@ Query library for mobx-state-tree
 -   [Queries & cache](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
 -   [Use with mobx-state-tree (Bookshop)](https://codesandbox.io/s/mst-query-bookshop-0kljt?file=/src/index.js)
 
+# NOTE: React 18 Strict Mode
+
+This library does not currently work with Strict Mode in React 18. Follow this [issue](https://github.com/ConrabOpto/mst-query/issues/30) for updates.
+
 # Basic Usage
 
 First, create some models and a query...
