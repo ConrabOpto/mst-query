@@ -1,35 +1,25 @@
-import { getEnv, IAnyModelType, IAnyType, Instance, IStateTreeNode } from 'mobx-state-tree';
+import { IAnyModelType } from 'mobx-state-tree';
 import * as React from 'react';
-import { AnyQueryOptions } from './hooks';
-import { mergeOptimisticData } from './merge';
-import { create as internalCreate } from './create';
 import { QueryClient } from './QueryClient';
-import { AnyQueryType } from './utilityTypes';
 
-type QueryClientProviderProps<T extends IAnyModelType> = {
-    client: QueryClient<T>;
+type QueryClientProviderProps = {
     env?: any;
-    clearOnUnmount?: boolean;
+    initialData?: any;
 };
 
 export const Context = React.createContext<QueryClient<any> | undefined>(undefined);
 
 export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>) {
-    const QueryClientProvider: React.FC<QueryClientProviderProps<T>> = ({
-        client,
+    const QueryClientProvider: React.FC<QueryClientProviderProps> = ({
         env,
+        initialData,
         children,
-        clearOnUnmount = true,
     }) => {
-        const [c] = React.useState(() => client.init(env));
-        React.useEffect(() => {
-            return () => {
-                if (clearOnUnmount) {
-                    client.queryStore.clear();
-                }
-            };
-        }, [client]);
-        return <Context.Provider value={c}>{children}</Context.Provider>;
+        const q = React.useRef<any>(null);
+        if (!q.current) {
+            q.current = queryClient.init(initialData, env);
+        }
+        return <Context.Provider value={q.current}>{children}</Context.Provider>;
     };
     const useQueryClient = () => {
         const qc = React.useContext(Context) as QueryClient<T>;
@@ -38,25 +28,14 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         }
         return qc;
     };
-    const getQueryClient = (node: IStateTreeNode) => {
-        return getEnv(node).queryClient as QueryClient<T>;
-    };
-    const createOptimisticData = <TNode extends IAnyType>(
-        typeOrNode: TNode | Instance<TNode>,
-        data: any
-    ) => {
-        return mergeOptimisticData(typeOrNode, data, queryClient.config.env);
-    };
-    const create = <T extends AnyQueryType>(type: T, options?: AnyQueryOptions<T>) => {
-        const q = internalCreate(type, { ...options, queryClient });
-        return q;
+    const useRootStore = () => {
+        const qc = React.useContext(Context) as QueryClient<T>;
+        return qc.rootStore;
     };
     return {
         queryClient,
         useQueryClient,
+        useRootStore,
         QueryClientProvider,
-        getQueryClient,
-        createOptimisticData,
-        create
     };
 }
