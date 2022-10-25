@@ -179,6 +179,8 @@ test('query more - with initial result', async () => {
 
     await q.fetchMore();
 
+    expect(q.isLoading).toBe(false);
+
     expect(q.data.items.length).toBe(7);
 });
 
