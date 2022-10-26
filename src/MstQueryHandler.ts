@@ -195,7 +195,7 @@ export class MstQueryHandler {
         return this.model.run(...params);
     }
 
-    onSuccess(result: any, shouldUpdate = true) {
+    onSuccess(result: any, shouldUpdateData = true) {
         return (): { data: any; error: any; result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
@@ -212,9 +212,10 @@ export class MstQueryHandler {
             this.setResult(result);
 
             let data;
-            if (shouldUpdate) {
-                data = this.updateData(result, { isLoading: false, error: null });
+            if (shouldUpdateData) {
+                data = this.updateData(result, { isLoading: false, error: null }, shouldUpdateData);
             } else {
+                this.updateData(result, { isLoading: false, error: null }, shouldUpdateData)
                 data = this.prepareData(result);
             }
 
@@ -224,7 +225,7 @@ export class MstQueryHandler {
         };
     }
 
-    onError(err: any, shouldUpdate = true) {
+    onError(err: any, shouldUpdateData = true) {
         return (): { data: any; error: any; result: any } => {
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
@@ -234,9 +235,7 @@ export class MstQueryHandler {
                 return { data: null, error: null, result: null };
             }
 
-            if (shouldUpdate) {
-                this.updateData(null, { isLoading: false, error: err });
-            }
+            this.updateData(null, { isLoading: false, error: err }, shouldUpdateData);
 
             this.options.onError?.(err, this.model);
 
@@ -318,8 +317,8 @@ export class MstQueryHandler {
         return this.model.data;
     }
 
-    updateData(data: any, status?: any) {
-        if (data) {
+    updateData(data: any, status?: any, shouldUpdateData = true) {
+        if (shouldUpdateData && data) {
             this.model.__MstQueryHandlerAction(() => {
                 this.model.data = merge(
                     data,
