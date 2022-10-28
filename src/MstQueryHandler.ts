@@ -258,6 +258,13 @@ export class MstQueryHandler {
 
     setOptions(options: any) {
         this.options = { ...this.options, ...options };
+
+        if (!this.onRequestSnapshotDisposer && this.options.onRequestSnapshot && isStateTreeNode(this.model.request)) {
+            this.onRequestSnapshotDisposer = onSnapshot(
+                this.model.request,
+                this.options.onRequestSnapshot
+            );
+        }
     }
 
     prepareData(data: any) {
@@ -394,14 +401,7 @@ export class MstQueryHandler {
     }
 
     onAfterCreate() {
-        this.queryClient.queryStore.setQuery(this.model);
-
-        if (this.options.onRequestSnapshot && isStateTreeNode(this.model.request)) {
-            this.onRequestSnapshotDisposer = onSnapshot(
-                this.model.request,
-                this.options.onRequestSnapshot
-            );
-        }
+        this.queryClient.queryStore.setQuery(this.model);        
     }
 
     onDispose() {
