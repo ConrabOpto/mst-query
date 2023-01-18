@@ -26,12 +26,6 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
     // convert values deeply first to MST objects as much as possible
     const snapshot: any = {};
     for (const key in data) {
-        // TODO: make this fix a separate PR
-        if (Array.isArray(data[key])) {
-            const def = typeDef.properties ? typeDef.properties[key] : getSubType(typeDef, data);
-            snapshot[key] = merge(data[key], def, ctx);
-            continue;
-        }
         const realType = getRealTypeFromObject(typeDef, data, key);
         if (!realType) continue;
         snapshot[key] = merge(data[key], realType, ctx);
