@@ -26,5 +26,10 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Run test command
+      - name: Run mst-query test
+        working-directory: ./packages/mst-query
+        run: npm run test
+      
+      - name: Run mst-query-generator test
+        working-directory: ./packages/mst-query-generator
         run: npm run test
