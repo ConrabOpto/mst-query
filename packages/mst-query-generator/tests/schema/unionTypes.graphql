@@ -1,0 +1,36 @@
+type Query {
+    todoLists: [TodoList!]!
+}
+
+union Todo = BasicTodo | FancyTodo
+
+interface Owner {
+    id: ID!
+    name: String!
+}
+
+type User implements Owner {
+    id: ID!
+    name: String!
+    avatar: String!
+}
+
+type BasicTodo {
+    id: ID
+    text: String
+    complete: Boolean
+    owner: Owner
+}
+
+type FancyTodo {
+    id: ID
+    label: String
+    color: String
+    complete: Boolean
+    owner: Owner
+}
+
+type TodoList {
+    id: ID!
+    todos: [Todo!]!
+}

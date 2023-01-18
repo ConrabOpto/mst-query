@@ -12,7 +12,8 @@
         "moduleResolution": "node",
         "experimentalDecorators": true,
         "downlevelIteration": true,
-        "esModuleInterop": true
+        "esModuleInterop": true,
+        "allowJs": true
     },
     "include": ["./src", "./tests"]
 }
