@@ -1,31 +1,29 @@
-import { IAnyModelType, Instance } from 'mobx-state-tree';
+import { destroy, IAnyModelType, Instance } from 'mobx-state-tree';
 import { QueryStore } from './QueryStore';
-import { RootStore } from './RootStore';
 
 type QueryClientConfig<T extends IAnyModelType> = {
-    env: any;
-    queryOptions: {
+    env?: any;
+    queryOptions?: {
         staleTime?: number;
-        cacheTime?: number;
     };
-    RootStore?: T;
+    RootStore: T;
 };
 
 const defaultConfig = {
     env: {},
     queryOptions: {
         staleTime: 0,
-        cacheTime: 300,
     },
 };
 
 export class QueryClient<T extends IAnyModelType> {
     config: QueryClientConfig<T>;
     rootStore!: Instance<T>;
-    queryStore: QueryStore;
+    queryStore!: QueryStore;
     #initialized = false;
+    #initialData = {} as any;
 
-    constructor(config: Partial<QueryClientConfig<T>> = {}) {
+    constructor(config: QueryClientConfig<T>) {
         this.config = {
             ...defaultConfig,
             ...config,
@@ -34,11 +32,9 @@ export class QueryClient<T extends IAnyModelType> {
                 ...config.queryOptions,
             },
         };
-
-        this.queryStore = new QueryStore(this);
     }
 
-    init(env = {}) {
+    init(initialData: any = {}, env = {}) {
         if (this.#initialized) {
             return this;
         }
@@ -46,13 +42,19 @@ export class QueryClient<T extends IAnyModelType> {
         this.config.env = env;
         this.config.env.queryClient = this;
 
-        this.rootStore = this.config.RootStore
-            ? this.config.RootStore.create({}, this.config.env)
-            : (RootStore.create({}, this.config.env) as Instance<T>);
+        this.rootStore = this.config.RootStore.create(initialData, this.config.env);        
+        this.queryStore = new QueryStore(this);
 
         this.#initialized = true;
 
-
         return this;
     }
+
+    reset() {
+        destroy(this.rootStore);
+        this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
+        this.queryStore = new QueryStore(this);
+    }
+
+    
 }

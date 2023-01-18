@@ -15,23 +15,6 @@ import {
 import { getKey } from './QueryStore';
 import { getRealTypeFromObject, getSubType, isObject } from './utils';
 
-let optimisticId = 1;
-
-export function mergeOptimisticData<T extends IAnyType>(
-    typeOrNode: T | Instance<T>,
-    data: any,
-    env: any
-) {
-    const type: IAnyType = isStateTreeNode(typeOrNode) ? getType(typeOrNode) : typeOrNode;
-    const instance = merge(
-        { ...data, [type.identifierAttribute ?? '']: `optimistic-${optimisticId}` },
-        type,
-        env
-    );
-    optimisticId++;
-    return instance as Instance<T>;
-}
-
 export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false): any {
     if (!data || data instanceof Date || typeof data !== 'object') {
         return data;
@@ -73,7 +56,7 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
         instance = modelType.create(snapshot, ctx);
         const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
         if (storedId) {
-            ctx.queryClient.rootStore.__MstQueryAction('put', modelType, storedId, instance);            
+            ctx.queryClient.rootStore.__MstQueryAction('put', modelType, storedId, instance);
             ctx.queryClient.queryStore.models.set(getKey(modelType, storedId), instance);
         }
         return instance;

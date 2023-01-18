@@ -1,0 +1,123 @@
+:root {
+    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    height: 100%;
+    background: white;
+    color: #333;
+}
+
+#root {
+    display: flex;
+    min-height: 100%;
+}
+
+.app-container {
+    flex: 1;
+    display: flex;
+}
+
+.app-sidebar {
+    display: flex;
+    width: 200px;
+    padding: 24px;
+    background-color: #f0f0f0;
+    border-right: 1px solid #ddd;
+}
+
+.app-list {
+    display: flex;
+    padding: 24px;
+    flex: 1;
+}
+
+.invoice-list {
+    flex: 1;
+}
+
+.invoice-list-filters {
+    margin-bottom: 12px;
+}
+
+.invoice-list-filters > select {
+    margin-right: 12px;
+}
+
+.invoice-list-filters > input {
+    margin-right: 4px;
+}
+
+.invoice-list-buttons {
+    margin-bottom: 24px;
+}
+
+.invoice-list-buttons > * {
+    margin-right: 12px;
+}
+
+.invoice-list-result {
+    display: flex;
+    margin-top: 12px;
+} 
+
+.invoice-list-table {
+    flex: 1;
+    border: 1px solid #ddd;
+    overflow: auto;
+    height: 800px;
+}
+
+.invoice-list-preview {
+    flex: 1;
+    margin-left: 24px;
+}
+
+table {
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+thead th:nth-child(1) {
+    width: 35%;
+}
+
+thead th:nth-child(2) {
+    width: 32%;
+}
+
+thead th:nth-child(3) {
+    width: 32%;
+}
+
+tbody td {
+    text-align: center;
+}
+
+tbody tr:hover {
+    background: #eee;
+    cursor: pointer;
+}
+
+th,
+td {
+    padding: 12px;
+}

@@ -1,5 +1,4 @@
 import {
-    destroy,
     Instance,
     IAnyModelType,
     isStateTreeNode,
@@ -8,13 +7,8 @@ import {
     isArrayType,
     getIdentifier,
     IAnyComplexType,
-    getRoot,
-    unprotect,
-    protect
 } from 'mobx-state-tree';
 import { observable, action, makeObservable} from 'mobx';
-import { QueryClient } from './QueryClient';
-import { AnyQueryType } from './utilityTypes';
 
 export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
@@ -22,12 +16,12 @@ export const getKey = (type: IAnyComplexType, id: string | number) => {
 
 export class QueryStore {
     #scheduledGc = null as null | number;
-    #queryClient: QueryClient<any>;
-    #cache = observable.map({}, { deep: false });
+    #queryClient: any;
+    #cache = new Map() as Map<string, any>;
 
     models = new Map() as Map<string, any>;
 
-    constructor(queryClient: QueryClient<any>) {
+    constructor(queryClient: any) {
         makeObservable(this, {
             setQuery: action,
             removeQuery: action,
@@ -37,25 +31,13 @@ export class QueryStore {
         this.#queryClient = queryClient;
     }
 
-    find<T extends IAnyModelType>(
+    getQueries<T extends IAnyModelType>(
         queryDef: T,
-        matcherFn?: (query: Instance<T>) => boolean
-    ): Instance<T> | undefined {
-        const matches = this.findAll(queryDef, matcherFn);
-        return matches[0];
-    }
-
-    findAll<T extends IAnyModelType>(
-        queryDef: T,
-        matcherFn: (query: Instance<T>) => boolean = () => true,
-        includeDisposed = false
+        matcherFn: (query: Instance<T>) => boolean = () => true
     ): Instance<T>[] {
         let results = [];
         const arr = this.#cache.get(queryDef.name) ?? [];
         for (let query of arr) {
-            if (!includeDisposed && !isAlive(query)) {
-                continue;
-            }
             if (getType(query) === queryDef && matcherFn(query)) {
                 results.push(query);
             }
@@ -63,7 +45,11 @@ export class QueryStore {
         return results;
     }
 
-    setQuery(q: Instance<AnyQueryType>) {
+    getAllQueries(): any[] {
+        return Array.from(this.#cache.values());
+    }
+
+    setQuery(q: any) {
         const type = getType(q);
         let arr = this.#cache.get(type.name);
         if (!arr) {
@@ -73,25 +59,12 @@ export class QueryStore {
         arr.push(q);
     }
 
-    removeQuery(query: Instance<AnyQueryType>) {
+    removeQuery(query: any) {
         const type = getType(query);
         this.#cache.get(type.name)?.remove(query);
-        
-        const root = getRoot(query);
-        root && unprotect(root);
-        destroy(query);
-        root && protect(root);
-
-        this.#runGc();
     }
 
     clear() {
-        for (let [, arr] of this.#cache) {
-            for (let query of arr) {
-                destroy(query);
-            }
-        }
-
         for (let [, obj] of this.models) {
             this.#queryClient.rootStore.__MstQueryAction(
                 'delete',
@@ -105,7 +78,7 @@ export class QueryStore {
         this.#cache.clear();
     }
 
-    #runGc() {
+    runGc() {
         if (this.#scheduledGc) {
             return;
         }
@@ -116,7 +89,7 @@ export class QueryStore {
                 if (query.isLoading) {
                     this.#scheduledGc = window.setTimeout(() => {
                         this.#scheduledGc = null;
-                        this.#runGc();
+                        this.runGc();
                     }, 1000);
 
                     return;
