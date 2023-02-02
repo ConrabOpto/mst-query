@@ -1,5 +1,5 @@
 import { IAnyType, Instance, TypeOfValue } from 'mobx-state-tree';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { createQuery, createMutation } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
@@ -16,9 +16,8 @@ export type QueryReturnType = ReturnType<typeof createQuery>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;
 
-type QueryOptions<T extends IAnyType> = {
-    request?: Instance<T>['variables']['request'];
-    pagination?: Instance<T>['variables']['pagination'];
+type QueryOptions<T extends IAnyType, QA extends QueryAction> = {
+    request?: Parameters<QA>[0] extends undefined ? undefined : Parameters<QA>[0];
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
@@ -27,15 +26,25 @@ type QueryOptions<T extends IAnyType> = {
     initialData?: any;
 };
 
-type QueryAction = (...args: any[]) => any;
+type QueryAction = (...args: any) => any;
 
-type UseQueryOptions<T extends QueryReturnType> = Exclude<QueryOptions<T>, 'pagination'>;
-type UseInfiniteQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
+type UseQueryOptions<
+    T extends QueryReturnType,
+    QA extends QueryAction
+> = QueryOptions<T, QA>;
+
+type UseInfiniteQueryOptions<
+    T extends QueryReturnType,
+    QA extends QueryAction,
+    QM extends QueryAction
+> = QueryOptions<T, QA> & {
+    pagination?: Parameters<QM>[1];
+};
 
 export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAction>(
     query: T,
     queryAction: QA,
-    options: UseQueryOptions<TypeOfValue<T>> = {}
+    options: UseQueryOptions<TypeOfValue<T>, QA> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 
@@ -44,7 +53,7 @@ export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAc
 
     useEffect(() => {
         observer.setOptions(options, queryAction);
-        
+
         return () => {
             observer.unsubscribe();
         };
@@ -71,7 +80,7 @@ export function useInfiniteQuery<
     query: T,
     queryAction: QA,
     queryMoreAction: QM,
-    options: UseInfiniteQueryOptions<TypeOfValue<T>> = {}
+    options: UseInfiniteQueryOptions<TypeOfValue<T>, QA, QM> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 
@@ -80,7 +89,7 @@ export function useInfiniteQuery<
 
     useEffect(() => {
         observer.setOptions(options, queryAction, queryMoreAction);
-        
+
         return () => {
             observer.unsubscribe();
         };
@@ -115,10 +124,10 @@ export function useMutation<T extends MutationReturnType, MA extends QueryAction
 
     const queryClient = useContext(Context) as QueryClient<any>;
     options = { queryClient, ...options } as any;
-    
+
     useEffect(() => {
         observer.setOptions(options);
-    }, [options])
+    }, [options]);
 
     const result = {
         data: mutation.data as typeof mutation['data'],

@@ -73,7 +73,7 @@ const ItemServiceStore = types
         listQuery: optional(ListQuery)
     })
     .actions((self) => ({
-        getItem: flow(function* ({ id }, options = {}) {
+        getItem: flow(function* ({ id }: { id: string }, options = {}) {
             const next = yield* self.itemQuery.query({ request: { id }, ...options });
             next();
         }),

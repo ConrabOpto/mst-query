@@ -242,6 +242,7 @@ test('useInfiniteQuery', async () => {
 
     const Comp = observer(() => {
         useInfiniteQuery(q.listQuery, queryAction, queryMoreAction, {
+            request: {},
             pagination: { offset: offset.get() },
         });
         return <div></div>;
@@ -272,11 +273,12 @@ test('useQuery - with error', async () => {
         },
     };
 
-    const queryAction = (request: any) => q.getItem(request, { endpoint: apiWithError.getItem });
+    const queryAction = (request: { id: string }) =>
+        q.getItem(request, { endpoint: apiWithError.getItem });
 
     const Comp = observer(() => {
         useQuery(q.itemQuery, queryAction, {
-            request: { id: 'test ' },
+            request: { id: 'test' },
             onError(error) {
                 err = error;
             },
@@ -526,9 +528,11 @@ test('hook - two useQuery on the same query', async () => {
 
     const Comp1 = observer(() => {
         const { query: q1 } = useQuery(q.listQuery, q.getItems, {
+            request: {},
             onSuccess: onSuccess1,
         });
         const { query: q2 } = useQuery(q.listQuery, q.getItems, {
+            request: {},
             onSuccess: onSuccess2,
         });
         return <div></div>;
@@ -543,7 +547,7 @@ test('hook - two useQuery on the same query', async () => {
 
 test('hook - handle async return values in different order', async () => {
     const { render, q } = setup();
-    
+
     configureMobx({ enforceActions: 'never' });
 
     const getItems = vi.fn(() => Promise.resolve(listData));
@@ -559,7 +563,7 @@ test('hook - handle async return values in different order', async () => {
             } else if (counter > 1) {
                 return {
                     id: 'list-1',
-                    items: []
+                    items: [],
                 };
             }
         },
@@ -570,7 +574,7 @@ test('hook - handle async return values in different order', async () => {
     let id = observable.box('test');
 
     const Comp = observer(() => {
-         useQuery(q.listQuery, queryAction, {
+        useQuery(q.listQuery, queryAction, {
             request: { id: id.get() },
         });
         return <div></div>;
@@ -600,7 +604,7 @@ test('hook - onSuccess callback called', async () => {
 
     const Comp = observer(() => {
         const { query } = useQuery(q.listQuery, queryAction, {
-            pagination: { offset: 0 },
+            request: {},
             onSuccess: onSuccess,
         });
         return <div></div>;
@@ -621,7 +625,6 @@ test('hook - enabled prop', async () => {
 
     const Comp = observer(() => {
         const { query } = useQuery(q.listQuery, q.getItems, {
-            pagination: { offset: 0 },
             enabled: enabled.get(),
         });
         return <div></div>;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { types, flow } from 'mobx-state-tree';
+import { types, flow, Instance } from 'mobx-state-tree';
 import { observer } from 'mobx-react';
 import {
     createContext,
@@ -24,6 +24,8 @@ export const PostModel = types
             return !!self.body;
         },
     }));
+
+export interface PostModelType extends Instance<typeof PostModel> {}
 
 const getPosts = async () => {
     const { data } = await axios.get('https://jsonplaceholder.typicode.com/posts');
@@ -59,7 +61,6 @@ const PostStore = createModelStore(PostModel)
     }))
     .actions((self) => ({
         getPosts: flow(function* () {
-            console.log('running...');
             const next = yield* self.postsQuery.query();
             next();
         }),
@@ -74,10 +75,14 @@ const RootStore = createRootStore({
 });
 
 const queryClient = new QueryClient({ RootStore });
-const { useQueryClient, useRootStore, QueryClientProvider } = createContext(queryClient);
+const { useRootStore, QueryClientProvider } = createContext(queryClient);
 
-const Posts: React.FC<any> = observer((props) => {
-    const { setSelectedPost } = props;
+type PostsProps = {
+    onSelectedPost: (post: PostModelType | null) => void;
+};
+
+const Posts: React.FC<PostsProps> = observer((props) => {
+    const { onSelectedPost } = props;
     const { postStore } = useRootStore();
     const { data, error, isLoading } = useQuery(postStore.postsQuery, postStore.getPosts, {
         staleTime: 100000,
@@ -97,7 +102,7 @@ const Posts: React.FC<any> = observer((props) => {
                             {data.map((post) => (
                                 <p key={post.id}>
                                     <a
-                                        onClick={() => setSelectedPost(post)}
+                                        onClick={() => onSelectedPost(post)}
                                         href="#"
                                         style={
                                             post.hasContent
@@ -120,18 +125,22 @@ const Posts: React.FC<any> = observer((props) => {
     );
 });
 
-const Post: React.FC<any> = observer((props) => {
-    const { post, setSelectedPost } = props;
+type PostProps = {
+    post: PostModelType;
+    onSelectedPost: (post: PostModelType | null) => void;
+};
+
+const Post: React.FC<PostProps> = observer((props) => {
+    const { post, onSelectedPost } = props;
     const { postStore } = useRootStore();
     const { data, isLoading, error } = useQuery(postStore.postQuery, postStore.getPost, {
         initialData: post,
         request: { id: post.id },
     });
-    console.log(post.body);
     return (
         <div>
             <div>
-                <a onClick={() => setSelectedPost(null)} href="#">
+                <a onClick={() => onSelectedPost(null)} href="#">
                     Back
                 </a>
             </div>
@@ -155,10 +164,9 @@ const Post: React.FC<any> = observer((props) => {
 const env = {};
 
 const App = observer(() => {
-    const [selectedPost, setSelectedPost] = React.useState(null);
-
+    const [selectedPost, setSelectedPost] = React.useState<PostModelType | null>(null);
     return (
-        <QueryClientProvider client={queryClient} env={env}>
+        <QueryClientProvider env={env}>
             <div>
                 <p>
                     As you visit the posts below, you will notice them in a loading state the first
@@ -171,9 +179,9 @@ const App = observer(() => {
                     </strong>
                 </p>
                 {selectedPost ? (
-                    <Post post={selectedPost} setSelectedPost={setSelectedPost} />
+                    <Post post={selectedPost} onSelectedPost={(post) => setSelectedPost(post)} />
                 ) : (
-                    <Posts setSelectedPost={setSelectedPost} />
+                    <Posts onSelectedPost={(post) => setSelectedPost(post)} />
                 )}
             </div>
         </QueryClientProvider>
