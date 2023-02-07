@@ -45,10 +45,6 @@ export class QueryStore {
         return results;
     }
 
-    getAllQueries(): any[] {
-        return Array.from(this.#cache.values());
-    }
-
     setQuery(q: any) {
         const type = getType(q);
         let arr = this.#cache.get(type.name);

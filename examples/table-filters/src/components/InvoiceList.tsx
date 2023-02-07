@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react';
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useInfiniteQuery, useMutation } from 'mst-query';
+import { useQueryMore, useMutation } from 'mst-query';
 import { useRootStore } from '../context';
 import { InvoiceModelType, InvoiceFilterModelType } from '../models/models';
 import { InvoiceEditor } from './InvoicePreview';
@@ -46,7 +46,7 @@ export const InvoiceList = observer(() => {
     const [offset, setOffset] = useState(0);
     const [previewId, setPreviewId] = useState<string | undefined>();
 
-    const { data, isLoading, isFetchingMore, isRefetching, refetch } = useInfiniteQuery(
+    const { data, isLoading, isFetchingMore, isRefetching, refetch } = useQueryMore(
         invoiceApiStore.invoiceListQuery,
         invoiceApiStore.getInvoiceList,
         invoiceApiStore.getInvoiceListMore,

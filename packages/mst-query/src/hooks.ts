@@ -33,7 +33,7 @@ type UseQueryOptions<
     QA extends QueryAction
 > = QueryOptions<T, QA>;
 
-type UseInfiniteQueryOptions<
+type useQueryMoreOptions<
     T extends QueryReturnType,
     QA extends QueryAction,
     QM extends QueryAction
@@ -72,7 +72,7 @@ export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAc
     };
 }
 
-export function useInfiniteQuery<
+export function useQueryMore<
     T extends Instance<QueryReturnType>,
     QA extends QueryAction,
     QM extends QueryAction
@@ -80,7 +80,7 @@ export function useInfiniteQuery<
     query: T,
     queryAction: QA,
     queryMoreAction: QM,
-    options: UseInfiniteQueryOptions<TypeOfValue<T>, QA, QM> = {}
+    options: useQueryMoreOptions<TypeOfValue<T>, QA, QM> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 

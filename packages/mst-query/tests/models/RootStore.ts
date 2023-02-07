@@ -129,11 +129,11 @@ const ServiceStore = types.model({
 });
 
 export const Root = createRootStore({
-    itemStore: optional(createModelStore(ItemModel)),
-    userStore: optional(createModelStore(UserModel)),
-    listStore: optional(createModelStore(ListModel)),
-    dateStore: optional(createModelStore(DateModel)),
-    deepModelCStore: optional(createModelStore(DeepModelC)),
+    itemStore: optional(createModelStore('ItemStore', ItemModel)),
+    userStore: optional(createModelStore('UserStore', UserModel)),
+    listStore: optional(createModelStore('ListStore', ListModel)),
+    dateStore: optional(createModelStore('DateStore', DateModel)),
+    deepModelCStore: optional(createModelStore('DeepStore', DeepModelC)),
     serviceStore: optional(ServiceStore),
 });
 

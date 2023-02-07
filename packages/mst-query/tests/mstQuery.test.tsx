@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { useQuery, useInfiniteQuery, useMutation } from '../src';
+import { useQuery, useQueryMore, useMutation } from '../src';
 import { configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -212,7 +212,7 @@ test('useQuery - reactive request', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
-test('useInfiniteQuery', async () => {
+test('useQueryMore', async () => {
     const { render, q } = setup();
 
     configureMobx({ enforceActions: 'never' });
@@ -241,7 +241,7 @@ test('useInfiniteQuery', async () => {
         q.getMoreItems(request, pagination, { endpoint: customApi.getItems });
 
     const Comp = observer(() => {
-        useInfiniteQuery(q.listQuery, queryAction, queryMoreAction, {
+        useQueryMore(q.listQuery, queryAction, queryMoreAction, {
             request: {},
             pagination: { offset: offset.get() },
         });

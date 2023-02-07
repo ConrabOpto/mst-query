@@ -1,5 +1,5 @@
 export type { EndpointType } from './MstQueryHandler';
-export { useQuery, useInfiniteQuery, useMutation } from './hooks';
+export { useQuery, useQueryMore, useMutation } from './hooks';
 export { createQuery, createMutation } from './create';
 export { MstQueryRef } from './MstQueryRef';
 export { createRootStore, createModelStore } from './stores';
