@@ -16,6 +16,10 @@ Query library for mobx-state-tree
 -   Abort Requests
 -   Generate Models From Graphql Schema
 
+# Examples
+
+-   [Basic](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
+
 # Basic Usage
 
 First, create a query and a store...
