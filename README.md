@@ -10,11 +10,11 @@ Query library for mobx-state-tree
 
 -   Automatic Normalization
 -   Garbage Collection
--   Use with any backend (REST, GraphQL, whatever!)
 -   Infinite Scroll + Pagination Queries
 -   Optimistic Mutations
 -   Request Argument Type Validation
 -   Abort Requests
+-   Generate Models From Graphql Schema
 
 # Basic Usage
 
@@ -306,8 +306,6 @@ const AddMessage = observer((props) => {
 ```
 
 ## Optimistic updates
-
-TODO: Write about automatic rollback.
 
 ```tsx
 import { types } from 'mobx-state-tree';
