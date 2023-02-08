@@ -339,6 +339,14 @@ const MessageStore = createModelStore('MessageStore', MessageModel)
     }));
 ```
 
+## Model generator (GraphQL)
+
+Generate mobx-state-tree models from your graphql schema.
+
+```ts
+npx mst-query-generator schema.graphql
+```
+
 ## Cache
 
 Queries are cached by instance and request arguments. The option `staleTime` controls how much time should pass before a cached value needs to be refetched from the server.
