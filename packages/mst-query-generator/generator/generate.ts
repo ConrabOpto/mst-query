@@ -35,6 +35,8 @@ export class Generate implements GenerateProps {
         this.typeHandler = params.typeHandler ? params.typeHandler : defaultTypeHandler;
         this.files = [] as GeneratedFile[];
         this.config = params.config ?? undefined;
+        this.knownTypes = [];
+        this.refs = [];
 
         const excludes = params.excludes ? params.excludes : [];
         this.excludes = [...excludes, ...reservedGraphqlNames];
