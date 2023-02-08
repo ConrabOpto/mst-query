@@ -1,19 +1,14 @@
 {
     "compilerOptions": {
         "target": "ESNext",
-        "module": "ESNext",
-        "jsx": "react",
-        "lib": ["ESNext", "dom"],
+        "module": "commonjs",
+        "lib": ["es6", "es2015", "dom"],
         "declaration": true,
-        "skipLibCheck": true,
+        "outDir": "dist",
         "strict": true,
-        "noImplicitAny": true,
-        "alwaysStrict": true,
-        "moduleResolution": "node",
-        "experimentalDecorators": true,
-        "downlevelIteration": true,
+        "types": ["node"],
         "esModuleInterop": true,
-        "allowJs": true
+        "resolveJsonModule": true
     },
     "include": ["./src", "./tests"]
 }

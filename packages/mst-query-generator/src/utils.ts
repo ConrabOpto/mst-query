@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import { RootType } from './models';
 
-export const primitiveFieldNames = {
+export const primitiveFieldNames: { [key: string]: string } = {
     ID: 'identifier',
     Int: 'integer',
     String: 'string',
