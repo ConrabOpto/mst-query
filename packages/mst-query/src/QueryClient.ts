@@ -41,9 +41,9 @@ export class QueryClient<T extends IAnyModelType> {
 
         this.config.env = env;
         this.config.env.queryClient = this;
+        this.queryStore = new QueryStore(this);
 
         this.rootStore = this.config.RootStore.create(initialData, this.config.env);        
-        this.queryStore = new QueryStore(this);
 
         this.#initialized = true;
 
@@ -52,8 +52,8 @@ export class QueryClient<T extends IAnyModelType> {
 
     reset() {
         destroy(this.rootStore);
-        this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
         this.queryStore = new QueryStore(this);
+        this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
     }
 
     
