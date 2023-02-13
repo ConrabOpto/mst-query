@@ -54,9 +54,13 @@ export const createRootStore = <T extends ModelPropertiesDeclaration>(props: T) 
         // nodes are lazily created on property access, we need to
         // loop over them to setup our model store map
         (self as any).$treenode.registerHook('afterCreate', () => {
-            for (let key in self as any) {
-                self[key];
+            // overriding log to stop bundler from removing lookups
+            const log = console.log;
+            console.log = () => {};
+            for (let key in self as any) {                
+                console.log(self[key]);
             }
+            console.log = log;
         });
 
         return {
