@@ -85,6 +85,9 @@ export function createQuery<
             get result() {
                 return self.__MstQueryHandler.result;
             },
+            get cachedAt() {
+                return self.__MstQueryHandler.cachedAt;
+            }
         }))
         .actions((self) => ({
             __MstQueryHandlerAction(action: any) {
