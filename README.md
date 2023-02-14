@@ -19,6 +19,7 @@ Query library for mobx-state-tree
 # Examples
 
 -   [Basic](https://codesandbox.io/s/mst-query-basic-example-v63qu?file=/src/index.tsx)
+-   [Table Filters](https://codesandbox.io/s/mst-query-table-filters-wdforg?file=/src/index.tsx)
 
 # Basic Usage
 
