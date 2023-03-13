@@ -27,6 +27,13 @@ type Context = {
     [key: string]: any;
 };
 
+export type EndpointType = (options: {
+    request?: any;
+    pagination?: any;
+    context?: any;
+    setData?: (data: any) => void;
+}) => Promise<any>;
+
 type BaseOptions = {
     request?: any;
     context?: Context;
@@ -60,8 +67,6 @@ type NotifyOptions = {
 
 const EmptyRequest = Symbol('EmptyRequest');
 const EmptyPagination = Symbol('EmptyPagination');
-
-export type EndpointType = (options: QueryOptions, query: any) => Promise<any>;
 
 export class DisposedError extends Error {}
 
@@ -181,9 +186,10 @@ export class MstQueryHandler {
                 },
                 ...options?.context,
             },
+            setData: this.model.setData
         };
 
-        return endpoint(opts, this.model).then((result: any) => {
+        return endpoint(opts).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }

@@ -1,10 +1,4 @@
-import {
-    types,
-    IAnyType,
-    toGeneratorFunction,
-    flow,
-    SnapshotIn,
-} from 'mobx-state-tree';
+import { types, IAnyType, toGeneratorFunction, flow, SnapshotIn } from 'mobx-state-tree';
 import { MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
@@ -15,12 +9,16 @@ type CreateBaseOptions<TData extends IAnyType> = {
 
 type CreateOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateBaseOptions<TData> & {
     request?: TRequest;
-    endpoint?: ({
-        request,
-        context,
-    }: {
+};
+
+type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateOptions<
+    TData,
+    TRequest
+> & {
+    endpoint?: (options: {
         request: SnapshotIn<TRequest>;
         context: any;
+        setData: (data: any) => void;
     }) => Promise<any>;
 };
 
@@ -30,14 +28,11 @@ type CreateQueryOptions<
     TPagination extends IAnyType
 > = CreateOptions<TData, TRequest> & {
     pagination?: TPagination;
-    endpoint?: ({
-        request,
-        pagination,
-        context,
-    }: {
+    endpoint?: (options: {
         request: SnapshotIn<TRequest>;
         pagination: SnapshotIn<TPagination>;
         context: any;
+        setData: (data: any) => void;
     }) => Promise<any>;
 };
 
@@ -87,7 +82,7 @@ export function createQuery<
             },
             get cachedAt() {
                 return self.__MstQueryHandler.cachedAt;
-            }
+            },
         }))
         .actions((self) => ({
             __MstQueryHandlerAction(action: any) {
@@ -114,7 +109,7 @@ export function createQuery<
 
 export function createMutation<TData extends IAnyType, TRequest extends IAnyType>(
     name: string,
-    options: CreateOptions<TData, TRequest> = {}
+    options: CreateMutationOptions<TData, TRequest> = {}
 ) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,

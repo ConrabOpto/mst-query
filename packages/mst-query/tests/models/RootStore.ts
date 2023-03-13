@@ -5,7 +5,7 @@ import { createModelStore, createRootStore } from '../../src/stores';
 import { itemData } from '../api/data';
 import { AddItemMutation } from './AddItemMutation';
 import { ItemModel } from './ItemModel';
-import { ItemQuery } from './ItemQuery';
+import { ItemQuery, SubscriptionItemQuery } from './ItemQuery';
 import { ListModel } from './ListModel';
 import { ListQuery } from './ListQuery';
 import { SetDescriptionMutation } from './SetDescriptionMutation';
@@ -70,7 +70,8 @@ const ItemServiceStore = types
         itemQuery2: optional(ItemQuery),
         addItemMutation: optional(AddItemMutation),
         setDescriptionMutation: optional(SetDescriptionMutation),
-        listQuery: optional(ListQuery)
+        listQuery: optional(ListQuery),
+        subscriptionQuery: optional(SubscriptionItemQuery),
     })
     .actions((self) => ({
         getItem: flow(function* ({ id }: { id: string }, options = {}) {
@@ -112,15 +113,19 @@ const ItemServiceStore = types
                 optimisticUpdate: () => {
                     const optimistic = root.itemStore.merge({
                         ...itemData,
-                        id: 'temp'
+                        id: 'temp',
                     });
                     self.listQuery.data?.addItem(optimistic);
                 },
             });
             const { data } = next();
-            
+
             self.listQuery.data?.addItem(data);
-        })
+        }),
+        getItemSubscription: flow(function* ({ id }, options) {
+            const next = yield* self.subscriptionQuery.query({ request: { id }, ...options });
+            next();
+        }),
     }));
 
 const ServiceStore = types.model({

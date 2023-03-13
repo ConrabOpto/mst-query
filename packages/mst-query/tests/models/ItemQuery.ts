@@ -6,5 +6,10 @@ import { ItemModel } from './ItemModel';
 export const ItemQuery = createQuery('ItemQuery', {
     request: types.model({ id: types.string }),
     data: MstQueryRef(ItemModel),
-    endpoint: api.getItem
+    endpoint: api.getItem,
+});
+
+export const SubscriptionItemQuery = createQuery('SubscriptionItemQuery', {
+    data: MstQueryRef(ItemModel),
+    request: types.model({ id: types.string })
 });
