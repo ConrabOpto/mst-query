@@ -88,17 +88,25 @@ export function createQuery<
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            query: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.query>) =>
-                    self.__MstQueryHandler.query<typeof self['data'], TResult>(...args)
-            ),
-            queryMore: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.queryMore>) =>
-                    self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(...args)
-            ),
+            query: flow(function* <TResult = any>(
+                ...args: Parameters<typeof self.__MstQueryHandler.query>
+            ) {
+                const next = yield self.__MstQueryHandler.query<typeof self['data'], TResult>(
+                    ...args
+                );
+                return next();
+            }),
+            queryMore: flow(function* <TResult = any>(
+                ...args: Parameters<typeof self.__MstQueryHandler.queryMore>
+            ) {
+                const next = yield self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(
+                    ...args
+                );
+                return next();
+            }),
             refetch: flow(function* (...args: Parameters<typeof self.__MstQueryHandler.query>) {
                 const next = yield self.__MstQueryHandler.refetch(...args);
-                next();
+                return next();
             }),
             setData(data: any) {
                 self.__MstQueryHandler.setData(data);
@@ -144,10 +152,14 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            mutate: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.mutate>) =>
-                    self.__MstQueryHandler.mutate<typeof self['data'], TResult>(...args)
-            ),
+            mutate: flow(function* <TResult = any>(
+                ...args: Parameters<typeof self.__MstQueryHandler.mutate>
+            ) {
+                const next = yield self.__MstQueryHandler.mutate<typeof self['data'], TResult>(
+                    ...args
+                );
+                return next();
+            }),
             abort: self.__MstQueryHandler.abort,
         }));
 }

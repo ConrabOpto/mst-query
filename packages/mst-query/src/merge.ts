@@ -4,8 +4,6 @@ import {
     getRoot,
     getSnapshot,
     getType,
-    IAnyType,
-    Instance,
     isFrozenType,
     isMapType,
     isStateTreeNode,

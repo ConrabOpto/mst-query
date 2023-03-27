@@ -16,35 +16,25 @@ export type QueryReturnType = ReturnType<typeof createQuery>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;
 
-type QueryOptions<T extends IAnyType, QA extends QueryAction> = {
-    request?: Parameters<QA>[0] extends undefined ? undefined : Parameters<QA>[0];
+type QueryOptions<T extends IAnyType> = {
+    request?: Instance<T>['variables']['request'];
+    pagination?: Instance<T>['variables']['pagination'];
     onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
     onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
+    endpoint?: (...args: any) => Promise<any>;
 };
 
 type QueryAction = (...args: any) => any;
 
-type UseQueryOptions<
-    T extends QueryReturnType,
-    QA extends QueryAction
-> = QueryOptions<T, QA>;
+type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
 
-type useQueryMoreOptions<
-    T extends QueryReturnType,
-    QA extends QueryAction,
-    QM extends QueryAction
-> = QueryOptions<T, QA> & {
-    pagination?: Parameters<QM>[1];
-};
-
-export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAction>(
+export function useQuery<T extends Instance<QueryReturnType>>(
     query: T,
-    queryAction: QA,
-    options: UseQueryOptions<TypeOfValue<T>, QA> = {}
+    options: UseQueryOptions<TypeOfValue<T>> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 
@@ -52,43 +42,7 @@ export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAc
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     useEffect(() => {
-        observer.setOptions(options, queryAction);
-
-        return () => {
-            observer.unsubscribe();
-        };
-    }, [options]);
-
-    return {
-        data: query.data as typeof query['data'],
-        error: query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        isFetchingMore: query.isFetchingMore,
-        query: query,
-        refetch: query.refetch,
-        cachedAt: query.__MstQueryHandler.cachedAt,
-    };
-}
-
-export function useQueryMore<
-    T extends Instance<QueryReturnType>,
-    QA extends QueryAction,
-    QM extends QueryAction
->(
-    query: T,
-    queryAction: QA,
-    queryMoreAction: QM,
-    options: useQueryMoreOptions<TypeOfValue<T>, QA, QM> = {}
-) {
-    const [observer] = useState(() => new QueryObserver(query, true));
-
-    const queryClient = useContext(Context)! as QueryClient<any>;
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-
-    useEffect(() => {
-        observer.setOptions(options, queryAction, queryMoreAction);
+        observer.setOptions(options);
 
         return () => {
             observer.unsubscribe();
@@ -115,9 +69,8 @@ type MutationOptions<T extends IAnyType> = {
 
 type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
 
-export function useMutation<T extends MutationReturnType, MA extends QueryAction>(
+export function useMutation<T extends MutationReturnType>(
     mutation: Instance<T>,
-    mutateAction: MA,
     options: UseMutationOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(mutation, false));
@@ -136,5 +89,9 @@ export function useMutation<T extends MutationReturnType, MA extends QueryAction
         mutation,
     };
 
-    return [mutateAction, result] as [typeof mutateAction, typeof result];
+    const mutate = (...args: any[]) => {
+        mutation.mutate(...args);
+    };
+
+    return [mutate, result] as [typeof mutate, typeof result];
 }

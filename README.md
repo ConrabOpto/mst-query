@@ -34,16 +34,9 @@ const MessageQuery = createQuery('MessageQuery', {
     },
 });
 
-const MessageStore = createModelStore('MessageStore', MessageModel)
-    .props({
-        messageQuery: types.optional(MessageQuery, {}),
-    })
-    .actions((self) => ({
-        getMessage: flow(function* (id: string) {
-            const next = yield* self.postsQuery.query({ request: { id } });
-            next();
-        }),
-    }));
+const MessageStore = createModelStore('MessageStore', MessageModel).props({
+    messageQuery: types.optional(MessageQuery, {}),
+});
 ```
 
 ...then use the query in a React component!
@@ -51,17 +44,13 @@ const MessageStore = createModelStore('MessageStore', MessageModel)
 ```tsx
 const MesssageView = observer((props) => {
     const { id, messageStore } = props;
-    const { data, error, isLoading } = useQuery(
-        messageStore.messageQuery,
-        messageStore.getMessage,
-        {
-            request: { id },
-        }
-    );
+    const { data, error, isLoading } = useQuery(messageStore.messageQuery, {
+        request: { id },
+    });
     if (error) {
         return <div>An error occured...</div>;
     }
-    if (isLoading) {
+    if (!data) {
         return <div>Loading...</div>;
     }
     return <div>{data.message}</div>;
@@ -100,7 +89,7 @@ function App() {
 ## Models
 
 In general, models can be created as usual. The main difference is how we handle references.
-                                                                                                                
+
 ### `MstQueryRef`
 
 A custom reference that replaces `types.reference`.
