@@ -64,9 +64,6 @@ type QueryHookOptions = {
 
 type NotifyOptions = {
     onMutate?: boolean;
-    onSuccess?: boolean;
-    onError?: boolean;
-    onFetched?: boolean;
     onQueryMore?: boolean;
 };
 
@@ -336,10 +333,8 @@ export class MstQueryHandler {
 
             if (!this.isFetched) {
                 this.isFetched = true;
-                this.notify({ onFetched: true }, this.model.data, this.model);
             }
 
-            this.notify({ onSuccess: true }, data, this.model);
             // TODO: make nicer brand check
             if (this.model.mutate) {
                 this.notify({ onMutate: true }, data, this.model);
@@ -380,8 +375,6 @@ export class MstQueryHandler {
             if (this.isFetchingMore) {
                 this.isFetchingMore = false;
             }
-
-            this.notify({ onError: true }, err, this.model);
 
             return { data: null, error: err, result: null };
         };

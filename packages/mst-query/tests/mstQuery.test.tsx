@@ -275,13 +275,11 @@ test('useQuery - with error', async () => {
     };
 
     const Comp = observer(() => {
-        useQuery(q.itemQuery, {
+        const { error } = useQuery(q.itemQuery, {
             request: { id: 'test' },
-            onError(error) {
-                err = error;
-            },
             endpoint: apiWithError.getItem,
         });
+        err = error;
         return <div></div>;
     });
     render(<Comp />);
@@ -518,30 +516,33 @@ test('caching - stale time', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
-test('hook - two useQuery on the same query', async () => {
-    const { render, q } = setup();
+// TODO: How should this work?
+// test('hook - two useQuery on the same query', async () => {
+//     const { render, q } = setup();
 
-    const onSuccess1 = vi.fn();
-    const onSuccess2 = vi.fn();
+//     const getItem = vi.fn(() => Promise.resolve(itemData));
+//     const testApi = {
+//         ...api,
+//         getItem: () => getItem(),
+//     };
 
-    const Comp1 = observer(() => {
-        const { query: q1 } = useQuery(q.listQuery, {
-            request: {},
-            onSuccess: onSuccess1,
-        });
-        const { query: q2 } = useQuery(q.listQuery, {
-            request: {},
-            onSuccess: onSuccess2,
-        });
-        return <div></div>;
-    });
-    render(<Comp1 />);
+//     const Comp1 = observer(() => {
+//         useQuery(q.listQuery, {
+//             request: {},
+//             endpoint: testApi.getItem
+//         });
+//         useQuery(q.listQuery, {
+//             request: {},
+//             endpoint: testApi.getItem
+//         });
+//         return <div></div>;
+//     });
+//     render(<Comp1 />);
 
-    await wait(0);
+//     await wait(0);
 
-    expect(onSuccess1).toBeCalledTimes(1);
-    expect(onSuccess2).toBeCalledTimes(1);
-});
+//     expect(getItem).toBeCalledTimes(1);
+// });
 
 test('hook - handle async return values in different order', async () => {
     const { render, q } = setup();
@@ -585,31 +586,6 @@ test('hook - handle async return values in different order', async () => {
     expect(q.listQuery.data?.items.length).toBe(0);
 
     configureMobx({ enforceActions: 'observed' });
-});
-
-test('hook - onSuccess callback called', async () => {
-    const { render, q } = setup();
-
-    const onSuccess = vi.fn();
-    const getItems = vi.fn(() => Promise.resolve(listData));
-    const testApi = {
-        ...api,
-        getItems: () => getItems(),
-    };
-
-    const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, {
-            request: {},
-            onSuccess: onSuccess,
-            endpoint: testApi.getItems,
-        });
-        return <div></div>;
-    });
-
-    render(<Comp />);
-    await when(() => !q.listQuery.isLoading);
-
-    expect(onSuccess).toBeCalledTimes(1);
 });
 
 test('hook - enabled prop', async () => {

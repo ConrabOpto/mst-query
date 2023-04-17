@@ -19,16 +19,12 @@ export type MutationReturnType = ReturnType<typeof createMutation>;
 type QueryOptions<T extends IAnyType> = {
     request?: Instance<T>['variables']['request'];
     pagination?: Instance<T>['variables']['pagination'];
-    onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onQueryMore?: (data: Instance<T>['data'], self: Instance<T>) => void;
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
     endpoint?: (...args: any) => Promise<any>;
 };
-
-type QueryAction = (...args: any) => any;
 
 type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
 
@@ -63,8 +59,8 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 }
 
 type MutationOptions<T extends IAnyType> = {
-    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    onMutate?: (data: Instance<T>['data'], self: Instance<T>) => void;
+    endpoint?: (...args: any) => Promise<any>;
 };
 
 type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
