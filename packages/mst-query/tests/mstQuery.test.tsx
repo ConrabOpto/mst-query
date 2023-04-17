@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { useQuery,  useMutation } from '../src';
+import { useQuery, useMutation } from '../src';
 import { configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -232,7 +232,7 @@ test('useQueryMore', async () => {
             return api.getItems(options);
         },
     };
-    
+
     let isFetchingMoreStates: boolean[] = [false];
     reaction(
         () => q.listQuery.isFetchingMore,
@@ -244,7 +244,7 @@ test('useQueryMore', async () => {
     const Comp = observer(() => {
         useQuery(q.listQuery, {
             pagination: { offset: offset.get() },
-            endpoint: customApi.getItems,
+            meta: { getItems: customApi.getItems },
         });
         return <div></div>;
     });
@@ -277,7 +277,7 @@ test('useQuery - with error', async () => {
     const Comp = observer(() => {
         const { error } = useQuery(q.itemQuery, {
             request: { id: 'test' },
-            endpoint: apiWithError.getItem,
+            meta: { getItem: apiWithError.getItem },
         });
         err = error;
         return <div></div>;
@@ -306,7 +306,7 @@ test('model with optional identifier', async () => {
     const Comp = observer(() => {
         const { query } = useQuery(q.listQuery, {
             request: { id: 'test' },
-            endpoint: customApi.getItems,
+            meta: { getItems: customApi.getItems },
         });
         return <div></div>;
     });
@@ -327,10 +327,10 @@ test('refetching query', async () => {
         getItem: () => getItem(),
     };
 
-    await q.itemQuery.query({ request: { id: 'test' }, endpoint: testApi.getItem });
+    await q.itemQuery.query({ request: { id: 'test' }, meta: { getItem: testApi.getItem } });
 
     await q.setDescriptionMutation.mutate({ request: { id: 'test', description: 'new' } });
-    await q.itemQuery.refetch({ endpoint: testApi.getItem });
+    await q.itemQuery.refetch({ meta: { getItem: testApi.getItem } });
 
     expect(getItem).toHaveBeenCalledTimes(2);
     expect(q.itemQuery.data?.description).toBe('Test item');
@@ -346,11 +346,11 @@ test('mutation updates query (with optimistic update)', async () => {
         request: { path: 'test', message: 'testing' },
         optimisticResponse: { ...itemData, id: 'temp' },
     });
-    
+
     expect(q.listQuery.data?.items[4].id).toBe('temp');
 
     await when(() => !q.addItemMutation.isLoading);
-    
+
     expect(q.listQuery.data?.items[4].id).toBe('add-test');
     expect(q.listQuery.data?.items.length).toBe(5);
 });
@@ -490,7 +490,7 @@ test('caching - stale time', async () => {
         const { query } = useQuery(q.itemQuery, {
             request: { id: 'test' },
             staleTime: 1,
-            endpoint: testApi.getItem,
+            meta: { getItem: testApi.getItem },
         });
         return <div></div>;
     });
@@ -573,7 +573,7 @@ test('hook - handle async return values in different order', async () => {
     const Comp = observer(() => {
         useQuery(q.listQuery, {
             request: { id: id.get() },
-            endpoint: testApi.getItems,
+            meta: { getItems: testApi.getItems },
         });
         return <div></div>;
     });
@@ -660,22 +660,17 @@ test('merge with partial data', () => {
 test('subscription query', async () => {
     const { q } = setup();
 
-    const onUpdate = (url: string, callback: any) => (data: any) => callback(data);
-    let updater: any;
+    let meta = { updater: undefined } as any;
     await q.subscriptionQuery.query({
         request: { id: 'test' },
-        async endpoint({ request, setData }: any) {
-            updater = onUpdate(`item/${request.id}`, (data: any) => {
-                setData(data);
-            });
-        },
+        meta,
     });
     expect(q.subscriptionQuery.isLoading).toBe(false);
 
-    updater(itemData);
+    meta.updater(itemData);
     expect(q.subscriptionQuery.data?.count).toBe(4);
 
-    updater({
+    meta.updater({
         ...itemData,
         count: 5,
     });

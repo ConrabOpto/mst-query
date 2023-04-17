@@ -31,7 +31,8 @@ type CreateQueryOptions<
     endpoint?: (options: {
         request: SnapshotIn<TRequest>;
         pagination: SnapshotIn<TPagination>;
-        context: any;
+        meta: { [key: string]: any };
+        signal: AbortSignal; 
         setData: (data: any) => void;
     }) => Promise<any>;
 };

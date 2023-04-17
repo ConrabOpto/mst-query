@@ -23,7 +23,7 @@ type QueryOptions<T extends IAnyType> = {
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
-    endpoint?: (...args: any) => Promise<any>;
+    meta?: { [key: string]: any };
 };
 
 type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
@@ -60,7 +60,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 
 type MutationOptions<T extends IAnyType> = {
     onMutate?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    endpoint?: (...args: any) => Promise<any>;
+    meta?: { [key: string]: any };
 };
 
 type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;

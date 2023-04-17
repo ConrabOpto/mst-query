@@ -21,26 +21,20 @@ type QueryReturn<TData, TResult> = {
     result: TResult;
 };
 
-type Context = {
-    fetchOptions?: {
-        signal: AbortSignal;
-    };
-    [key: string]: any;
-};
-
 const EmptyRequest = Symbol('EmptyRequest');
 const EmptyPagination = Symbol('EmptyPagination');
 
 export type EndpointType = (options: {
     request?: any;
     pagination?: any;
-    context?: any;
-    setData?: (data: any) => void;
+    meta: { [key: string]: any };
+    signal: AbortSignal; 
+    setData: (data: any) => void;
 }) => Promise<any>;
 
 type BaseOptions = {
     request?: any;
-    context?: Context;
+    meta?: { [key: string]: any };
     convert?: (result: any) => any;
     endpoint?: EndpointType;
 };
@@ -170,8 +164,6 @@ export class MstQueryHandler {
     }
 
     run(options: QueryOptions = {}) {
-        const endpoint = options.endpoint ?? this.options.endpoint;
-
         this.setVariables({ request: options.request, pagination: options.pagination });
 
         if (this.isLoading && this.abortController) {
@@ -186,16 +178,12 @@ export class MstQueryHandler {
 
         const opts = {
             ...options,
-            context: {
-                fetchOptions: {
-                    signal: this.abortController.signal,
-                },
-                ...options?.context,
-            },
+            meta: options.meta ?? {},
+            signal: this.abortController.signal,
             setData: this.model.setData,
         };
 
-        return endpoint(opts).then((result: any) => {
+        return this.options.endpoint(opts).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
