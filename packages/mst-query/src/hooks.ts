@@ -1,4 +1,4 @@
-import { IAnyType, Instance, TypeOfValue } from 'mobx-state-tree';
+import { IAnyType, Instance, SnapshotIn, TypeOfValue } from 'mobx-state-tree';
 import { useContext, useEffect, useState } from 'react';
 import { createQuery, createMutation } from './create';
 import { Context } from './QueryClientProvider';
@@ -85,8 +85,8 @@ export function useMutation<T extends MutationReturnType>(
         mutation,
     };
 
-    const mutate = (...args: any[]) => {
-        mutation.mutate(...args);
+    const mutate = (params: { request: any; optimisticResponse?: any }) => {
+        mutation.mutate({ ...params, ...options });
     };
 
     return [mutate, result] as [typeof mutate, typeof result];
