@@ -5,6 +5,7 @@ type QueryClientConfig<T extends IAnyModelType> = {
     env?: any;
     queryOptions?: {
         staleTime?: number;
+        endpoint?: (args: { request: any, pagination: any, meta: any, signal: AbortSignal }) => Promise<any>;
     };
     RootStore: T;
 };

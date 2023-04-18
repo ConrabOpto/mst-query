@@ -17,7 +17,7 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
 > & {
     endpoint?: (options: {
         request: SnapshotIn<TRequest>;
-        context: any;
+        meta: { [key: string]: any };
         setData: (data: any) => void;
     }) => Promise<any>;
 };

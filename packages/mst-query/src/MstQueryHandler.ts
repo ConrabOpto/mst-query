@@ -28,7 +28,7 @@ export type EndpointType = (options: {
     request?: any;
     pagination?: any;
     meta: { [key: string]: any };
-    signal: AbortSignal; 
+    signal: AbortSignal;
     setData: (data: any) => void;
 }) => Promise<any>;
 
@@ -164,6 +164,8 @@ export class MstQueryHandler {
     }
 
     run(options: QueryOptions = {}) {
+        const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
+
         this.setVariables({ request: options.request, pagination: options.pagination });
 
         if (this.isLoading && this.abortController) {
@@ -183,7 +185,7 @@ export class MstQueryHandler {
             setData: this.model.setData,
         };
 
-        return this.options.endpoint(opts).then((result: any) => {
+        return endpoint(opts).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
