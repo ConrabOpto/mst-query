@@ -1,8 +1,7 @@
-import { flow, getRoot, IAnyModelType, Instance, types } from 'mobx-state-tree';
+import { IAnyModelType, Instance, types } from 'mobx-state-tree';
 import { createQuery } from '../../src/create';
-import { subscribe } from '../../src/MstQueryHandler';
+import { onMutate } from '../../src/MstQueryHandler';
 import { createModelStore, createRootStore } from '../../src/stores';
-import { itemData } from '../api/data';
 import { AddItemMutation } from './AddItemMutation';
 import { ItemModel } from './ItemModel';
 import { ItemQuery, SubscriptionItemQuery } from './ItemQuery';
@@ -75,10 +74,8 @@ const ItemServiceStore = types
     })
     .actions((self) => ({
         afterCreate() {
-            subscribe(self.addItemMutation, {
-                onMutate(data: any) {
-                    self.listQuery.data?.addItem(data);
-                },
+            onMutate(self.addItemMutation, (data: any) => {
+                self.listQuery.data?.addItem(data);
             });
         },
     }));

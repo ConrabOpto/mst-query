@@ -102,11 +102,19 @@ export class QueryObserver {
     }
 }
 
-export function subscribe(target: any, options: any) {
+function subscribe(target: any, options: any) {
     const observer = new QueryObserver(target, false);
     observer.setOptions(options);
     observer.subscribe();
     addDisposer(target, observer.unsubscribe);
+}
+
+export function onMutate(target: any, callback: any) {
+    subscribe(target, { onMutate: callback });
+}
+
+export function onQueryMore(target: any, callback: any) {
+    subscribe(target, { onQueryMore: callback });
 }
 
 export class MstQueryHandler {
