@@ -5,16 +5,17 @@ import { QueryClient } from './QueryClient';
 type QueryClientProviderProps = {
     env?: any;
     initialData?: any;
+    children: React.ReactNode;
 };
 
 export const Context = React.createContext<QueryClient<any> | undefined>(undefined);
 
 export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>) {
-    const QueryClientProvider: React.FC<QueryClientProviderProps> = ({
+    const QueryClientProvider = ({
         env,
         initialData,
         children,
-    }) => {
+    }: QueryClientProviderProps) => {
         const q = React.useRef<any>(null);
         if (!q.current) {
             q.current = queryClient.init(initialData, env);

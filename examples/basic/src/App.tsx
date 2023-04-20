@@ -81,7 +81,7 @@ type PostsProps = {
     onSelectedPost: (post: PostModelType | null) => void;
 };
 
-const Posts: React.FC<PostsProps> = observer((props) => {
+const Posts = observer((props: PostsProps) => {
     const { onSelectedPost } = props;
     const { postStore } = useRootStore();
     const { data, error, isLoading } = useQuery(postStore.postsQuery, postStore.getPosts, {
@@ -130,7 +130,7 @@ type PostProps = {
     onSelectedPost: (post: PostModelType | null) => void;
 };
 
-const Post: React.FC<PostProps> = observer((props) => {
+const Post = observer((props: PostProps) => {
     const { post, onSelectedPost } = props;
     const { postStore } = useRootStore();
     const { data, isLoading, error } = useQuery(postStore.postQuery, postStore.getPost, {
