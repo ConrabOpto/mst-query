@@ -49,11 +49,11 @@ test('garbage collection', async () => {
 
     expect(queryClient.queryStore.models.size).toBe(9);
 
-    q.listQuery.__MstQueryHandler.updateData(null);
-    q.itemQuery2.__MstQueryHandler.updateData(null);
+    q.listQuery.__MstQueryHandler.setData(null);
+    q.itemQuery2.__MstQueryHandler.setData(null);
     await wait();
-    q.itemQuery2.__MstQueryHandler.updateData(itemData);
-    q.listQuery.__MstQueryHandler.updateData(listData);
+    q.itemQuery2.__MstQueryHandler.setData(itemData);
+    q.listQuery.__MstQueryHandler.setData(listData);
     await wait();
     queryClient.queryStore.removeQuery(q.itemQuery);
     queryClient.queryStore.runGc();
@@ -419,13 +419,13 @@ test('deep update of object', () => {
 test('merge frozen type', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         frozen: { data1: 'data1', data2: 'data2' },
     });
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             frozen: { data1: 'data1', data2: 'data2' },
         })
@@ -435,11 +435,11 @@ test('merge frozen type', () => {
 test('replace arrays on sub properties', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         prop: { ids: [{ baha: 'hey' }, { baha: 'hello' }] },
     });
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         prop: { ids: [{ baha: 'hey2' }, { baha: 'hello2' }] },
     });
@@ -450,7 +450,7 @@ test('merge with undefined data and union type', () => {
     const { rootStore } = setup();
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             folderPath: 'test',
             origin: undefined,
@@ -621,7 +621,7 @@ test('hook - enabled prop', async () => {
 test('support map type', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         amountLimit: {
             tag: 'Limited',
@@ -643,7 +643,7 @@ test('merge with partial data', () => {
     const { rootStore } = setup();
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             origin: 'a',
             optionalProps1: 'optional',

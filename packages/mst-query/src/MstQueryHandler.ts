@@ -157,7 +157,7 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
-            updateData: action.bound,
+            setData: action.bound,
             setResult: action.bound,
             setError: action.bound,
             run: action.bound,
@@ -306,7 +306,7 @@ export class MstQueryHandler {
 
             let data;
             if (shouldUpdate) {
-                data = this.updateData(result);
+                data = this.setData(result);
             } else {
                 data = this.prepareData(result);
             }
@@ -357,7 +357,7 @@ export class MstQueryHandler {
             }
 
             if (shouldUpdate) {
-                this.updateData(null);
+                this.setData(null);
             }
 
             this.error = err;
@@ -460,12 +460,6 @@ export class MstQueryHandler {
                 );
             }
         });
-    }
-
-    updateData(data: any) {
-        if (data) {
-            this.setData(data);
-        }
 
         return this.model.data;
     }
