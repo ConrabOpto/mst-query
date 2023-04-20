@@ -1,6 +1,6 @@
-import { IAnyType, Instance, SnapshotIn, TypeOfValue } from 'mobx-state-tree';
-import { useContext, useEffect, useState } from 'react';
-import { createQuery, createMutation } from './create';
+import { IAnyType, Instance, TypeOfValue } from 'mobx-state-tree';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { createQuery, createMutation, VolatileQuery } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 import { QueryObserver } from './MstQueryHandler';
@@ -90,4 +90,48 @@ export function useMutation<T extends MutationReturnType>(
     };
 
     return [mutate, result] as [typeof mutate, typeof result];
+}
+
+function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
+    const q = useRef<Instance<T>>();
+    if (!q.current) {
+        (q.current as any) = query.create(undefined, queryClient.config.env);
+    }
+    return q.current!;
+}
+
+type UseVolatileQueryOptions<T extends QueryReturnType> = UseQueryOptions<T> & {
+    endpoint?: (args: any) => Promise<any>;
+};
+
+export function useVolatileQuery(options: UseVolatileQueryOptions<typeof VolatileQuery> = {}) {
+    const queryClient = useContext(Context)! as QueryClient<any>;
+    const query = useRefQuery(VolatileQuery, queryClient);
+    const [observer] = useState(() => new QueryObserver(query, true));
+
+    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+
+    useEffect(() => {
+        if (options.endpoint) {
+            query.__MstQueryHandler.options.endpoint = options.endpoint;
+        }
+
+        observer.setOptions(options);
+
+        return () => {
+            observer.unsubscribe();
+        };
+    }, [options]);
+
+    return {
+        data: query.data as typeof query['data'],
+        error: query.error,
+        isFetched: query.isFetched,
+        isLoading: query.isLoading,
+        isRefetching: query.isRefetching,
+        isFetchingMore: query.isFetchingMore,
+        query: query,
+        refetch: query.refetch,
+        cachedAt: query.__MstQueryHandler.cachedAt,
+    };
 }

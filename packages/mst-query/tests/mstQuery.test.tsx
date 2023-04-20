@@ -14,6 +14,7 @@ import { wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { DateModel, DeepModelA, Root } from './models/RootStore';
+import { useVolatileQuery } from '../src/hooks';
 
 const setup = () => {
     const queryClient = new QueryClient({ RootStore: Root });
@@ -676,4 +677,23 @@ test('subscription query', async () => {
     });
 
     expect(q.subscriptionQuery.data?.count).toBe(5);
+});
+
+test('volatile query', () => {
+    const { render, q } = setup();
+
+    const Comp = observer(() => {
+        const { query, data } = useVolatileQuery({
+            async endpoint() {
+                return { testing: 'testing' };
+            }
+        });
+        if (!data) {
+            return null;
+        }
+        return <div>{data.testing}</div>;
+    });
+
+    
+    render(<Comp />);
 });

@@ -1,4 +1,4 @@
-import { types, IAnyType, toGeneratorFunction, flow, SnapshotIn } from 'mobx-state-tree';
+import { types, IAnyType, toGeneratorFunction, flow, SnapshotIn, Instance } from 'mobx-state-tree';
 import { MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
@@ -164,3 +164,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             abort: self.__MstQueryHandler.abort,
         }));
 }
+
+export const VolatileQuery = createQuery('VolatileQuery', {});
+
+export interface VolatileQueryType extends Instance<typeof VolatileQuery> {};
