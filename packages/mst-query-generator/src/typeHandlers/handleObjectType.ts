@@ -103,7 +103,7 @@ const printTypeRefValue = (modelFieldRefs: ModelFieldRef[]) => {
 
 const printWithTypeRefImport = (refs: ModelFieldRef[]) => {
     return refs.length > 0
-        ? `${newRow}import { withTypedRefs } from '../../Utils/WithTypedRefs';`
+        ? `${newRow}import { withTypedRefs } from '../Utils/WithTypedRefs';`
         : '';
 };
 

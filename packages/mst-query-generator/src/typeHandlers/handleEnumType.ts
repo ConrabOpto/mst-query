@@ -24,6 +24,8 @@ const handle = (props: TypeHandlerProps): GeneratedFile[] => {
     const content = [
         header,
         newRow,
+        `import { types } from 'mobx-state-tree';`,
+        newRow,
         newRow,
         `export const ${rootType.name} = {`,
         newRow,
@@ -34,6 +36,15 @@ const handle = (props: TypeHandlerProps): GeneratedFile[] => {
         newRow,
         `export type ${rootType.name}Type = `,
         `typeof ${rootType.name}[keyof typeof ${rootType.name}];`,
+        newRow,
+        newRow,
+        `export const ${rootType.name}TypeEnum = types.enumeration<${rootType.name}Type>(`,
+        newRow,
+        `${indent}'${rootType.name}TypeEnum',`,
+        newRow,
+        `${indent}Object.values(${rootType.name})`,
+        newRow,
+        `);`,
     ];
 
     return [new GeneratedFile({ name: `${rootType.name}`, content })];

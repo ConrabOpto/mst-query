@@ -1,14 +1,11 @@
-
 export type ConfigurationLoggerType = (input: string, outDir: string) => void;
 export type SchemaTypesLoggerType = (json: string) => void;
-
 
 export const printConfigurationParams = (
     inputFilePath: string,
     outputDirectory: string,
     fileExtension = 'ts'
 ) => {
-    // const basePath = path.basename(__filename);
     const formatPart = `--format=\{${fileExtension}\}`;
     const outDirPart = `--outDir=\{${outputDirectory}\}`;
     const inputFilePart = `${inputFilePath}`;

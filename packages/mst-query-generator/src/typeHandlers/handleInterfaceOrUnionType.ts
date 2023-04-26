@@ -1,4 +1,4 @@
-import { GeneratedFile } from '../models';
+import { GeneratedFile, RootType } from '../models';
 import { IHandleType, HandlerOptions, TypeHandlerProps } from '../types';
 import { header, newRow } from '../utils';
 
@@ -30,7 +30,9 @@ const handle = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile
         addImport?.(`${rootType.name}Model`, `${rootType.name}ModelType`);
     });
 
-    const interfaceOrUnionActualTypes = interfaceOrUnionType?.rootTypes
+    const actualTypes = interfaceOrUnionType?.rootTypes;
+
+    const interfaceOrUnionActualTypes = actualTypes
         .map((type) => `${type.name}ModelType`)
         .join(' | ');
 
@@ -38,8 +40,10 @@ const handle = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile
         header,
         newRow,
         newRow,
-        printRelativeImports(imports),
-        `export type ${interfaceOrUnionType?.name}Union = `,
+        printRelativeImports(imports, actualTypes),
+        newRow,
+        newRow,
+        `export type ${interfaceOrUnionType?.name}Type = `,
         interfaceOrUnionActualTypes,
         newRow,
         newRow,
@@ -48,17 +52,30 @@ const handle = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile
     return [new GeneratedFile({ name: rootType.name, content })];
 };
 
-const printRelativeImports = (imports: Map<string, Set<string>> | undefined): string | null => {
+const printRelativeImports = (
+    imports: Map<string, Set<string>> | undefined,
+    actualTypes: RootType[]
+): string | null => {
     if (!imports) {
         return null;
     }
 
+    const actualImports = actualTypes.map((type) => `${type.name}ModelType`);
     const moduleNames = [...imports.keys()].sort();
+
     return moduleNames
         .map((moduleName) => {
             const result = imports.get(moduleName) ?? '';
             const sortedImports = [...result].sort();
-            return `import { ${[...sortedImports].join(', ')} } from "./${moduleName}`;
+            const filteredImports = sortedImports.filter((i) => actualImports.includes(i));
+
+            // ignore unused imports
+            if (!filteredImports.length) {
+                return null;
+            }
+
+            return `import { ${[...filteredImports].join(', ')} } from './${moduleName}';`;
         })
+        .filter((i) => i !== null)
         .join(newRow);
 };

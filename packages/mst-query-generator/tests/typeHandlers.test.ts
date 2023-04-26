@@ -55,13 +55,19 @@ export interface TestObjectModelType extends Instance<typeof TestObjectModel> {}
 /* This is a generated file, don't modify it manually */
 /* eslint-disable */
 /* tslint:disable */
+import { types } from 'mobx-state-tree';
 
 export const TestType = {
     SomeValue: 'SOME_VALUE',
     SomeOtherValue: 'SOME_OTHER_VALUE'
 };
 
-export type TestTypeType = typeof TestType[keyof typeof TestType];`;
+export type TestTypeType = typeof TestType[keyof typeof TestType];
+
+export const TestTypeTypeEnum = types.enumeration<TestTypeType>(
+    'TestTypeTypeEnum',
+    Object.values(TestType)
+);`;
 
         const rootType = new RootType({
             name: 'TestType',
@@ -112,7 +118,7 @@ export const TestObjectModelBase = ModelBase.named('TestObject').props({
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../../Utils/WithTypedRefs';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
@@ -140,7 +146,7 @@ export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../../Utils/WithTypedRefs';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
 import { UserModel, UserModelType } from './UserModel';
 
 type Refs = {

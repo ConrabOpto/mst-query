@@ -9,8 +9,8 @@ export const handleEnumField: IHandleField = (
     const { addImport } = options;
 
     if (fieldType?.kind.isEnum) {
-        const value = `${fieldType.name}Type`;
-        const name = `${fieldType.name}Type`;
+        const value = `${fieldType.name}TypeEnum`;
+        const name = `${fieldType.name}`;
         addImport?.(name, value);
 
         return new GeneratedField({ value, isNullable, isNested });

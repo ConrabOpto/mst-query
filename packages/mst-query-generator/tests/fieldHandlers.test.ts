@@ -138,7 +138,7 @@ describe('field handler', () => {
                 },
             },
         });
-        const expected = `types.union(types.undefined, OriginType)`;
+        const expected = `types.union(types.undefined, OriginTypeEnum)`;
 
         const generatedField = createGeneratedField(field);
         const value = generatedField?.toString();
