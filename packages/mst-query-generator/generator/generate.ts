@@ -101,7 +101,7 @@ export class Generate implements GenerateProps {
         const content = [
             `${header}`,
             newRow,
-            `${this.files.map((file) => `export * from "./${file.name}"`).join(newRow)}`,
+            `${this.files.map((file) => `export * from './${file.name}';`).join(newRow)}`,
         ];
 
         const file = new GeneratedFile({ name: 'index', content });

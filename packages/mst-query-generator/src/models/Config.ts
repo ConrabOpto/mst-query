@@ -5,6 +5,7 @@ export type ConfigProps = {
     excludes?: Array<string>;
     verbose?: boolean;
     models?: boolean;
+    index?: boolean;
 };
 
 export class Config {
@@ -14,6 +15,7 @@ export class Config {
     excludes: Array<string>;
     verbose: boolean;
     models?: boolean;
+    index?: boolean;
 
     constructor(params: ConfigProps = {}) {
         this.force = params.force ?? false;
@@ -22,5 +24,6 @@ export class Config {
         this.excludes = [] as string[];
         this.verbose = params.verbose ?? false;
         this.models = params.models ?? false;
+        this.index = params.index ?? false;
     }
 }

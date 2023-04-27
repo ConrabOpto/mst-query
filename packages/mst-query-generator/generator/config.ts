@@ -17,6 +17,7 @@ const parseArgs = () => {
         '--outDir': String,
         '--verbose': Boolean,
         '--models': Boolean,
+        '--index': Boolean,
     };
 
     try {
@@ -29,6 +30,7 @@ const parseArgs = () => {
             '--force=<true|false>',
             '--verbose=<true|false>',
             '--models=<true|false>',
+            '--index=<true|false>',
             'graphql-schema.graphql',
         ];
         console.error(`${errorMessage.join('\n\t')}\n`);
@@ -44,6 +46,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
         outDir: path.resolve(process.cwd(), args['--outDir'] || './models'),
         verbose: args['--verbose'] || false,
         models: args['--models'] || false,
+        index: args['--index'] || false,
     };
     const defaultConfig = new Config(configArgs);
 
@@ -52,6 +55,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
         const result = explorer.search();
 
         if (result) {
+            console.log('Configuration found, loading...');
             return result.config;
         }
 

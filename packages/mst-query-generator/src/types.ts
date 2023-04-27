@@ -1,9 +1,18 @@
-import { Config, RootType, Type, Field, GeneratedField, GeneratedFile, InterfaceOrUnionTypeResult } from './models';
+import {
+    Config,
+    RootType,
+    Type,
+    Field,
+    GeneratedField,
+    GeneratedFile,
+    InterfaceOrUnionTypeResult,
+} from './models';
 
 export type ModelFieldRef = {
     fieldName: string;
     modelType: string;
     isNested: boolean;
+    isList: boolean;
 };
 
 export type TypeHandlerProps = {

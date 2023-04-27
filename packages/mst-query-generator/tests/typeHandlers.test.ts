@@ -6,6 +6,7 @@ import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
 import { typeHandler } from '../src/typeHandler';
+import { Generate } from '../generator/generate';
 
 describe('type handler', () => {
     const createGeneratedFiles = (schemaFile: string, rootTypeName: string) => {
@@ -166,5 +167,58 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
         const content = files[0].toString();
 
         expect(content).toStrictEqual(expected);
+    });
+
+    test.only('should handle array Refs', () => {
+        const expected = `\
+/* This is a generated file, don't modify it manually */
+/* eslint-disable */
+/* tslint:disable */
+import { types } from 'mobx-state-tree';
+import { ModelBase } from './ModelBase';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { BookModel, BookModelType } from './BookModel';
+import { MovieModel, MovieModelType } from './MovieModel';
+
+type Refs = {
+    items: MovieModelType | BookModelType;
+};
+
+export const SearchResultModelBase = withTypedRefs<Refs>()(ModelBase.named('SearchResult').props({
+    __typename: types.optional(types.literal('SearchResult'), 'SearchResult'),
+    items: types.union(types.undefined, types.array(types.union(types.late(():any => MovieModel), types.late(():any => BookModel)))),
+}));`;
+
+        const files = createGeneratedFiles('abstractTypes.graphql', 'SearchResult');
+        const content = files[0].toString();
+        console.log(files);
+
+        expect(content).toStrictEqual(expected);
+    });
+
+    test.skip('asdf', () => {
+        const config = new Config({
+            input: `${path.resolve(__dirname)}/../../../../schema.graphql`,
+            outDir: 'somepath',
+            models: true,
+        });
+        const json = scaffold(config);
+        const schema = new Schema(json.__schema);
+        const rootTypes = filterTypes(schema.types);
+        const typeResolver = new TypeResolver({ rootTypes });
+
+        var generate = new Generate({
+            rootTypes,
+            typeHandler,
+            typeResolver,
+            excludes: [],
+            config,
+        });
+
+        generate.GenerateTypes();
+
+        const files = generate.files;
+        const result = files.find((f) => f.name.startsWith('SavedSearchColumnSetting'));
+        console.log(result);
     });
 });

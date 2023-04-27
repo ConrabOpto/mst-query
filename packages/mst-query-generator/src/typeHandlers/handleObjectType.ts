@@ -94,9 +94,9 @@ const createField = (
 };
 
 const printTypeRefValue = (modelFieldRefs: ModelFieldRef[]) => {
-    const typeRefValues = modelFieldRefs.map(
-        ({ fieldName, modelType }) => `${indent}${fieldName}: ${modelType};${newRow}`
-    );
+    const typeRefValues = modelFieldRefs.map(({ fieldName, modelType }) => {
+        return `${indent}${fieldName}: ${modelType};${newRow}`;
+    });
     const textRows = ['type Refs = {', newRow, `${typeRefValues.join('')}`, '};', newRow];
     return modelFieldRefs.length > 0 ? `${textRows.join('')}${newRow}` : '';
 };
