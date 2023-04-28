@@ -39,3 +39,11 @@ type Repo {
     id: ID!
     owner: Owner
 }
+
+type TestItem {
+    id: String
+}
+
+type Test {
+    items: [TestItem]
+}

@@ -40,14 +40,16 @@ export const handleObjectField: IHandleField = (
 
         const fieldMatch = refs?.find((ref) => ref.fieldName === field.name);
         const fieldName = field.name;
+        const isList = field.type?.kind.isList;
 
         // handle union fields for withTypeRefs
         if (fieldMatch) {
             const index = refs.indexOf(fieldMatch);
-            const newModelTypeName = `${fieldMatch.modelType} | ${modelTypeType}`;
-            refs[index] = { fieldName, modelType: newModelTypeName, isNested } as ModelFieldRef;
+            const modelType = `${fieldMatch.modelType} | ${modelTypeType}`;
+            refs[index] = { fieldName, modelType, isNested } as ModelFieldRef;
         } else {
-            const refItem = { fieldName, modelType: modelTypeType, isNested } as ModelFieldRef;
+            const modelType = isList ? `${modelTypeType}[]` : modelTypeType;
+            const refItem = { fieldName, modelType, isNested } as ModelFieldRef;
             refs?.push(refItem);
         }
 

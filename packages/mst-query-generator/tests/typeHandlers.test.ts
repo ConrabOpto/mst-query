@@ -177,21 +177,19 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { withTypedRefs } from '../Utils/WithTypedRefs';
-import { BookModel, BookModelType } from './BookModel';
-import { MovieModel, MovieModelType } from './MovieModel';
+import { TestItemModel, TestItemModelType } from './TestItemModel';
 
 type Refs = {
-    items: MovieModelType | BookModelType;
+    items: TestItemModelType[];
 };
 
-export const SearchResultModelBase = withTypedRefs<Refs>()(ModelBase.named('SearchResult').props({
-    __typename: types.optional(types.literal('SearchResult'), 'SearchResult'),
-    items: types.union(types.undefined, types.array(types.union(types.late(():any => MovieModel), types.late(():any => BookModel)))),
+export const TestModelBase = withTypedRefs<Refs>()(ModelBase.named('Test').props({
+    __typename: types.optional(types.literal('Test'), 'Test'),
+    items: types.union(types.undefined, types.null, types.array(types.union(types.null, types.late(():any => TestItemModel)))),
 }));`;
 
-        const files = createGeneratedFiles('abstractTypes.graphql', 'SearchResult');
+        const files = createGeneratedFiles('abstractTypes.graphql', 'Test');
         const content = files[0].toString();
-        console.log(files);
 
         expect(content).toStrictEqual(expected);
     });
