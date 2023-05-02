@@ -5,14 +5,8 @@ import { test, expect, describe } from 'vitest';
 
 describe('field handler', () => {
     const createGeneratedField = (field: Field, knownTypes: string[] = []) => {
-        const handlerProps = {
-            field: field,
-            fieldType: field.type,
-            knownTypes,
-        } as FieldHandlerProps;
-
+        const handlerProps = { field, fieldType: field.type, knownTypes } as FieldHandlerProps;
         const handlerOptions = { addImport: () => {} } as HandlerOptions;
-
         return fieldHandler?.(handlerProps, handlerOptions);
     };
 

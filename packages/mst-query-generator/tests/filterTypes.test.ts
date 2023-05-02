@@ -10,6 +10,7 @@ describe('filter types', () => {
         const generate = new Generate({ rootTypes: [model], config });
 
         const result = filterTypes(generate.rootTypes, generate.excludes);
+
         expect(result).toHaveLength(0);
     });
 
@@ -18,6 +19,7 @@ describe('filter types', () => {
         const generate = new Generate({ rootTypes: [model] });
 
         const result = filterTypes(generate.rootTypes, generate.excludes);
+
         expect(result).toHaveLength(0);
     });
 

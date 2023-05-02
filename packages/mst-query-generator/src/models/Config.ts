@@ -9,7 +9,7 @@ export type ConfigProps = {
     verbose?: boolean;
     models?: boolean;
     index?: boolean;
-    fieldOverrides?: string;
+    fieldOverrides?: string | Array<string>;
 };
 
 export class Config {

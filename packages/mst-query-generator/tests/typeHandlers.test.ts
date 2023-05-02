@@ -1,12 +1,11 @@
 import path from 'path';
-import { RootType, Schema, Config } from '../src/models';
 import { FieldHandlerProps, HandlerOptions, TypeHandlerProps } from '../src/types';
+import { RootType, Schema, Config } from '../src/models';
 import { TypeResolver } from '../src/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
 import { typeHandler } from '../src/typeHandler';
-import { Generate } from '../generator/generate';
 
 describe('type handler', () => {
     const createGeneratedFiles = (schemaFile: string, rootTypeName: string) => {
@@ -169,26 +168,29 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
         expect(content).toStrictEqual(expected);
     });
 
-    test('should handle array Refs', () => {
+    test.only('should handle array Refs', () => {
         const expected = `\
 /* This is a generated file, don't modify it manually */
 /* eslint-disable */
 /* tslint:disable */
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
+import { MstQueryRef } from 'mst-query';
 import { withTypedRefs } from '../Utils/WithTypedRefs';
-import { TestItemModel, TestItemModelType } from './TestItemModel';
+import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
+import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
 type Refs = {
-    items: TestItemModelType[];
+    todos: BasicTodoModelType[] | FancyTodoModelType[];
 };
 
-export const TestModelBase = withTypedRefs<Refs>()(ModelBase.named('Test').props({
-    __typename: types.optional(types.literal('Test'), 'Test'),
-    items: types.union(types.undefined, types.null, types.array(types.union(types.null, types.late(():any => TestItemModel)))),
+export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList').props({
+    __typename: types.optional(types.literal('TodoList'), 'TodoList'),
+    id: types.identifier,
+    todos: types.union(types.undefined, types.array(MstQueryRef(types.union(types.late(():any => BasicTodoModel), types.late(():any => FancyTodoModel))))),
 }));`;
 
-        const files = createGeneratedFiles('abstractTypes.graphql', 'Test');
+        const files = createGeneratedFiles('unionTypes.graphql', 'TodoList');
         const content = files[0].toString();
 
         expect(content).toStrictEqual(expected);

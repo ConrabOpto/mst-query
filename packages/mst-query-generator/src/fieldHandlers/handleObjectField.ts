@@ -40,7 +40,7 @@ export const handleObjectField: IHandleField = (
 
         const fieldMatch = refs?.find((ref) => ref.fieldName === field.name);
         const fieldName = field.name;
-        const isList = field.type?.kind.isList;
+        const isList = field.type?.kind.isList || field.type?.ofType?.kind.isList;
 
         // handle union fields for withTypeRefs
         if (fieldMatch) {

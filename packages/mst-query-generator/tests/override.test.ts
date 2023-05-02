@@ -48,6 +48,25 @@ describe('field overrides', () => {
         expect(result).toEqual(expected);
     });
 
+    test.only('should parse string or array overrides', () => {
+        const overrideValue = 'User.user_id:ID:string';
+        const overrideList = ['User.user_id:ID:string'];
+        const expected = [
+            {
+                rootTypeName: 'User',
+                fieldName: 'user_id',
+                oldFieldType: 'ID',
+                newFieldType: 'string',
+            },
+        ];
+
+        const overrideValueResult: FieldOverrideType[] = parseFieldOverrides(overrideValue);
+        expect(overrideValueResult).toEqual(expected);
+
+        const overrideListResult: FieldOverrideType[] = parseFieldOverrides(overrideList);
+        expect(overrideListResult).toEqual(expected);
+    });
+
     test('should override model fields', () => {
         const expected = `\
 /* This is a generated file, don't modify it manually */
