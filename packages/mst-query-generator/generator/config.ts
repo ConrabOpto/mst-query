@@ -33,6 +33,7 @@ const parseArgs = () => {
             '--models=<true|false>',
             '--index=<true|false>',
             '--fieldOverrides=<string>',
+            '--excludes=<string>',
             'graphql-schema.graphql',
         ];
         console.error(`${errorMessage.join('\n\t')}\n`);
@@ -50,6 +51,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
         models: args['--models'] || false,
         index: args['--index'] || false,
         fieldOverrides: args['--fieldOverrides'] || '',
+        excludes: args['--excludes'] || '',
     };
     const defaultConfig = new Config(configArgs);
 

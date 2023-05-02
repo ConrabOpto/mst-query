@@ -1,12 +1,13 @@
 import { Generate } from '../generator/generate';
-import { RootType } from '../src/models';
+import { Config, RootType } from '../src/models';
 import { filterTypes } from '../src/utils';
 import { test, expect, describe } from 'vitest';
 
 describe('filter types', () => {
     test('should ignore types in exclude', () => {
         const model = new RootType({ name: 'test', kind: 'OBJECT' });
-        const generate = new Generate({ rootTypes: [model], excludes: ['test'] });
+        const config = new Config({ excludes: 'test' });
+        const generate = new Generate({ rootTypes: [model], config });
 
         const result = filterTypes(generate.rootTypes, generate.excludes);
         expect(result).toHaveLength(0);

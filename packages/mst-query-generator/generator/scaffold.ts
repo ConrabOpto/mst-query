@@ -27,7 +27,6 @@ function main() {
         rootTypes,
         typeHandler,
         typeResolver,
-        excludes: [],
         config,
     });
 

@@ -1,12 +1,15 @@
 import { FieldOverrideType } from './types';
 
-export const parseFieldOverrides = (overrideValue: string | undefined): FieldOverrideType[] => {
+export const parseFieldOverrides = (
+    overrideValue: string | Array<string> | undefined
+): FieldOverrideType[] => {
     if (!overrideValue) {
         return [];
     }
 
-    const fieldOverrideValues = overrideValue
-        .split(',')
+    const overrideValues = Array.isArray(overrideValue) ? overrideValue : overrideValue.split(',');
+
+    const fieldOverrideValues = overrideValues
         .map((s) => s.trim())
         .map((item) => {
             const override = item.split(':').map((s) => s.trim());

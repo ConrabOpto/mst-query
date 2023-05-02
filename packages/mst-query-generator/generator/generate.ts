@@ -14,7 +14,6 @@ export interface GenerateProps {
     rootTypes: RootType[];
     typeResolver?: ITypeResolver;
     typeHandler?: IHandleType;
-    excludes?: string[];
     config?: Config;
 }
 
@@ -38,7 +37,7 @@ export class Generate implements GenerateProps {
         this.knownTypes = [];
         this.refs = [];
 
-        const excludes = params.excludes ? params.excludes : [];
+        const excludes = this.config?.excludes ?? [];
         this.excludes = [...excludes, ...reservedGraphqlNames];
     }
 

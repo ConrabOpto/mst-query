@@ -193,31 +193,4 @@ export const TestModelBase = withTypedRefs<Refs>()(ModelBase.named('Test').props
 
         expect(content).toStrictEqual(expected);
     });
-
-    test.only('asdf', () => {
-        const config = new Config({
-            input: `${path.resolve(__dirname)}/../../../../schema.graphql`,
-            outDir: 'somepath',
-            models: true,
-            fieldOverrides: 'ApproveInboxDocumentComponent.saveButtonFolderId:ID:string',
-        });
-        const json = scaffold(config);
-        const schema = new Schema(json.__schema);
-        const rootTypes = filterTypes(schema.types);
-        const typeResolver = new TypeResolver({ rootTypes });
-
-        var generate = new Generate({
-            rootTypes,
-            typeHandler,
-            typeResolver,
-            excludes: [],
-            config,
-        });
-
-        generate.GenerateTypes();
-
-        const files = generate.files;
-        const result = files.find((f) => f.name.startsWith('ApproveInboxDocumentComponent'));
-        console.log(result);
-    });
 });
