@@ -7,11 +7,9 @@ export const handleInterfaceOrUnionType: IHandleType = (
     options: HandlerOptions
 ): GeneratedFile[] => {
     const { rootType } = props;
-
     if (rootType.kind.isInterface || rootType.kind.isUnion) {
         return handle(props, options);
     }
-
     return [];
 };
 

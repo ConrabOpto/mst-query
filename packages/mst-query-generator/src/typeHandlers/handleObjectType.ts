@@ -8,11 +8,10 @@ export const handleObjectType: IHandleType = (
     options: HandlerOptions
 ): GeneratedFile[] => {
     const { rootType } = props;
-
-    if (!rootType.kind.isObject) {
-        return [];
+    if (rootType.kind.isObject) {
+        return handle(props, options);
     }
-    return handle(props, options);
+    return [];
 };
 
 const handle = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile[] => {
@@ -81,15 +80,8 @@ const createField = (
 ) => {
     const { rootType } = props;
     const { fieldHandler } = options;
-
-    const fieldHandlerProps = {
-        ...props,
-        field,
-        rootType,
-        refs,
-    } as FieldHandlerProps;
+    const fieldHandlerProps = { ...props, field, rootType, refs } as FieldHandlerProps;
     const result = fieldHandler?.(fieldHandlerProps, options);
-
     return `${indent}${field.name}: ${result?.toString()},`;
 };
 
