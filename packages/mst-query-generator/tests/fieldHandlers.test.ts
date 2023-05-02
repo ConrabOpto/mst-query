@@ -80,11 +80,11 @@ describe('field handler', () => {
             name: `TestPathField`,
             type: {
                 kind: 'SCALAR',
-                name: 'Path',
+                name: 'String',
             },
         });
 
-        const expected = `types.union(types.undefined, types.null, types.frozen())`;
+        const expected = `types.union(types.undefined, types.null, types.string)`;
 
         const generatedField = createGeneratedField(field);
         const value = generatedField?.toString();

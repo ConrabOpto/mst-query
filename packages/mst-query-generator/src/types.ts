@@ -29,6 +29,7 @@ export type FieldHandlerProps = {
     isNested: boolean;
     fieldHandlers?: Map<string, IHandleField>;
     refs: ModelFieldRef[];
+    override?: FieldOverrideType;
 } & TypeHandlerProps;
 
 export type HandlerOptions = {
@@ -37,6 +38,14 @@ export type HandlerOptions = {
     fieldHandler?: IHandleField;
     typeHandlers?: IHandleType[];
     addImport?: (modelName: string, importToAdd: string) => void;
+    overrides?: FieldOverrideType[];
+};
+
+export type FieldOverrideType = {
+    rootTypeName: string;
+    fieldName: string;
+    oldFieldType: string;
+    newFieldType: string;
 };
 
 export interface ITypeResolver {

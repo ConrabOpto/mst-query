@@ -18,6 +18,7 @@ const parseArgs = () => {
         '--verbose': Boolean,
         '--models': Boolean,
         '--index': Boolean,
+        '--fieldOverrides': String,
     };
 
     try {
@@ -31,6 +32,7 @@ const parseArgs = () => {
             '--verbose=<true|false>',
             '--models=<true|false>',
             '--index=<true|false>',
+            '--fieldOverrides=<string>',
             'graphql-schema.graphql',
         ];
         console.error(`${errorMessage.join('\n\t')}\n`);
@@ -47,6 +49,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
         verbose: args['--verbose'] || false,
         models: args['--models'] || false,
         index: args['--index'] || false,
+        fieldOverrides: args['--fieldOverrides'] || '',
     };
     const defaultConfig = new Config(configArgs);
 
@@ -56,7 +59,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
 
         if (result) {
             console.log('Configuration found, loading...');
-            return result.config;
+            return new Config({ ...result.config });
         }
 
         console.log('Configuration not found, using default config');

@@ -7,8 +7,13 @@ export const defaultTypeHandlers = [handleEnumType, handleInterfaceOrUnionType, 
 
 export const typeHandler = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile[] => {
     const { rootType } = props;
-    const { typeHandlers = defaultTypeHandlers, fieldHandler = defaultFieldHandler } = options;
+    const {
+        typeHandlers = defaultTypeHandlers,
+        fieldHandler = defaultFieldHandler,
+        config,
+    } = options;
     const imports = new Map<string, Set<string>>();
+    const overrides = config?.fieldOverrides?.filter((o) => o.rootTypeName === rootType.name) ?? [];
 
     validateTypeHandlers(rootType, typeHandlers);
 
@@ -24,6 +29,7 @@ export const typeHandler = (props: TypeHandlerProps, options: HandlerOptions): G
             addImport: (modelName: string, importToAdd: string) => {
                 handleAddImport(rootType, imports, modelName, importToAdd);
             },
+            overrides: overrides ?? [],
         };
         return handleType(handlerProps, handlerOptions);
     });

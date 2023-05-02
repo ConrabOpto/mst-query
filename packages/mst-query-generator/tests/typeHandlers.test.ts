@@ -169,7 +169,7 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
         expect(content).toStrictEqual(expected);
     });
 
-    test.only('should handle array Refs', () => {
+    test('should handle array Refs', () => {
         const expected = `\
 /* This is a generated file, don't modify it manually */
 /* eslint-disable */
@@ -194,11 +194,12 @@ export const TestModelBase = withTypedRefs<Refs>()(ModelBase.named('Test').props
         expect(content).toStrictEqual(expected);
     });
 
-    test.skip('asdf', () => {
+    test.only('asdf', () => {
         const config = new Config({
             input: `${path.resolve(__dirname)}/../../../../schema.graphql`,
             outDir: 'somepath',
             models: true,
+            fieldOverrides: 'ApproveInboxDocumentComponent.saveButtonFolderId:ID:string',
         });
         const json = scaffold(config);
         const schema = new Schema(json.__schema);
@@ -216,7 +217,7 @@ export const TestModelBase = withTypedRefs<Refs>()(ModelBase.named('Test').props
         generate.GenerateTypes();
 
         const files = generate.files;
-        const result = files.find((f) => f.name.startsWith('SavedSearchColumnSetting'));
+        const result = files.find((f) => f.name.startsWith('ApproveInboxDocumentComponent'));
         console.log(result);
     });
 });

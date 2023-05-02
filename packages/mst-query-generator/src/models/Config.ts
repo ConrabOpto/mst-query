@@ -1,3 +1,6 @@
+import { parseFieldOverrides } from '../overrides';
+import { FieldOverrideType } from '../types';
+
 export type ConfigProps = {
     force?: boolean;
     input?: string;
@@ -6,6 +9,7 @@ export type ConfigProps = {
     verbose?: boolean;
     models?: boolean;
     index?: boolean;
+    fieldOverrides?: string;
 };
 
 export class Config {
@@ -16,6 +20,7 @@ export class Config {
     verbose: boolean;
     models?: boolean;
     index?: boolean;
+    fieldOverrides?: FieldOverrideType[];
 
     constructor(params: ConfigProps = {}) {
         this.force = params.force ?? false;
@@ -25,5 +30,8 @@ export class Config {
         this.verbose = params.verbose ?? false;
         this.models = params.models ?? false;
         this.index = params.index ?? false;
+        this.fieldOverrides = params.fieldOverrides
+            ? parseFieldOverrides(params.fieldOverrides)
+            : [];
     }
 }
