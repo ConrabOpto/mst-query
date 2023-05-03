@@ -14,7 +14,6 @@ export interface GenerateProps {
     rootTypes: RootType[];
     typeResolver?: ITypeResolver;
     typeHandler?: IHandleType;
-    excludes?: string[];
     config?: Config;
 }
 
@@ -38,7 +37,7 @@ export class Generate implements GenerateProps {
         this.knownTypes = [];
         this.refs = [];
 
-        const excludes = params.excludes ? params.excludes : [];
+        const excludes = this.config?.excludes ?? [];
         this.excludes = [...excludes, ...reservedGraphqlNames];
     }
 
@@ -101,7 +100,7 @@ export class Generate implements GenerateProps {
         const content = [
             `${header}`,
             newRow,
-            `${this.files.map((file) => `export * from "./${file.name}"`).join(newRow)}`,
+            `${this.files.map((file) => `export * from './${file.name}';`).join(newRow)}`,
         ];
 
         const file = new GeneratedFile({ name: 'index', content });

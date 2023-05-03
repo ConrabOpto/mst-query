@@ -5,14 +5,8 @@ import { test, expect, describe } from 'vitest';
 
 describe('field handler', () => {
     const createGeneratedField = (field: Field, knownTypes: string[] = []) => {
-        const handlerProps = {
-            field: field,
-            fieldType: field.type,
-            knownTypes,
-        } as FieldHandlerProps;
-
+        const handlerProps = { field, fieldType: field.type, knownTypes } as FieldHandlerProps;
         const handlerOptions = { addImport: () => {} } as HandlerOptions;
-
         return fieldHandler?.(handlerProps, handlerOptions);
     };
 
@@ -80,11 +74,11 @@ describe('field handler', () => {
             name: `TestPathField`,
             type: {
                 kind: 'SCALAR',
-                name: 'Path',
+                name: 'String',
             },
         });
 
-        const expected = `types.union(types.undefined, types.null, types.frozen())`;
+        const expected = `types.union(types.undefined, types.null, types.string)`;
 
         const generatedField = createGeneratedField(field);
         const value = generatedField?.toString();
@@ -138,7 +132,7 @@ describe('field handler', () => {
                 },
             },
         });
-        const expected = `types.union(types.undefined, OriginType)`;
+        const expected = `types.union(types.undefined, OriginTypeEnum)`;
 
         const generatedField = createGeneratedField(field);
         const value = generatedField?.toString();

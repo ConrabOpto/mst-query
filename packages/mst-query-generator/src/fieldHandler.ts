@@ -22,14 +22,17 @@ export const fieldHandler = (
     options: HandlerOptions
 ): GeneratedField | null => {
     const { field, fieldHandlers = defaultFieldHandlers } = props;
+    const { overrides } = options;
     const actualFieldType = field.type?.asActualType;
     const isNullable = field.type?.isNullable;
+    const override = overrides?.find((o) => o.fieldName === field.name);
 
     const handlerProps = {
         ...props,
         fieldType: actualFieldType,
         isNullable,
         fieldHandlers,
+        override,
     } as FieldHandlerProps;
 
     const handlerName = actualFieldType?.kind.value ?? '';

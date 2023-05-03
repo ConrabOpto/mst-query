@@ -1,17 +1,15 @@
 import { GeneratedField } from '../models';
-import { FieldHandlerProps, IHandleField, HandlerOptions } from '../types';
+import { FieldHandlerProps, IHandleField, HandlerOptions, FieldOverrideType } from '../types';
 import { primitiveFieldNames, requiredTypes } from '../utils';
 
 export const handleScalarField: IHandleField = (
     props: FieldHandlerProps,
     options: HandlerOptions
 ): GeneratedField | null => {
-    const { fieldType, isNullable = false, isNested = false } = props;
+    const { fieldType, isNullable = false, isNested = false, override } = props;
 
     if (fieldType?.kind.isScalar) {
-        const nameOrFrozen = (fieldType.name && primitiveFieldNames[fieldType.name]) ?? 'frozen()';
-        const primitiveType = fieldType.name ? nameOrFrozen : 'frozen()';
-
+        const primitiveType = getFieldTypeOrDefault(fieldType.name, override);
         const isRequired = requiredTypes.includes(primitiveType);
 
         return new GeneratedField({
@@ -22,4 +20,18 @@ export const handleScalarField: IHandleField = (
         });
     }
     return null;
+};
+
+const getFieldTypeOrDefault = (
+    fieldTypeName: string | null | undefined,
+    override: FieldOverrideType | undefined
+) => {
+    if (!fieldTypeName) {
+        return 'frozen()';
+    }
+
+    if (override) {
+        return override.newFieldType;
+    }
+    return primitiveFieldNames[fieldTypeName] ?? 'frozen()';
 };

@@ -1,6 +1,6 @@
 import path from 'path';
-import { RootType, Schema, Config } from '../src/models';
 import { FieldHandlerProps, HandlerOptions, TypeHandlerProps } from '../src/types';
+import { RootType, Schema, Config } from '../src/models';
 import { TypeResolver } from '../src/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
@@ -55,13 +55,19 @@ export interface TestObjectModelType extends Instance<typeof TestObjectModel> {}
 /* This is a generated file, don't modify it manually */
 /* eslint-disable */
 /* tslint:disable */
+import { types } from 'mobx-state-tree';
 
 export const TestType = {
     SomeValue: 'SOME_VALUE',
     SomeOtherValue: 'SOME_OTHER_VALUE'
 };
 
-export type TestTypeType = typeof TestType[keyof typeof TestType];`;
+export type TestTypeType = typeof TestType[keyof typeof TestType];
+
+export const TestTypeTypeEnum = types.enumeration<TestTypeType>(
+    'TestTypeTypeEnum',
+    Object.values(TestType)
+);`;
 
         const rootType = new RootType({
             name: 'TestType',
@@ -112,12 +118,12 @@ export const TestObjectModelBase = ModelBase.named('TestObject').props({
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../../Utils/WithTypedRefs';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
 type Refs = {
-    todos: BasicTodoModelType | FancyTodoModelType;
+    todos: BasicTodoModelType[] | FancyTodoModelType[];
 };
 
 export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList').props({
@@ -140,7 +146,7 @@ export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../../Utils/WithTypedRefs';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
 import { UserModel, UserModelType } from './UserModel';
 
 type Refs = {
@@ -157,6 +163,34 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
 }));`;
 
         const files = createGeneratedFiles('unionTypes.graphql', 'FancyTodo');
+        const content = files[0].toString();
+
+        expect(content).toStrictEqual(expected);
+    });
+
+    test('should handle array Refs', () => {
+        const expected = `\
+/* This is a generated file, don't modify it manually */
+/* eslint-disable */
+/* tslint:disable */
+import { types } from 'mobx-state-tree';
+import { ModelBase } from './ModelBase';
+import { MstQueryRef } from 'mst-query';
+import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
+import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
+
+type Refs = {
+    todos: BasicTodoModelType[] | FancyTodoModelType[];
+};
+
+export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList').props({
+    __typename: types.optional(types.literal('TodoList'), 'TodoList'),
+    id: types.identifier,
+    todos: types.union(types.undefined, types.array(MstQueryRef(types.union(types.late(():any => BasicTodoModel), types.late(():any => FancyTodoModel))))),
+}));`;
+
+        const files = createGeneratedFiles('unionTypes.graphql', 'TodoList');
         const content = files[0].toString();
 
         expect(content).toStrictEqual(expected);

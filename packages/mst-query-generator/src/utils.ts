@@ -6,7 +6,9 @@ export const primitiveFieldNames: { [key: string]: string } = {
     Int: 'integer',
     String: 'string',
     Float: 'number',
+    Decimal: 'number',
     Boolean: 'boolean',
+    Path: 'string',
 };
 export const requiredTypes = ['identifier', 'identifierNumber'];
 export const reservedGraphqlNames = ['Mutation', 'CacheControlScope', 'Query', 'Subscription'];

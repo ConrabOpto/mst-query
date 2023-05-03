@@ -1,9 +1,18 @@
-import { Config, RootType, Type, Field, GeneratedField, GeneratedFile, InterfaceOrUnionTypeResult } from './models';
+import {
+    Config,
+    RootType,
+    Type,
+    Field,
+    GeneratedField,
+    GeneratedFile,
+    InterfaceOrUnionTypeResult,
+} from './models';
 
 export type ModelFieldRef = {
     fieldName: string;
     modelType: string;
     isNested: boolean;
+    isList: boolean;
 };
 
 export type TypeHandlerProps = {
@@ -20,6 +29,7 @@ export type FieldHandlerProps = {
     isNested: boolean;
     fieldHandlers?: Map<string, IHandleField>;
     refs: ModelFieldRef[];
+    override?: FieldOverrideType;
 } & TypeHandlerProps;
 
 export type HandlerOptions = {
@@ -28,6 +38,14 @@ export type HandlerOptions = {
     fieldHandler?: IHandleField;
     typeHandlers?: IHandleType[];
     addImport?: (modelName: string, importToAdd: string) => void;
+    overrides?: FieldOverrideType[];
+};
+
+export type FieldOverrideType = {
+    rootTypeName: string;
+    fieldName: string;
+    oldFieldType: string;
+    newFieldType: string;
 };
 
 export interface ITypeResolver {

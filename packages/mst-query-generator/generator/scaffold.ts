@@ -27,13 +27,15 @@ function main() {
         rootTypes,
         typeHandler,
         typeResolver,
-        excludes: [],
         config,
     });
 
     generate.GenerateModelBase();
     generate.GenerateTypes();
-    generate.GenerateIndexFile();
+
+    if (config.index) {
+        generate.GenerateIndexFile();
+    }
 
     const files = generate.files;
 
