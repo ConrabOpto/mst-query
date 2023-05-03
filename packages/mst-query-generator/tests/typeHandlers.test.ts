@@ -123,7 +123,7 @@ import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
 type Refs = {
-    todos: BasicTodoModelType | FancyTodoModelType;
+    todos: BasicTodoModelType[] | FancyTodoModelType[];
 };
 
 export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList').props({
@@ -168,7 +168,7 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
         expect(content).toStrictEqual(expected);
     });
 
-    test.only('should handle array Refs', () => {
+    test('should handle array Refs', () => {
         const expected = `\
 /* This is a generated file, don't modify it manually */
 /* eslint-disable */

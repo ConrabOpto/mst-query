@@ -48,7 +48,7 @@ describe('field overrides', () => {
         expect(result).toEqual(expected);
     });
 
-    test.only('should parse string or array overrides', () => {
+    test('should parse string or array overrides', () => {
         const overrideValue = 'User.user_id:ID:string';
         const overrideList = ['User.user_id:ID:string'];
         const expected = [
