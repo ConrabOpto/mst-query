@@ -686,7 +686,7 @@ test('volatile query', () => {
         const { query, data } = useVolatileQuery({
             async endpoint() {
                 return { testing: 'testing' };
-            }
+            },
         });
         if (!data) {
             return null;
@@ -694,6 +694,52 @@ test('volatile query', () => {
         return <div>{data.testing}</div>;
     });
 
-    
     render(<Comp />);
+});
+
+test('request with optional values', async () => {
+    const { render, q } = setup();
+
+    const Comp = observer(() => {
+        useQuery(q.itemQueryWihthOptionalRequest, {
+            request: { id: 'test' },
+            meta: { getItem: api.getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+});
+
+test('set data to null when request changes', async () => {
+    const { render, q,  } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+
+    let d: any;
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            request: { id: id.get() },
+            staleTime: 1,
+            meta: { getItem: api.getItem },
+        });
+        d = data;
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await wait(0);
+
+    expect(d.id).toBe('test');
+    unmount();
+
+    id.set('different-test');
+    render(<Comp />);
+    expect(d).toBe(null);
+    await wait(0);
+
+    expect(d.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
 });

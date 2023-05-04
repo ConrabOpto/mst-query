@@ -5,6 +5,7 @@ import { createModelStore, createRootStore } from '../../src/stores';
 import { AddItemMutation } from './AddItemMutation';
 import { ItemModel } from './ItemModel';
 import { ItemQuery, SubscriptionItemQuery } from './ItemQuery';
+import { ItemQueryWithOptionalRequest } from './ItemQueryWithOptionalRequest';
 import { ListModel } from './ListModel';
 import { ListQuery } from './ListQuery';
 import { SetDescriptionMutation } from './SetDescriptionMutation';
@@ -71,6 +72,7 @@ const ItemServiceStore = types
         setDescriptionMutation: optional(SetDescriptionMutation),
         listQuery: optional(ListQuery),
         subscriptionQuery: optional(SubscriptionItemQuery),
+        itemQueryWihthOptionalRequest: optional(ItemQueryWithOptionalRequest)
     })
     .actions((self) => ({
         afterCreate() {

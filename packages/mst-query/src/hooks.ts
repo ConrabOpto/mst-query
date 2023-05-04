@@ -1,9 +1,17 @@
-import { IAnyType, Instance, TypeOfValue } from 'mobx-state-tree';
+import {
+    getSnapshot,
+    getType,
+    IAnyType,
+    Instance,
+    isStateTreeNode,
+    SnapshotIn,
+} from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { createQuery, createMutation, VolatileQuery } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
-import { QueryObserver } from './MstQueryHandler';
+import { EmptyPagination, EmptyRequest, QueryObserver,  } from './MstQueryHandler';
+import equal from '@wry/equality';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
     return Object.assign({ queryClient }, (queryClient.config as any)[key], {
@@ -16,29 +24,44 @@ export type QueryReturnType = ReturnType<typeof createQuery>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;
 
-type QueryOptions<T extends IAnyType> = {
-    request?: Instance<T>['variables']['request'];
-    pagination?: Instance<T>['variables']['pagination'];
-    onQueryMore?: (data: Instance<T>['data'], self: Instance<T>) => void;
+type QueryOptions<T extends Instance<QueryReturnType>> = {
+    request?: SnapshotIn<T['variables']['request']>;
+    pagination?: SnapshotIn<T['variables']['pagination']>;
+    onQueryMore?: (data: T['data'], self: T) => void;
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
     meta?: { [key: string]: any };
 };
 
-type UseQueryOptions<T extends QueryReturnType> = QueryOptions<T>;
-
 export function useQuery<T extends Instance<QueryReturnType>>(
     query: T,
-    options: UseQueryOptions<TypeOfValue<T>> = {}
+    options: QueryOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+        
+    (options as any).request = options.request ?? EmptyRequest;
+    (options as any).pagination = options.pagination ?? EmptyPagination;
+
+    let isRequestEqual: boolean;
+    if (isStateTreeNode(query.variables.request)) {
+        const requestType = getType(query.variables.request);
+        isRequestEqual = equal(
+            getSnapshot(requestType.create(options.request)),
+            getSnapshot(query.variables.request)
+        );
+    } else {
+        isRequestEqual = equal(options.request, query.variables.request);
+    }
+    if (!observer.isMounted && !isRequestEqual) {
+        query.setData(null);
+    }
 
     useEffect(() => {
-        observer.setOptions(options);
+        observer.setOptions({ ...options, isRequestEqual });
 
         return () => {
             observer.unsubscribe();
@@ -63,11 +86,9 @@ type MutationOptions<T extends IAnyType> = {
     meta?: { [key: string]: any };
 };
 
-type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
-
 export function useMutation<T extends MutationReturnType>(
     mutation: Instance<T>,
-    options: UseMutationOptions<T> = {}
+    options: MutationOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(mutation, false));
 
@@ -100,11 +121,13 @@ function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
     return q.current!;
 }
 
-type UseVolatileQueryOptions<T extends QueryReturnType> = UseQueryOptions<T> & {
+type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions<T> & {
     endpoint?: (args: any) => Promise<any>;
 };
 
-export function useVolatileQuery(options: UseVolatileQueryOptions<typeof VolatileQuery> = {}) {
+export function useVolatileQuery(
+    options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {}
+) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     const query = useRefQuery(VolatileQuery, queryClient);
     const [observer] = useState(() => new QueryObserver(query, true));

@@ -21,16 +21,19 @@ type QueryReturn<TData, TResult> = {
     result: TResult;
 };
 
-const EmptyRequest = Symbol('EmptyRequest');
-const EmptyPagination = Symbol('EmptyPagination');
+export const EmptyRequest = Symbol('EmptyRequest');
+export const EmptyPagination = Symbol('EmptyPagination');
 
-export type EndpointType = (options: {
-    request?: any;
-    pagination?: any;
-    meta: { [key: string]: any };
-    signal: AbortSignal;
-    setData: (data: any) => void;
-}) => Promise<any>;
+export type EndpointType = (
+    options: {
+        request?: any;
+        pagination?: any;
+        meta: { [key: string]: any };
+        signal: AbortSignal;
+        setData: (data: any) => void;
+    },
+    query: any
+) => Promise<any>;
 
 type BaseOptions = {
     request?: any;
@@ -54,6 +57,7 @@ type QueryHookOptions = {
     pagination?: any;
     enabled?: boolean;
     isMounted?: any;
+    isRequestEqual?: boolean;
 };
 
 type NotifyOptions = {
@@ -89,6 +93,7 @@ export class QueryObserver {
 
         if (this.isQuery) {
             options.isMounted = this.isMounted;
+
             this.query.__MstQueryHandler.queryWhenChanged(options);
         }
 
@@ -193,7 +198,7 @@ export class MstQueryHandler {
             setData: this.model.setData,
         };
 
-        return endpoint(opts).then((result: any) => {
+        return endpoint(opts, this.model).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
@@ -213,9 +218,6 @@ export class MstQueryHandler {
             return;
         }
 
-        options.request = options.request ?? EmptyRequest;
-        options.pagination = options.pagination ?? EmptyPagination;
-
         if (!options.isMounted) {
             const notInitialized = !this.isFetched && !this.isLoading;
             if (notInitialized) {
@@ -230,8 +232,7 @@ export class MstQueryHandler {
             }
         }
 
-        const isRequestEqual = equal(options.request, this.model.variables.request);
-        if (!isRequestEqual) {
+        if (!options.isRequestEqual) {
             return this.model.query(options);
         }
 

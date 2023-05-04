@@ -5,7 +5,6 @@ import {
     createContext,
     QueryClient,
     useQuery,
-    useVolatileQuery,
     createQuery,
     createRootStore,
     createModelStore,
@@ -74,12 +73,6 @@ type PostsProps = {
 const Posts = observer((props: PostsProps) => {
     const { onSelectedPost } = props;
     const { postStore } = useRootStore();
-    const { data: volatileData } = useVolatileQuery({
-        async endpoint() {
-            return { x: 4 };
-        }
-    });
-    console.log(volatileData);
     const { data, error, isLoading } = useQuery(postStore.postsQuery, {
         staleTime: 100000,
         enabled: true,
@@ -131,8 +124,9 @@ const Post = observer((props: PostProps) => {
     const { postStore } = useRootStore();
     const { data, isLoading, error } = useQuery(postStore.postQuery, {
         initialData: post,
-        request: { id: post.id },
+        request: { id: post.id }
     });
+    console.log(data?.body);
     return (
         <div>
             <div>

@@ -19,7 +19,7 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
         request: SnapshotIn<TRequest>;
         meta: { [key: string]: any };
         setData: (data: any) => void;
-    }) => Promise<any>;
+    }, query: any) => Promise<any>;
 };
 
 type CreateQueryOptions<
@@ -34,7 +34,7 @@ type CreateQueryOptions<
         meta: { [key: string]: any };
         signal: AbortSignal; 
         setData: (data: any) => void;
-    }) => Promise<any>;
+    }, query: any) => Promise<any>;
 };
 
 export function createQuery<
@@ -110,7 +110,7 @@ export function createQuery<
                 return next();
             }),
             setData(data: any) {
-                self.__MstQueryHandler.setData(data);
+                return self.__MstQueryHandler.setData(data);
             },
             abort: self.__MstQueryHandler.abort,
         }));
