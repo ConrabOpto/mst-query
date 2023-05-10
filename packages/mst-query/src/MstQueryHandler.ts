@@ -38,7 +38,6 @@ export type EndpointType = (
 type BaseOptions = {
     request?: any;
     meta?: { [key: string]: any };
-    convert?: (result: any) => any;
     endpoint?: EndpointType;
 };
 
@@ -201,9 +200,6 @@ export class MstQueryHandler {
         return endpoint(opts, this.model).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
-            }
-            if (options.convert) {
-                return options.convert(result);
             }
             return result;
         });
