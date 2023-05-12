@@ -16,4 +16,9 @@ export const ItemModel = types.model('ItemModel', {
     count: types.number,
     createdBy: types.reference(UserModel),
     data: types.maybe(DataModel),
+    nested: types.maybe(
+        types.model({
+            by: types.reference(UserModel),
+        })
+    ),
 });

@@ -13,6 +13,13 @@ export const itemData = {
         age: 35,
     },
     data: dataModel,
+    nested: {
+        by: {
+            id: 'ko',
+            name: 'Kim',
+            age: 35,
+        }
+    }
 };
 
 export const listData = {
