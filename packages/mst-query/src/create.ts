@@ -15,11 +15,14 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
     TData,
     TRequest
 > & {
-    endpoint?: (options: {
-        request: SnapshotIn<TRequest>;
-        meta: { [key: string]: any };
-        setData: (data: any) => void;
-    }, query: any) => Promise<any>;
+    endpoint?: (
+        options: {
+            request: Instance<TRequest>;
+            meta: { [key: string]: any };
+            setData: (data: any) => void;
+        },
+        query: any
+    ) => Promise<any>;
 };
 
 type CreateQueryOptions<
@@ -28,13 +31,16 @@ type CreateQueryOptions<
     TPagination extends IAnyType
 > = CreateOptions<TData, TRequest> & {
     pagination?: TPagination;
-    endpoint?: (options: {
-        request: SnapshotIn<TRequest>;
-        pagination: SnapshotIn<TPagination>;
-        meta: { [key: string]: any };
-        signal: AbortSignal; 
-        setData: (data: any) => void;
-    }, query: any) => Promise<any>;
+    endpoint?: (
+        options: {
+            request: Instance<TRequest>;
+            pagination: Instance<TPagination>;
+            meta: { [key: string]: any };
+            signal: AbortSignal;
+            setData: (data: any) => void;
+        },
+        query: any
+    ) => Promise<any>;
 };
 
 export function createQuery<
@@ -153,18 +159,20 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            mutate: flow(function* <TResult = any>(
-                ...args: Parameters<typeof self.__MstQueryHandler.mutate>
-            ) {
-                const next = yield self.__MstQueryHandler.mutate<typeof self['data'], TResult>(
-                    ...args
-                );
+            mutate: flow(function* (...args) {
+                const next = yield self.__MstQueryHandler.mutate(...args);
                 return next();
-            }),
+            }) as <TResult = any>(
+                params: {
+                    request: SnapshotIn<TRequest>,
+                    optimisticResponse?: TResult,
+                    meta?: { [key: string]: any }
+                }
+            ) => Promise<{ data: typeof self['data']; error: any; result: TResult }>,
             abort: self.__MstQueryHandler.abort,
         }));
 }
 
 export const VolatileQuery = createQuery('VolatileQuery', {});
 
-export interface VolatileQueryType extends Instance<typeof VolatileQuery> {};
+export interface VolatileQueryType extends Instance<typeof VolatileQuery> {}

@@ -81,13 +81,13 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     };
 }
 
-type MutationOptions<T extends IAnyType> = {
-    onMutate?: (data: Instance<T>['data'], self: Instance<T>) => void;
+type MutationOptions<T extends Instance<MutationReturnType>> = {
+    onMutate?: (data: T['data'], self: T) => void;
     meta?: { [key: string]: any };
 };
 
-export function useMutation<T extends MutationReturnType>(
-    mutation: Instance<T>,
+export function useMutation<T extends Instance<MutationReturnType>>(
+    mutation: T,
     options: MutationOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(mutation, false));
@@ -106,8 +106,9 @@ export function useMutation<T extends MutationReturnType>(
         mutation,
     };
 
-    const mutate = (params: { request: any; optimisticResponse?: any }) => {
-        mutation.mutate({ ...params, ...options });
+    const mutate = <TResult = any>(params: { request: SnapshotIn<T['variables']['request']>; optimisticResponse?: any }) => {
+        const result = mutation.mutate({ ...params, ...options } as any);
+        return result as Promise<{ data: T['data']; error: any; result: TResult }>;
     };
 
     return [mutate, result] as [typeof mutate, typeof result];

@@ -699,15 +699,19 @@ test('volatile query', () => {
 
 test('request with optional values', async () => {
     const { render, q } = setup();
+    
+    const getItem = vi.fn(() => Promise.resolve(itemData));
 
     const Comp = observer(() => {
         useQuery(q.itemQueryWihthOptionalRequest, {
             request: { id: 'test' },
-            meta: { getItem: api.getItem },
+            meta: { getItem },
         });
         return <div></div>;
     });
     render(<Comp />);
+
+    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
 });
 
 test('set data to null when request changes', async () => {

@@ -38,7 +38,6 @@ export type EndpointType = (
 type BaseOptions = {
     request?: any;
     meta?: { [key: string]: any };
-    endpoint?: EndpointType;
 };
 
 type MutateOptions = BaseOptions & {
@@ -192,6 +191,8 @@ export class MstQueryHandler {
 
         const opts = {
             ...options,
+            request: this.model.variables.request,
+            pagination: this.model.variables.pagination,
             meta: options.meta ?? {},
             signal: this.abortController.signal,
             setData: this.model.setData,
