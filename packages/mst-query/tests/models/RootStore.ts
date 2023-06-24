@@ -10,6 +10,7 @@ import { ListModel } from './ListModel';
 import { ListQuery } from './ListQuery';
 import { SetDescriptionMutation } from './SetDescriptionMutation';
 import { UserModel } from './UserModel';
+import { ArrayQuery } from './ArrayQuery';
 
 export const DateModel = types.model('DateModel', {
     id: types.identifier,
@@ -71,6 +72,7 @@ const ItemServiceStore = types
         addItemMutation: optional(AddItemMutation),
         setDescriptionMutation: optional(SetDescriptionMutation),
         listQuery: optional(ListQuery),
+        arrayQuery: optional(ArrayQuery),
         subscriptionQuery: optional(SubscriptionItemQuery),
         itemQueryWihthOptionalRequest: optional(ItemQueryWithOptionalRequest)
     })

@@ -618,6 +618,23 @@ test('hook - enabled prop', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('base array type', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const Comp = observer(() => {
+        useQuery(q.arrayQuery);
+        return <div></div>;
+    });
+
+    render(<Comp />);
+
+    expect(q.arrayQuery.error).toBe(null);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('support map type', () => {
     const { rootStore } = setup();
 
@@ -695,6 +712,23 @@ test('volatile query', () => {
     });
 
     render(<Comp />);
+});
+
+test('request with optional values', async () => {
+    const { render, q } = setup();
+    
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+
+    const Comp = observer(() => {
+        useQuery(q.itemQueryWihthOptionalRequest, {
+            request: { id: 'test' },
+            meta: { getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
 });
 
 test('request with optional values', async () => {
