@@ -131,6 +131,7 @@ export class MstQueryHandler {
     result: any;
     options: {
         endpoint: EndpointType;
+        meta?: { [key: string]: any };
     };
 
     previousVariables: any;
@@ -178,6 +179,7 @@ export class MstQueryHandler {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
         this.setVariables({ request: options.request, pagination: options.pagination });
+        this.options.meta = options.meta;
 
         if (this.isLoading && this.abortController) {
             this.abortController.abort();
@@ -283,6 +285,7 @@ export class MstQueryHandler {
 
         options.request = options.request ?? this.model.variables.request;
         options.pagination = options.pagination ?? this.model.variables.pagination;
+        options.meta = options.meta ?? this.options.meta;
 
         return this.run(options).then(
             (result) => this.onSuccess(result),

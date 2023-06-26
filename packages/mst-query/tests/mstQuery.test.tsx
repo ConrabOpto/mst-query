@@ -331,7 +331,7 @@ test('refetching query', async () => {
     await q.itemQuery.query({ request: { id: 'test' }, meta: { getItem: testApi.getItem } });
 
     await q.setDescriptionMutation.mutate({ request: { id: 'test', description: 'new' } });
-    await q.itemQuery.refetch({ meta: { getItem: testApi.getItem } });
+    await q.itemQuery.refetch();
 
     expect(getItem).toHaveBeenCalledTimes(2);
     expect(q.itemQuery.data?.description).toBe('Test item');
