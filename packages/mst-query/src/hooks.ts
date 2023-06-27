@@ -1,9 +1,17 @@
-import { IAnyType, Instance, TypeOfValue } from 'mobx-state-tree';
-import { useContext, useEffect, useState } from 'react';
-import { createQuery, createMutation } from './create';
+import {
+    getSnapshot,
+    getType,
+    IAnyType,
+    Instance,
+    isStateTreeNode,
+    SnapshotIn,
+} from 'mobx-state-tree';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { createQuery, createMutation, VolatileQuery } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
-import { QueryObserver } from './MstQueryHandler';
+import { EmptyPagination, EmptyRequest, QueryObserver,  } from './MstQueryHandler';
+import equal from '@wry/equality';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
     return Object.assign({ queryClient }, (queryClient.config as any)[key], {
@@ -16,43 +24,44 @@ export type QueryReturnType = ReturnType<typeof createQuery>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;
 
-type QueryOptions<T extends IAnyType, QA extends QueryAction> = {
-    request?: Parameters<QA>[0] extends undefined ? undefined : Parameters<QA>[0];
-    onFetched?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+type QueryOptions<T extends Instance<QueryReturnType>> = {
+    request?: SnapshotIn<T['variables']['request']>;
+    pagination?: SnapshotIn<T['variables']['pagination']>;
+    onQueryMore?: (data: T['data'], self: T) => void;
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
+    meta?: { [key: string]: any };
 };
 
-type QueryAction = (...args: any) => any;
-
-type UseQueryOptions<
-    T extends QueryReturnType,
-    QA extends QueryAction
-> = QueryOptions<T, QA>;
-
-type useQueryMoreOptions<
-    T extends QueryReturnType,
-    QA extends QueryAction,
-    QM extends QueryAction
-> = QueryOptions<T, QA> & {
-    pagination?: Parameters<QM>[1];
-};
-
-export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAction>(
+export function useQuery<T extends Instance<QueryReturnType>>(
     query: T,
-    queryAction: QA,
-    options: UseQueryOptions<TypeOfValue<T>, QA> = {}
+    options: QueryOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(query, true));
 
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+        
+    (options as any).request = options.request ?? EmptyRequest;
+    (options as any).pagination = options.pagination ?? EmptyPagination;
+
+    let isRequestEqual: boolean;
+    if (isStateTreeNode(query.variables.request)) {
+        const requestType = getType(query.variables.request);
+        isRequestEqual = equal(
+            getSnapshot(requestType.create(options.request)),
+            getSnapshot(query.variables.request)
+        );
+    } else {
+        isRequestEqual = equal(options.request, query.variables.request);
+    }
+    if (!observer.isMounted && !isRequestEqual) {
+        query.setData(null);
+    }
 
     useEffect(() => {
-        observer.setOptions(options, queryAction);
+        observer.setOptions({ ...options, isRequestEqual });
 
         return () => {
             observer.unsubscribe();
@@ -72,53 +81,14 @@ export function useQuery<T extends Instance<QueryReturnType>, QA extends QueryAc
     };
 }
 
-export function useQueryMore<
-    T extends Instance<QueryReturnType>,
-    QA extends QueryAction,
-    QM extends QueryAction
->(
-    query: T,
-    queryAction: QA,
-    queryMoreAction: QM,
-    options: useQueryMoreOptions<TypeOfValue<T>, QA, QM> = {}
-) {
-    const [observer] = useState(() => new QueryObserver(query, true));
-
-    const queryClient = useContext(Context)! as QueryClient<any>;
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-
-    useEffect(() => {
-        observer.setOptions(options, queryAction, queryMoreAction);
-
-        return () => {
-            observer.unsubscribe();
-        };
-    }, [options]);
-
-    return {
-        data: query.data as typeof query['data'],
-        error: query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        isFetchingMore: query.isFetchingMore,
-        query: query,
-        refetch: query.refetch,
-        cachedAt: query.__MstQueryHandler.cachedAt,
-    };
-}
-
-type MutationOptions<T extends IAnyType> = {
-    onSuccess?: (data: Instance<T>['data'], self: Instance<T>) => void;
-    onError?: (data: Instance<T>['data'], self: Instance<T>) => void;
+type MutationOptions<T extends Instance<MutationReturnType>> = {
+    onMutate?: (data: T['data'], self: T) => void;
+    meta?: { [key: string]: any };
 };
 
-type UseMutationOptions<T extends MutationReturnType> = MutationOptions<T>;
-
-export function useMutation<T extends MutationReturnType, MA extends QueryAction>(
-    mutation: Instance<T>,
-    mutateAction: MA,
-    options: UseMutationOptions<T> = {}
+export function useMutation<T extends Instance<MutationReturnType>>(
+    mutation: T,
+    options: MutationOptions<T> = {}
 ) {
     const [observer] = useState(() => new QueryObserver(mutation, false));
 
@@ -136,5 +106,56 @@ export function useMutation<T extends MutationReturnType, MA extends QueryAction
         mutation,
     };
 
-    return [mutateAction, result] as [typeof mutateAction, typeof result];
+    const mutate = <TResult = any>(params: { request: SnapshotIn<T['variables']['request']>; optimisticResponse?: any }) => {
+        const result = mutation.mutate({ ...params, ...options } as any);
+        return result as Promise<{ data: T['data']; error: any; result: TResult }>;
+    };
+
+    return [mutate, result] as [typeof mutate, typeof result];
+}
+
+function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
+    const q = useRef<Instance<T>>();
+    if (!q.current) {
+        (q.current as any) = query.create(undefined, queryClient.config.env);
+    }
+    return q.current!;
+}
+
+type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions<T> & {
+    endpoint?: (args: any) => Promise<any>;
+};
+
+export function useVolatileQuery(
+    options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {}
+) {
+    const queryClient = useContext(Context)! as QueryClient<any>;
+    const query = useRefQuery(VolatileQuery, queryClient);
+    const [observer] = useState(() => new QueryObserver(query, true));
+
+    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+
+    useEffect(() => {
+        if (options.endpoint) {
+            query.__MstQueryHandler.options.endpoint = options.endpoint;
+        }
+
+        observer.setOptions(options);
+
+        return () => {
+            observer.unsubscribe();
+        };
+    }, [options]);
+
+    return {
+        data: query.data as typeof query['data'],
+        error: query.error,
+        isFetched: query.isFetched,
+        isLoading: query.isLoading,
+        isRefetching: query.isRefetching,
+        isFetchingMore: query.isFetchingMore,
+        query: query,
+        refetch: query.refetch,
+        cachedAt: query.__MstQueryHandler.cachedAt,
+    };
 }

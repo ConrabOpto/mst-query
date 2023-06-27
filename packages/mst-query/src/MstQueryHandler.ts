@@ -1,6 +1,7 @@
 import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
+    addDisposer,
     getEnv,
     getIdentifier,
     getRoot,
@@ -20,29 +21,27 @@ type QueryReturn<TData, TResult> = {
     result: TResult;
 };
 
-type Context = {
-    fetchOptions?: {
-        signal: AbortSignal;
-    };
-    [key: string]: any;
-};
+export const EmptyRequest = Symbol('EmptyRequest');
+export const EmptyPagination = Symbol('EmptyPagination');
 
-export type EndpointType = (options: {
-    request?: any;
-    pagination?: any;
-    context?: any;
-    setData?: (data: any) => void;
-}) => Promise<any>;
+export type EndpointType = (
+    options: {
+        request?: any;
+        pagination?: any;
+        meta: { [key: string]: any };
+        signal: AbortSignal;
+        setData: (data: any) => void;
+    },
+    query: any
+) => Promise<any>;
 
 type BaseOptions = {
     request?: any;
-    context?: Context;
-    convert?: (result: any) => any;
-    endpoint?: EndpointType;
+    meta?: { [key: string]: any };
 };
 
 type MutateOptions = BaseOptions & {
-    optimisticUpdate?: () => void;
+    optimisticResponse?: any;
 };
 
 type QueryOptions = BaseOptions & {
@@ -56,17 +55,13 @@ type QueryHookOptions = {
     pagination?: any;
     enabled?: boolean;
     isMounted?: any;
+    isRequestEqual?: boolean;
 };
 
 type NotifyOptions = {
-    onSuccess?: boolean;
-    onError?: boolean;
-    onFetched?: boolean;
+    onMutate?: boolean;
     onQueryMore?: boolean;
 };
-
-const EmptyRequest = Symbol('EmptyRequest');
-const EmptyPagination = Symbol('EmptyPagination');
 
 export class DisposedError extends Error {}
 
@@ -89,14 +84,15 @@ export class QueryObserver {
         this.query.__MstQueryHandler.removeQueryObserver(this);
     }
 
-    setOptions(options: any, ...args: any[]) {
+    setOptions(options: any) {
         this.options = options;
 
         this.subscribe();
 
         if (this.isQuery) {
             options.isMounted = this.isMounted;
-            this.query.__MstQueryHandler.queryWhenChanged(options, ...args);
+
+            this.query.__MstQueryHandler.queryWhenChanged(options);
         }
 
         if (!this.isMounted && !this.query.__MstQueryHandler.isFetched && options.initialData) {
@@ -107,6 +103,21 @@ export class QueryObserver {
             this.isMounted = true;
         }
     }
+}
+
+function subscribe(target: any, options: any) {
+    const observer = new QueryObserver(target, false);
+    observer.setOptions(options);
+    observer.subscribe();
+    addDisposer(target, observer.unsubscribe);
+}
+
+export function onMutate(target: any, callback: any) {
+    subscribe(target, { onMutate: callback });
+}
+
+export function onQueryMore(target: any, callback: any) {
+    subscribe(target, { onQueryMore: callback });
 }
 
 export class MstQueryHandler {
@@ -120,6 +131,7 @@ export class MstQueryHandler {
     result: any;
     options: {
         endpoint: EndpointType;
+        meta?: { [key: string]: any };
     };
 
     previousVariables: any;
@@ -149,7 +161,7 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
-            updateData: action.bound,
+            setData: action.bound,
             setResult: action.bound,
             setError: action.bound,
             run: action.bound,
@@ -164,9 +176,10 @@ export class MstQueryHandler {
     }
 
     run(options: QueryOptions = {}) {
-        const endpoint = options.endpoint ?? this.options.endpoint;
+        const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
         this.setVariables({ request: options.request, pagination: options.pagination });
+        this.options.meta = options.meta;
 
         if (this.isLoading && this.abortController) {
             this.abortController.abort();
@@ -180,27 +193,22 @@ export class MstQueryHandler {
 
         const opts = {
             ...options,
-            context: {
-                fetchOptions: {
-                    signal: this.abortController.signal,
-                },
-                ...options?.context,
-            },
-            setData: this.model.setData
+            request: this.model.variables.request,
+            pagination: this.model.variables.pagination,
+            meta: options.meta ?? {},
+            signal: this.abortController.signal,
+            setData: this.model.setData,
         };
 
-        return endpoint(opts).then((result: any) => {
+        return endpoint(opts, this.model).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
-            }
-            if (options.convert) {
-                return options.convert(result);
             }
             return result;
         });
     }
 
-    async queryWhenChanged(options: QueryHookOptions, queryAction: any, queryMoreAction?: any) {
+    async queryWhenChanged(options: QueryHookOptions) {
         if (this.isDisposed) {
             return;
         }
@@ -209,32 +217,28 @@ export class MstQueryHandler {
             return;
         }
 
-        options.request = options.request ?? EmptyRequest;
-        options.pagination = options.pagination ?? EmptyPagination;
-
         if (!options.isMounted) {
             const notInitialized = !this.isFetched && !this.isLoading;
             if (notInitialized) {
-                return queryAction(options.request, options.pagination);
+                return this.model.query(options);
             }
 
             const now = new Date();
             const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
             const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
             if (isStale) {
-                return queryAction(options.request, options.pagination);
+                return this.model.query(options);
             }
         }
 
-        const isRequestEqual = equal(options.request, this.model.variables.request);
-        if (!isRequestEqual) {
-            return queryAction(options.request, options.pagination);
+        if (!options.isRequestEqual) {
+            return this.model.query(options);
         }
 
-        if (queryMoreAction && this.isFetched) {
+        if (options.pagination !== EmptyPagination && this.isFetched) {
             const isPaginationEqual = equal(options.pagination, this.model.variables.pagination);
             if (!isPaginationEqual) {
-                return queryMoreAction(options.request, options.pagination);
+                return this.model.queryMore(options);
             }
         }
     }
@@ -249,11 +253,12 @@ export class MstQueryHandler {
     mutate<TData, TResult>(
         options: MutateOptions = {}
     ): Promise<() => QueryReturn<TData, TResult>> {
-        const { optimisticUpdate } = options;
+        const { optimisticResponse } = options;
         let recorder: IPatchRecorder;
-        if (optimisticUpdate) {
+        if (optimisticResponse) {
             recorder = recordPatches(getRoot(this.model));
-            optimisticUpdate();
+            this.setData(optimisticResponse);
+            this.notify({ onMutate: true }, this.model.data, this.model);
             recorder.stop();
         }
         return this.run(options).then(
@@ -280,6 +285,7 @@ export class MstQueryHandler {
 
         options.request = options.request ?? this.model.variables.request;
         options.pagination = options.pagination ?? this.model.variables.pagination;
+        options.meta = options.meta ?? this.options.meta;
 
         return this.run(options).then(
             (result) => this.onSuccess(result),
@@ -301,7 +307,7 @@ export class MstQueryHandler {
 
             let data;
             if (shouldUpdate) {
-                data = this.updateData(result);
+                data = this.setData(result);
             } else {
                 data = this.prepareData(result);
             }
@@ -326,10 +332,12 @@ export class MstQueryHandler {
 
             if (!this.isFetched) {
                 this.isFetched = true;
-                this.notify({ onFetched: true }, this.model.data, this.model);
             }
 
-            this.notify({ onSuccess: true }, data, this.model);
+            // TODO: make nicer brand check
+            if (this.model.mutate) {
+                this.notify({ onMutate: true }, data, this.model);
+            }
 
             return { data, error: null, result };
         };
@@ -350,7 +358,7 @@ export class MstQueryHandler {
             }
 
             if (shouldUpdate) {
-                this.updateData(null);
+                this.setData(null);
             }
 
             this.error = err;
@@ -366,8 +374,6 @@ export class MstQueryHandler {
             if (this.isFetchingMore) {
                 this.isFetchingMore = false;
             }
-
-            this.notify({ onError: true }, err, this.model);
 
             return { data: null, error: err, result: null };
         };
@@ -385,16 +391,8 @@ export class MstQueryHandler {
 
     notify(notifyOptions: NotifyOptions, ...args: any[]) {
         for (let observer of this.queryObservers) {
-            if (notifyOptions.onSuccess) {
-                observer.options.onSuccess?.(...args);
-            } else if (notifyOptions.onError) {
-                observer.options.onError?.(...args);
-            }
-            if (notifyOptions.onQueryMore) {
-                observer.options.onQueryMore?.(...args);
-            }
-            if (notifyOptions.onFetched) {
-                observer.options.onFetched?.(...args);
+            for (let key of Object.keys(notifyOptions)) {
+                observer.options[key]?.(...args);
             }
         }
     }
@@ -421,11 +419,19 @@ export class MstQueryHandler {
     }
 
     setVariables(variables: any) {
-        this.previousVariables = this.model.variables;
+        let request = variables.request ?? EmptyRequest;
+        let pagination = variables.pagination ?? EmptyPagination;
+
+        // Handle request and pagination being optional models
+        if (request === EmptyRequest && this.model.variables.request) {
+            request = this.model.variables.request;
+        }
+        if (pagination === EmptyPagination && this.model.variables.pagination) {
+            pagination = this.model.variables.pagination;
+        }
+
         this.model.__MstQueryHandlerAction(() => {
-            variables.request = variables.request ?? EmptyRequest;
-            variables.pagination = variables.pagination ?? EmptyPagination;
-            this.model.variables = variables;
+            this.model.variables = { request, pagination };
         });
     }
 
@@ -455,12 +461,6 @@ export class MstQueryHandler {
                 );
             }
         });
-    }
-
-    updateData(data: any) {
-        if (data) {
-            this.setData(data);
-        }
 
         return this.model.data;
     }

@@ -1,15 +1,16 @@
-import { flow, getRoot, IAnyModelType, Instance, types } from 'mobx-state-tree';
+import { IAnyModelType, Instance, types } from 'mobx-state-tree';
 import { createQuery } from '../../src/create';
-import { MstQueryRef } from '../../src/MstQueryRef';
+import { onMutate } from '../../src/MstQueryHandler';
 import { createModelStore, createRootStore } from '../../src/stores';
-import { itemData } from '../api/data';
 import { AddItemMutation } from './AddItemMutation';
 import { ItemModel } from './ItemModel';
 import { ItemQuery, SubscriptionItemQuery } from './ItemQuery';
+import { ItemQueryWithOptionalRequest } from './ItemQueryWithOptionalRequest';
 import { ListModel } from './ListModel';
 import { ListQuery } from './ListQuery';
 import { SetDescriptionMutation } from './SetDescriptionMutation';
 import { UserModel } from './UserModel';
+import { ArrayQuery } from './ArrayQuery';
 
 export const DateModel = types.model('DateModel', {
     id: types.identifier,
@@ -29,7 +30,7 @@ const DeepModelB = types.model('DeepModelB', {
 
 export const DeepModelA = types.model('DeepModelA', {
     model: types.maybe(DeepModelB),
-    ref: types.maybe(MstQueryRef(DeepModelC)),
+    ref: types.maybe(types.reference(DeepModelC)),
 });
 
 const AmountTag = {
@@ -71,66 +72,22 @@ const ItemServiceStore = types
         addItemMutation: optional(AddItemMutation),
         setDescriptionMutation: optional(SetDescriptionMutation),
         listQuery: optional(ListQuery),
+        arrayQuery: optional(ArrayQuery),
         subscriptionQuery: optional(SubscriptionItemQuery),
+        itemQueryWihthOptionalRequest: optional(ItemQueryWithOptionalRequest)
     })
     .actions((self) => ({
-        getItem: flow(function* ({ id }: { id: string }, options = {}) {
-            const next = yield* self.itemQuery.query({ request: { id }, ...options });
-            next();
-        }),
-        getItem2: flow(function* ({ id }) {
-            const next = yield* self.itemQuery.query({ request: { id } });
-            next();
-        }),
-        getItems: flow(function* (request, pagination = {}, options = {}) {
-            const next = yield* self.listQuery.query({
-                pagination: { offset: 0 },
-                request,
-                ...options,
+        afterCreate() {
+            onMutate(self.addItemMutation, (data: any) => {
+                self.listQuery.data?.addItem(data);
             });
-            next();
-        }),
-        getMoreItems: flow(function* (request, { offset }, options = {}) {
-            const next = yield* self.listQuery.queryMore({
-                pagination: { offset },
-                request,
-                ...options,
-            });
-            const { data } = next();
-            self.listQuery.data?.addItems(data?.items);
-        }),
-        setDescription: flow(function* ({ id, description }) {
-            const next = yield* self.setDescriptionMutation.mutate({
-                request: { id, description },
-            });
-            next();
-        }),
-        addItem: flow(function* ({ path, message }: { path: string; message: string }) {
-            const root = getRoot(self) as RootStoreType;
-
-            const next = yield* self.addItemMutation.mutate({
-                request: { path, message },
-                optimisticUpdate: () => {
-                    const optimistic = root.itemStore.merge({
-                        ...itemData,
-                        id: 'temp',
-                    });
-                    self.listQuery.data?.addItem(optimistic);
-                },
-            });
-            const { data } = next();
-
-            self.listQuery.data?.addItem(data);
-        }),
-        getItemSubscription: flow(function* ({ id }, options) {
-            const next = yield* self.subscriptionQuery.query({ request: { id }, ...options });
-            next();
-        }),
+        },
     }));
 
 const ServiceStore = types.model({
     itemServiceStore: optional(ItemServiceStore),
     frozenQuery: optional(createQuery('FrozenQuery', { data: TestModel })),
+    deepModelA: types.maybe(DeepModelA),
 });
 
 export const Root = createRootStore({
@@ -138,7 +95,7 @@ export const Root = createRootStore({
     userStore: optional(createModelStore('UserStore', UserModel)),
     listStore: optional(createModelStore('ListStore', ListModel)),
     dateStore: optional(createModelStore('DateStore', DateModel)),
-    deepModelCStore: optional(createModelStore('DeepStore', DeepModelC)),
+    deepModelCStore: optional(createModelStore('DeepModelCStore', DeepModelC)),
     serviceStore: optional(ServiceStore),
 });
 

@@ -1,5 +1,4 @@
 import { types } from 'mobx-state-tree';
-import { MstQueryRef } from '../../src';
 import { UserModel } from './UserModel';
 
 export const DataModel = types
@@ -15,6 +14,11 @@ export const ItemModel = types.model('ItemModel', {
     description: types.string,
     created: types.Date,
     count: types.number,
-    createdBy: MstQueryRef(UserModel),
+    createdBy: types.reference(UserModel),
     data: types.maybe(DataModel),
+    nested: types.maybe(
+        types.model({
+            by: types.reference(UserModel),
+        })
+    ),
 });

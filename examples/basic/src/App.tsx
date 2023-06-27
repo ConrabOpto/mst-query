@@ -1,12 +1,11 @@
 import React from 'react';
-import { types, flow, Instance } from 'mobx-state-tree';
+import { types, Instance } from 'mobx-state-tree';
 import { observer } from 'mobx-react';
 import {
     createContext,
     QueryClient,
     useQuery,
     createQuery,
-    MstQueryRef,
     createRootStore,
     createModelStore,
 } from 'mst-query';
@@ -33,7 +32,7 @@ const getPosts = async () => {
 };
 
 export const PostsQuery = createQuery('PostsQuery', {
-    data: types.array(MstQueryRef(PostModel)),
+    data: types.array(types.reference(PostModel)),
     endpoint: getPosts,
 });
 
@@ -44,12 +43,12 @@ const getPostById = async ({ request }: any) => {
 };
 
 const PostQuery = createQuery('PostQuery', {
-    data: MstQueryRef(PostModel),
+    data: types.reference(PostModel),
     request: types.model({ id: types.number }),
     endpoint: getPostById,
 });
 
-const PostStore = createModelStore(PostModel)
+const PostStore = createModelStore('PostStore', PostModel)
     .props({
         postsQuery: types.optional(PostsQuery, {}),
         postQuery: types.optional(PostQuery, {}),
@@ -58,16 +57,6 @@ const PostStore = createModelStore(PostModel)
         get postList() {
             return Array.from(self.models.values());
         },
-    }))
-    .actions((self) => ({
-        getPosts: flow(function* () {
-            const next = yield* self.postsQuery.query();
-            next();
-        }),
-        getPost: flow(function* ({ id }) {
-            const next = yield* self.postQuery.query({ request: { id } });
-            next();
-        }),
     }));
 
 const RootStore = createRootStore({
@@ -84,7 +73,7 @@ type PostsProps = {
 const Posts = observer((props: PostsProps) => {
     const { onSelectedPost } = props;
     const { postStore } = useRootStore();
-    const { data, error, isLoading } = useQuery(postStore.postsQuery, postStore.getPosts, {
+    const { data, error, isLoading } = useQuery(postStore.postsQuery, {
         staleTime: 100000,
         enabled: true,
     });
@@ -133,10 +122,11 @@ type PostProps = {
 const Post = observer((props: PostProps) => {
     const { post, onSelectedPost } = props;
     const { postStore } = useRootStore();
-    const { data, isLoading, error } = useQuery(postStore.postQuery, postStore.getPost, {
+    const { data, isLoading, error } = useQuery(postStore.postQuery, {
         initialData: post,
-        request: { id: post.id },
+        request: { id: post.id }
     });
+    console.log(data?.body);
     return (
         <div>
             <div>

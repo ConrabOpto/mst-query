@@ -1,4 +1,4 @@
-import { types, IAnyType, toGeneratorFunction, flow, SnapshotIn } from 'mobx-state-tree';
+import { types, IAnyType, toGeneratorFunction, flow, SnapshotIn, Instance } from 'mobx-state-tree';
 import { MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
@@ -15,11 +15,14 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
     TData,
     TRequest
 > & {
-    endpoint?: (options: {
-        request: SnapshotIn<TRequest>;
-        context: any;
-        setData: (data: any) => void;
-    }) => Promise<any>;
+    endpoint?: (
+        options: {
+            request: Instance<TRequest>;
+            meta: { [key: string]: any };
+            setData: (data: any) => void;
+        },
+        query: any
+    ) => Promise<any>;
 };
 
 type CreateQueryOptions<
@@ -28,12 +31,16 @@ type CreateQueryOptions<
     TPagination extends IAnyType
 > = CreateOptions<TData, TRequest> & {
     pagination?: TPagination;
-    endpoint?: (options: {
-        request: SnapshotIn<TRequest>;
-        pagination: SnapshotIn<TPagination>;
-        context: any;
-        setData: (data: any) => void;
-    }) => Promise<any>;
+    endpoint?: (
+        options: {
+            request: Instance<TRequest>;
+            pagination: Instance<TPagination>;
+            meta: { [key: string]: any };
+            signal: AbortSignal;
+            setData: (data: any) => void;
+        },
+        query: any
+    ) => Promise<any>;
 };
 
 export function createQuery<
@@ -88,20 +95,28 @@ export function createQuery<
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            query: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.query>) =>
-                    self.__MstQueryHandler.query<typeof self['data'], TResult>(...args)
-            ),
-            queryMore: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.queryMore>) =>
-                    self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(...args)
-            ),
+            query: flow(function* <TResult = any>(
+                ...args: Parameters<typeof self.__MstQueryHandler.query>
+            ) {
+                const next = yield self.__MstQueryHandler.query<typeof self['data'], TResult>(
+                    ...args
+                );
+                return next();
+            }),
+            queryMore: flow(function* <TResult = any>(
+                ...args: Parameters<typeof self.__MstQueryHandler.queryMore>
+            ) {
+                const next = yield self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(
+                    ...args
+                );
+                return next();
+            }),
             refetch: flow(function* (...args: Parameters<typeof self.__MstQueryHandler.query>) {
                 const next = yield self.__MstQueryHandler.refetch(...args);
-                next();
+                return next();
             }),
             setData(data: any) {
-                self.__MstQueryHandler.setData(data);
+                return self.__MstQueryHandler.setData(data);
             },
             abort: self.__MstQueryHandler.abort,
         }));
@@ -144,10 +159,20 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            mutate: toGeneratorFunction(
-                <TResult = any>(...args: Parameters<typeof self.__MstQueryHandler.mutate>) =>
-                    self.__MstQueryHandler.mutate<typeof self['data'], TResult>(...args)
-            ),
+            mutate: flow(function* (...args) {
+                const next = yield self.__MstQueryHandler.mutate(...args);
+                return next();
+            }) as <TResult = any>(
+                params: {
+                    request: SnapshotIn<TRequest>,
+                    optimisticResponse?: TResult,
+                    meta?: { [key: string]: any }
+                }
+            ) => Promise<{ data: typeof self['data']; error: any; result: TResult }>,
             abort: self.__MstQueryHandler.abort,
         }));
 }
+
+export const VolatileQuery = createQuery('VolatileQuery', {});
+
+export interface VolatileQueryType extends Instance<typeof VolatileQuery> {}

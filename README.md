@@ -23,27 +23,18 @@ Query library for mobx-state-tree
 
 # Basic Usage
 
-First, create a query and a store...
+First, create a query...
 
-```tsx
+```ts
+import { createQuery, createModelStore } from 'mst-query';
+
 const MessageQuery = createQuery('MessageQuery', {
-    data: MstQueryRef(MessageModel),
+    data: types.reference(MessageModel),
     request: types.model({ id: types.string }),
     endpoint({ request }) {
         return fetch(`messages/${request.id}`).then((res) => res.json());
     },
 });
-
-const MessageStore = createModelStore('MessageStore', MessageModel)
-    .props({
-        messageQuery: types.optional(MessageQuery, {}),
-    })
-    .actions((self) => ({
-        getMessage: flow(function* (id: string) {
-            const next = yield* self.postsQuery.query({ request: { id } });
-            next();
-        }),
-    }));
 ```
 
 ...then use the query in a React component!
@@ -51,17 +42,13 @@ const MessageStore = createModelStore('MessageStore', MessageModel)
 ```tsx
 const MesssageView = observer((props) => {
     const { id, messageStore } = props;
-    const { data, error, isLoading } = useQuery(
-        messageStore.messageQuery,
-        messageStore.getMessage,
-        {
-            request: { id },
-        }
-    );
+    const { data, error, isLoading } = useQuery(messageStore.messageQuery, {
+        request: { id },
+    });
     if (error) {
         return <div>An error occured...</div>;
     }
-    if (isLoading) {
+    if (!data) {
         return <div>Loading...</div>;
     }
     return <div>{data.message}</div>;
@@ -81,12 +68,24 @@ npm install --save mst-query mobx-state-tree
 ```tsx
 import { createModelStore, createRootStore, QueryClient, createContext } from 'mst-query';
 
+const MessageQuery = createQuery('MessageQuery', {
+    data: types.reference(MessageModel),
+    request: types.model({ id: types.string }),
+    endpoint({ request }) {
+        return fetch(`messages/${request.id}`).then((res) => res.json());
+    },
+});
+
+const MessageStore = createModelStore('MessageStore', MessageModel).props({
+    messageQuery: types.optional(MessageQuery, {}),
+});
+
 const RootStore = createRootStore({
     messageStore: types.optional(MessageStore, {}),
 });
 
 const queryClient = new QueryClient({ RootStore });
-const { QueryClientProvider } = createContext(queryClient);
+const { QueryClientProvider, useRootStore } = createContext(queryClient);
 
 function App() {
     return (
@@ -97,43 +96,18 @@ function App() {
 }
 ```
 
-## Models
-
-In general, models can be created as usual. The main difference is how we handle references.
-                                                                                                                
-### `MstQueryRef`
-
-A custom reference that replaces `types.reference`.
-
-```ts
-import { types } from 'mobx-state-tree';
-
-const UserModel = types.model({
-    id: types.identifier, // a normal identifier
-    name: types.string.
-    age: types.number
-});
-
-const MessageModel = types.model({
-    message: types.string,
-    createdBy: MstQueryRef(UserModel)
-});
-```
-
-Since data is garbage collected in mst-query, `MstQueryRef` doesn't throw if it cannot find a suitable model in the internal cache. Instead, it simply returns the id as a string, allowing us to fetch data for this model again.
-
 ## Queries
 
 ### `createQuery`
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createQuery, RequestModel } from 'mst-query';
+import { createQuery } from 'mst-query';
 import { MessageModel } from './models';
 import { getItems } from './api';
 
 const MessageListQuery = createQuery('MessageListQuery', {
-    data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
+    data: types.array(types.reference(MessageModel)),
     request: types.model({ filter: '' }),
     endpoint({ request }) {
         return fetch(`messages?filter=${request.filter}`).then((res) => res.json());
@@ -150,6 +124,7 @@ import { MessageQuery } from './MessageQuery';
 
 const MesssageView = observer((props) => {
     const { id, snapshot, result } = props;
+    const rootStore = useRootStore();
     const {
         data,
         error,
@@ -160,7 +135,7 @@ const MesssageView = observer((props) => {
         query,
         refetch,
         cachedAt,
-    } = useQuery(store.messageQuery, store.getMessages, {
+    } = useQuery(rootStore.messageStore.messageQuery, {
         data: snapshot,
         request: { id },
         enabled: !!id,
@@ -189,34 +164,18 @@ import { createQuery, RequestModel } from 'mst-query';
 import { MessageModel } from './models';
 
 const MessagesQuery = createQuery('MessagesQuery', {
-    data: types.model({ items: types.array(MstQueryRef(MessageModel)) }),
-    request: types.model({ filter: '' }),
+    data: types.model({ items: types.array(types.reference(MessageModel)) }),
     pagination: types.model({ offset: types.number, limit: types.number }),
+    endpoint({ request }) {
+        return fetch(`messages?offset=${request.offset}&limit=${request.limit}`).then((res) =>
+            res.json()
+        );
+    },
 });
 
-const MessageStore = createModelStore('MessageStore', MessageModel)
-    .props({
-        messagesQuery: types.optional(MessagesQuery, {}),
-    })
-    .actions((self) => ({
-        getMessages: flow(function* (request, pagination) {
-            const next = yield* self.messagesQuery.query({
-                endpoint: api.getMessages,
-                request,
-                pagination
-
-            });
-            next();
-        }),
-        getMoreMessages: flow(function* (request, pagination) {
-            const next = yield * self.messagesQuery.queryMore({
-                request,
-                pagination
-            });
-            const { data } = next();
-            self.messagesQuery.data?.items.push(...data?.);
-        })
-    }));
+const MessageStore = createModelStore('MessageStore', MessageModel).props({
+    messagesQuery: types.optional(MessagesQuery, {}),
+});
 ```
 
 The difference between `query` and `queryMore` is that the latter does not automatically merge it's result to the underlying query. This allows you to easily control how the data is appended to your list. It also means mst-query supports many different forms of pagination (offset-based, cursor-based, page-number-based) out of the box.
@@ -228,15 +187,10 @@ import { MessageListQuery } from './MessageListQuery';
 
 const MesssageListView = observer((props) => {
     const [offset, setOffset] = useState(0);
-    const { data, isFetchingMore, query } = useQueryMore(
-        messageStore.messagesQuery,
-        messageStore.getMessages,
-        messageStore.getMoreMessages,
-        {
-            request: { filter: '' },
-            pagination: { offset, limit: 20 },
-        }
-    );
+    const { data, isFetchingMore, query } = useQuery(messageStore.messagesQuery, {
+        request: { filter: '' },
+        pagination: { offset, limit: 20 },
+    });
     if (isFetchingMore) {
         return <div>Is fetching more results...</div>;
     }
@@ -260,7 +214,7 @@ import { types } from 'mobx-state-tree';
 import { createMutation } from 'mst-query';
 
 const AddMessageMutation = createMutation('AddMessage', {
-    data: MstQueryRef(MessageModel),
+    data: types.reference(MessageModel),
     request: types.model({ message: types.string }),
 });
 
@@ -270,15 +224,11 @@ const MessageStore = createModelStore('MessageStore', MessageModel)
         addMessageMutation: types.optional(AddMessageMutation, {}),
     })
     .actions((self) => ({
-        addMessage: flow(function* ({ message }) {
-            const next = yield* self.addMessageMutation.mutate({
-                endpoint: api.addMessage,
-                request: { message },
+        afterCreate() {
+            onMutate(self.addMessageMutation, (data) => {
+                self.messagesQuery.data?.items.push(data);
             });
-            const { data } = next();
-
-            self.messagesQuery.data?.addItem(data);
-        }),
+        },
     }));
 ```
 
@@ -292,52 +242,28 @@ import { AddMessageMutation } from './AddMessageMutation';
 const AddMessage = observer((props) => {
     const { messageStore } = props;
     const [message, setMessage] = useState('');
-    const [addMessage, { isLoading }] = useMutation(
-        messageStore.addMessageMutation,
-        messageStore.addMessage
-    );
+    const [addMessage, { isLoading }] = useMutation(messageStore.addMessageMutation);
     return (
         <div>
             <textarea value={message} onChange={(ev) => setMessage(ev.target.value)} />
             <button
                 type="button"
                 disabled={!message.length || isLoading}
-                onClick={() => addMessage()}>
+                onClick={() => {
+                    addMessage({
+                        request: { message },
+                        optimisticResponse: {
+                            id: 'temp' + Math.random(),
+                            message,
+                        },
+                    });
+                    setMessage('');
+                }}>
                 Send
             </button>
         </div>
     );
 });
-```
-
-## Optimistic updates
-
-```tsx
-import { types } from 'mobx-state-tree';
-import { createMutation, RequestModel } from 'mst-query';
-
-const MessageStore = createModelStore('MessageStore', MessageModel)
-    .props({
-        messagesQuery: types.optional(MessagesQuery, {}),
-        addMessageMutation: types.optional(AddMessageMutation, {}),
-    })
-    .actions((self) => ({
-        addMessage: flow(function* ({ message }) {
-            const next = yield* self.addMessageMutation.mutate({
-                request: { message },
-                optimisticUpdate: () => {
-                    const optimistic = self.merge({
-                        id: 'optimistic',
-                        message,
-                    });
-                    self.listQuery.data?.addItem(optimistic);
-                },
-            });
-            const { data } = next();
-
-            self.listQuery.data?.addItem(data);
-        }),
-    }));
 ```
 
 ## Model generator (GraphQL)

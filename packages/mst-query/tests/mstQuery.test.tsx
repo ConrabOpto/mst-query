@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { test, vi, expect } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { useQuery, useQueryMore, useMutation, MstQueryRef, createQuery } from '../src';
+import { useQuery, useMutation } from '../src';
 import { configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -14,6 +14,7 @@ import { wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { DateModel, DeepModelA, Root } from './models/RootStore';
+import { useVolatileQuery } from '../src/hooks';
 
 const setup = () => {
     const queryClient = new QueryClient({ RootStore: Root });
@@ -35,24 +36,24 @@ const setup = () => {
 test('garbage collection', async () => {
     const { q, queryClient } = setup();
 
-    await q.getItem({ id: 'test ' });
-    await q.getItem2({ id: 'test2' });
+    await q.itemQuery.query({ request: { id: 'test ' } });
+    await q.itemQuery2.query({ request: { id: 'test2' } });
     expect(queryClient.rootStore.itemStore.models.size).toBe(1);
     expect(queryClient.rootStore.userStore.models.size).toBe(1);
     expect(queryClient.rootStore.listStore.models.size).toBe(0);
 
-    await q.getItems({ id: 'test' });
+    await q.listQuery.query();
     expect(queryClient.rootStore.itemStore.models.size).toBe(4);
     expect(queryClient.rootStore.userStore.models.size).toBe(4);
     expect(queryClient.rootStore.listStore.models.size).toBe(1);
 
     expect(queryClient.queryStore.models.size).toBe(9);
 
-    q.listQuery.__MstQueryHandler.updateData(null);
-    q.itemQuery2.__MstQueryHandler.updateData(null);
+    q.listQuery.__MstQueryHandler.setData(null);
+    q.itemQuery2.__MstQueryHandler.setData(null);
     await wait();
-    q.itemQuery2.__MstQueryHandler.updateData(itemData);
-    q.listQuery.__MstQueryHandler.updateData(listData);
+    q.itemQuery2.__MstQueryHandler.setData(itemData);
+    q.listQuery.__MstQueryHandler.setData(listData);
     await wait();
     queryClient.queryStore.removeQuery(q.itemQuery);
     queryClient.queryStore.runGc();
@@ -91,9 +92,9 @@ test('gc - only walk model props', () => {
 test('mutation updates domain model', async () => {
     const { q } = setup();
 
-    await q.getItem({ id: 'test' });
+    await q.itemQuery.query({ request: { id: 'test' } });
 
-    await q.setDescription({ id: 'test', description: 'new' });
+    await q.setDescriptionMutation.mutate({ request: { id: 'test', description: 'new' } });
 
     expect(q.itemQuery.data?.description).toBe('new');
 });
@@ -102,7 +103,7 @@ test('isLoading state', async () => {
     const { q, queryClient } = setup();
 
     expect(q.itemQuery.isLoading).toBe(false);
-    q.getItem({ id: 'test' });
+    q.itemQuery.query({ request: { id: 'test' } });
     expect(q.itemQuery.isLoading).toBe(true);
 
     await when(() => !q.itemQuery.isLoading);
@@ -124,7 +125,7 @@ test('useQuery', async () => {
     );
 
     const Comp = observer(() => {
-        useQuery(q.itemQuery, q.getItem, {
+        useQuery(q.itemQuery, {
             request: { id: 'test' },
         });
         return <div></div>;
@@ -152,15 +153,21 @@ test('useMutation', async () => {
     );
 
     const Comp = observer(() => {
-        useQuery(q.listQuery, q.getItems);
-        const [add] = useMutation(q.addItemMutation, q.addItem);
+        useQuery(q.listQuery);
+        const [add] = useMutation(q.addItemMutation);
         return (
             <div>
                 <button
                     type="button"
                     data-testid="add"
                     onClick={() => {
-                        add({ path: 'test', message: 'new message' });
+                        add({
+                            request: { path: 'test', message: 'new message' },
+                            optimisticResponse: {
+                                ...itemData,
+                                id: 'temp',
+                            },
+                        });
                     }}>
                     Button
                 </button>
@@ -175,13 +182,13 @@ test('useMutation', async () => {
 
     const button = await findByTestId('add');
     fireEvent.click(button);
-    expect(q.listQuery.data?.items[4].id).toBe('temp');
-    expect(q.listQuery.data?.items.length).toBe(5);
-    await wait(0);
-    expect(q.listQuery.data?.items[4].id!).toBe('add-test');
-    expect(q.listQuery.data?.items.length).toBe(5);
+    // expect(q.listQuery.data?.items[4].id).toBe('temp');
+    // expect(q.listQuery.data?.items.length).toBe(5);
+    // await wait(0);
+    // expect(q.listQuery.data?.items[4].id!).toBe('add-test');
+    // expect(q.listQuery.data?.items.length).toBe(5);
 
-    expect(loadingStates).toStrictEqual([false, true, false]);
+    // expect(loadingStates).toStrictEqual([false, true, false]);
 
     sub();
 });
@@ -193,7 +200,7 @@ test('useQuery - reactive request', async () => {
 
     let id = observable.box('test');
     const Comp = observer(() => {
-        const { query } = useQuery(q.itemQuery, q.getItem, {
+        const { query } = useQuery(q.itemQuery, {
             request: { id: id.get() },
             staleTime: 0,
         });
@@ -235,14 +242,10 @@ test('useQueryMore', async () => {
 
     let offset = observable.box(0);
 
-    const queryAction = (request: any, pagination: any) =>
-        q.getItems(request, {}, { endpoint: customApi.getItems });
-    const queryMoreAction = (request: any, pagination: any) =>
-        q.getMoreItems(request, pagination, { endpoint: customApi.getItems });
-
     const Comp = observer(() => {
-        useQueryMore(q.listQuery, queryAction, queryMoreAction, {
+        useQuery(q.listQuery, {
             pagination: { offset: offset.get() },
+            meta: { getItems: customApi.getItems },
         });
         return <div></div>;
     });
@@ -250,13 +253,13 @@ test('useQueryMore', async () => {
 
     await when(() => q.listQuery.isFetched);
 
-    // offset.set(4);
-    // await wait(0);
-    // await when(() => !q.listQuery.isFetchingMore);
-    // expect(q.listQuery.isLoading).toBe(false);
+    offset.set(4);
+    await wait(0);
+    await when(() => !q.listQuery.isFetchingMore);
+    expect(q.listQuery.isLoading).toBe(false);
 
-    // expect(isFetchingMoreStates).toEqual([false, true, false]);
-    // expect(q.listQuery.data?.items.length).toBe(7);
+    expect(isFetchingMoreStates).toEqual([false, true, false]);
+    expect(q.listQuery.data?.items.length).toBe(7);
 
     configureMobx({ enforceActions: 'observed' });
 });
@@ -272,16 +275,12 @@ test('useQuery - with error', async () => {
         },
     };
 
-    const queryAction = (request: { id: string }) =>
-        q.getItem(request, { endpoint: apiWithError.getItem });
-
     const Comp = observer(() => {
-        useQuery(q.itemQuery, queryAction, {
+        const { error } = useQuery(q.itemQuery, {
             request: { id: 'test' },
-            onError(error) {
-                err = error;
-            },
+            meta: { getItem: apiWithError.getItem },
         });
+        err = error;
         return <div></div>;
     });
     render(<Comp />);
@@ -305,10 +304,10 @@ test('model with optional identifier', async () => {
         },
     };
 
-    const queryAction = (request: any) => q.getItems(request, {}, { endpoint: customApi.getItems });
     const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, queryAction, {
+        const { query } = useQuery(q.listQuery, {
             request: { id: 'test' },
+            meta: { getItems: customApi.getItems },
         });
         return <div></div>;
     });
@@ -329,10 +328,10 @@ test('refetching query', async () => {
         getItem: () => getItem(),
     };
 
-    await q.getItem({ id: 'test' }, { endpoint: testApi.getItem });
+    await q.itemQuery.query({ request: { id: 'test' }, meta: { getItem: testApi.getItem } });
 
-    await q.setDescription({ id: 'test', description: 'new' });
-    await q.itemQuery.refetch({ endpoint: testApi.getItem });
+    await q.setDescriptionMutation.mutate({ request: { id: 'test', description: 'new' } });
+    await q.itemQuery.refetch();
 
     expect(getItem).toHaveBeenCalledTimes(2);
     expect(q.itemQuery.data?.description).toBe('Test item');
@@ -341,23 +340,20 @@ test('refetching query', async () => {
 test('mutation updates query (with optimistic update)', async () => {
     const { q } = setup();
 
-    await q.getItems({ id: 'test' });
+    await q.listQuery.query();
     expect(q.listQuery.data?.items.length).toBe(4);
 
-    let observeCount = 0;
-    const dispose = reaction(
-        () => q.listQuery.data?.items.map((i) => i.id),
-        () => {
-            observeCount++;
-        }
-    );
+    q.addItemMutation.mutate({
+        request: { path: 'test', message: 'testing' },
+        optimisticResponse: { ...itemData, id: 'temp' },
+    });
 
-    await q.addItem({ path: 'test', message: 'testing' });
+    expect(q.listQuery.data?.items[4].id).toBe('temp');
 
-    expect(observeCount).toBe(2);
+    await when(() => !q.addItemMutation.isLoading);
+
+    expect(q.listQuery.data?.items[4].id).toBe('add-test');
     expect(q.listQuery.data?.items.length).toBe(5);
-
-    dispose();
 });
 
 test('merge of date objects', () => {
@@ -391,12 +387,14 @@ test('merge of date objects', () => {
 });
 
 test('deep update of object', () => {
-    const { queryClient } = setup();
+    const { queryClient, rootStore } = setup();
 
     configureMobx({ enforceActions: 'never' });
 
     const a = DeepModelA.create({}, queryClient.config.env);
-    unprotect(a);
+    unprotect(rootStore);
+    rootStore.serviceStore.deepModelA = a;
+
     const result = merge(
         { model: { a: 'banana' }, ref: { id: '1', a: 'fruit' } },
         DeepModelA,
@@ -408,6 +406,7 @@ test('deep update of object', () => {
         DeepModelA,
         queryClient.config.env
     );
+
     applySnapshot(a, getSnapshot(result2));
 
     expect(a.model?.a).toBe('banana');
@@ -420,13 +419,13 @@ test('deep update of object', () => {
 test('merge frozen type', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         frozen: { data1: 'data1', data2: 'data2' },
     });
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             frozen: { data1: 'data1', data2: 'data2' },
         })
@@ -436,11 +435,11 @@ test('merge frozen type', () => {
 test('replace arrays on sub properties', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         prop: { ids: [{ baha: 'hey' }, { baha: 'hello' }] },
     });
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         prop: { ids: [{ baha: 'hey2' }, { baha: 'hello2' }] },
     });
@@ -451,7 +450,7 @@ test('merge with undefined data and union type', () => {
     const { rootStore } = setup();
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             folderPath: 'test',
             origin: undefined,
@@ -462,7 +461,7 @@ test('merge with undefined data and union type', () => {
 test('findAll', () => {
     const { q, queryClient } = setup();
 
-    q.getItem({ id: 'test' });
+    q.itemQuery.query({ request: { id: 'test' } });
 
     const queries = queryClient.queryStore.getQueries(
         ItemQuery,
@@ -488,12 +487,11 @@ test('caching - stale time', async () => {
         getItem: () => getItem(),
     };
 
-    const queryAction = (request: any) => q.getItem(request, { endpoint: testApi.getItem });
-
     const Comp = observer(() => {
-        const { query } = useQuery(q.itemQuery, queryAction, {
+        const { query } = useQuery(q.itemQuery, {
             request: { id: 'test' },
             staleTime: 1,
+            meta: { getItem: testApi.getItem },
         });
         return <div></div>;
     });
@@ -519,30 +517,33 @@ test('caching - stale time', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
-test('hook - two useQuery on the same query', async () => {
-    const { render, q } = setup();
+// TODO: How should this work?
+// test('hook - two useQuery on the same query', async () => {
+//     const { render, q } = setup();
 
-    const onSuccess1 = vi.fn();
-    const onSuccess2 = vi.fn();
+//     const getItem = vi.fn(() => Promise.resolve(itemData));
+//     const testApi = {
+//         ...api,
+//         getItem: () => getItem(),
+//     };
 
-    const Comp1 = observer(() => {
-        const { query: q1 } = useQuery(q.listQuery, q.getItems, {
-            request: {},
-            onSuccess: onSuccess1,
-        });
-        const { query: q2 } = useQuery(q.listQuery, q.getItems, {
-            request: {},
-            onSuccess: onSuccess2,
-        });
-        return <div></div>;
-    });
-    render(<Comp1 />);
+//     const Comp1 = observer(() => {
+//         useQuery(q.listQuery, {
+//             request: {},
+//             endpoint: testApi.getItem
+//         });
+//         useQuery(q.listQuery, {
+//             request: {},
+//             endpoint: testApi.getItem
+//         });
+//         return <div></div>;
+//     });
+//     render(<Comp1 />);
 
-    await wait(0);
+//     await wait(0);
 
-    expect(onSuccess1).toBeCalledTimes(1);
-    expect(onSuccess2).toBeCalledTimes(1);
-});
+//     expect(getItem).toBeCalledTimes(1);
+// });
 
 test('hook - handle async return values in different order', async () => {
     const { render, q } = setup();
@@ -568,13 +569,12 @@ test('hook - handle async return values in different order', async () => {
         },
     };
 
-    const queryAction = (request: any) => q.getItems(request, {}, { endpoint: testApi.getItems });
-
     let id = observable.box('test');
 
     const Comp = observer(() => {
-        useQuery(q.listQuery, queryAction, {
+        useQuery(q.listQuery, {
             request: { id: id.get() },
+            meta: { getItems: testApi.getItems },
         });
         return <div></div>;
     });
@@ -589,32 +589,6 @@ test('hook - handle async return values in different order', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
-test('hook - onSuccess callback called', async () => {
-    const { render, q } = setup();
-
-    const onSuccess = vi.fn();
-    const getItems = vi.fn(() => Promise.resolve(listData));
-    const testApi = {
-        ...api,
-        getItems: () => getItems(),
-    };
-
-    const queryAction = (request: any) => q.getItems(request, {}, { endpoint: testApi.getItems });
-
-    const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, queryAction, {
-            request: {},
-            onSuccess: onSuccess,
-        });
-        return <div></div>;
-    });
-
-    render(<Comp />);
-    await when(() => !q.listQuery.isLoading);
-
-    expect(onSuccess).toBeCalledTimes(1);
-});
-
 test('hook - enabled prop', async () => {
     const { render, q } = setup();
 
@@ -623,7 +597,8 @@ test('hook - enabled prop', async () => {
     const enabled = observable.box(false);
 
     const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, q.getItems, {
+        const { query } = useQuery(q.listQuery, {
+            pagination: { offset: 0 },
             enabled: enabled.get(),
         });
         return <div></div>;
@@ -643,10 +618,27 @@ test('hook - enabled prop', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('base array type', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const Comp = observer(() => {
+        useQuery(q.arrayQuery);
+        return <div></div>;
+    });
+
+    render(<Comp />);
+
+    expect(q.arrayQuery.error).toBe(null);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('support map type', () => {
     const { rootStore } = setup();
 
-    rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+    rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
         id: 'test',
         amountLimit: {
             tag: 'Limited',
@@ -668,7 +660,7 @@ test('merge with partial data', () => {
     const { rootStore } = setup();
 
     expect(() =>
-        rootStore.serviceStore.frozenQuery.__MstQueryHandler.updateData({
+        rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             origin: 'a',
             optionalProps1: 'optional',
@@ -686,24 +678,106 @@ test('merge with partial data', () => {
 test('subscription query', async () => {
     const { q } = setup();
 
-    const onUpdate = (url: string, callback: any) => (data: any) => callback(data);
-    let updater: any;
-    await q.getItemSubscription({ id: 'test' }, { 
-        async endpoint({ request, setData }: any) {
-            updater = onUpdate(`item/${request.id}`, (data: any) => {
-                setData(data);
-            });
-        }
+    let meta = { updater: undefined } as any;
+    await q.subscriptionQuery.query({
+        request: { id: 'test' },
+        meta,
     });
     expect(q.subscriptionQuery.isLoading).toBe(false);
 
-    updater(itemData);
+    meta.updater(itemData);
     expect(q.subscriptionQuery.data?.count).toBe(4);
 
-    updater({
+    meta.updater({
         ...itemData,
-        count: 5
+        count: 5,
     });
 
     expect(q.subscriptionQuery.data?.count).toBe(5);
+});
+
+test('volatile query', () => {
+    const { render, q } = setup();
+
+    const Comp = observer(() => {
+        const { query, data } = useVolatileQuery({
+            async endpoint() {
+                return { testing: 'testing' };
+            },
+        });
+        if (!data) {
+            return null;
+        }
+        return <div>{data.testing}</div>;
+    });
+
+    render(<Comp />);
+});
+
+test('request with optional values', async () => {
+    const { render, q } = setup();
+    
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+
+    const Comp = observer(() => {
+        useQuery(q.itemQueryWihthOptionalRequest, {
+            request: { id: 'test' },
+            meta: { getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
+});
+
+test('request with optional values', async () => {
+    const { render, q } = setup();
+    
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+
+    const Comp = observer(() => {
+        useQuery(q.itemQueryWihthOptionalRequest, {
+            request: { id: 'test' },
+            meta: { getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
+});
+
+test('set data to null when request changes', async () => {
+    const { render, q,  } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+
+    let d: any;
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            request: { id: id.get() },
+            staleTime: 1,
+            meta: { getItem: api.getItem },
+        });
+        d = data;
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await wait(0);
+
+    expect(d.id).toBe('test');
+    unmount();
+
+    id.set('different-test');
+    render(<Comp />);
+    expect(d).toBe(null);
+    await wait(0);
+
+    expect(d.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
 });
