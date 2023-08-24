@@ -42,6 +42,7 @@ type BaseOptions = {
 
 type MutateOptions = BaseOptions & {
     optimisticResponse?: any;
+    optimisticUpdate?: () => void;
 };
 
 type QueryOptions = BaseOptions & {
@@ -61,6 +62,12 @@ type QueryHookOptions = {
 type NotifyOptions = {
     onMutate?: boolean;
     onQueryMore?: boolean;
+};
+
+type OnResponseOptions = {
+    shouldUpdate?: boolean;
+    responseRecorder?: IPatchRecorder;
+    updateRecorder?: IPatchRecorder;
 };
 
 export class DisposedError extends Error {}
@@ -253,17 +260,23 @@ export class MstQueryHandler {
     mutate<TData, TResult>(
         options: MutateOptions = {}
     ): Promise<() => QueryReturn<TData, TResult>> {
-        const { optimisticResponse } = options;
-        let recorder: IPatchRecorder;
+        const { optimisticResponse, optimisticUpdate } = options;
+        let responseRecorder: IPatchRecorder;
         if (optimisticResponse) {
-            recorder = recordPatches(getRoot(this.model));
+            responseRecorder = recordPatches(getRoot(this.model));
             this.setData(optimisticResponse);
             this.notify({ onMutate: true }, this.model.data, this.model);
-            recorder.stop();
+            responseRecorder.stop();
+        }
+        let updateRecorder: IPatchRecorder;
+        if (optimisticUpdate) {
+            updateRecorder = recordPatches(getRoot(this.model));
+            optimisticUpdate();
+            updateRecorder.stop();
         }
         return this.run(options).then(
-            (result) => this.onSuccess(result, true, recorder),
-            (err) => this.onError(err, true, recorder)
+            (result) => this.onSuccess(result, { responseRecorder }),
+            (err) => this.onError(err, { responseRecorder, updateRecorder })
         );
     }
 
@@ -273,8 +286,8 @@ export class MstQueryHandler {
         this.isFetchingMore = true;
 
         return this.run(options).then(
-            (result) => this.onSuccess(result, false),
-            (err) => this.onError(err, false)
+            (result) => this.onSuccess(result, { shouldUpdate: false }),
+            (err) => this.onError(err, { shouldUpdate: false })
         );
     }
 
@@ -293,10 +306,11 @@ export class MstQueryHandler {
         );
     }
 
-    onSuccess(result: any, shouldUpdate = true, recorder?: IPatchRecorder) {
+    onSuccess(result: any, options: OnResponseOptions = {}) {
+        const { shouldUpdate = true, responseRecorder } = options;
         return (): { data: any; error: any; result: any } => {
-            if (recorder) {
-                recorder.undo();
+            if (responseRecorder) {
+                responseRecorder.undo();
             }
 
             if (this.isDisposed) {
@@ -343,10 +357,14 @@ export class MstQueryHandler {
         };
     }
 
-    onError(err: any, shouldUpdate = true, recorder?: IPatchRecorder) {
+    onError(err: any, options: OnResponseOptions = {}) {
+        const { shouldUpdate = true, responseRecorder, updateRecorder } = options;
         return (): { data: any; error: any; result: any } => {
-            if (recorder) {
-                recorder.undo();
+            if (responseRecorder) {
+                responseRecorder.undo();
+            }
+            if (updateRecorder) {
+                updateRecorder.undo();
             }
 
             if (this.isDisposed) {

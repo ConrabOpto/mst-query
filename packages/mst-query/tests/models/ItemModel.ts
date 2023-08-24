@@ -21,4 +21,8 @@ export const ItemModel = types.model('ItemModel', {
             by: types.reference(UserModel),
         })
     ),
-});
+}).actions(self => ({
+    setDescription(description: string) {
+        self.description = description;
+    }
+}))
