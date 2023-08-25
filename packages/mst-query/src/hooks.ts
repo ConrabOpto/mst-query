@@ -10,7 +10,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { createQuery, createMutation, VolatileQuery } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
-import { EmptyPagination, EmptyRequest, QueryObserver,  } from './MstQueryHandler';
+import { EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
 import equal from '@wry/equality';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -42,7 +42,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-        
+
     (options as any).request = options.request ?? EmptyRequest;
     (options as any).pagination = options.pagination ?? EmptyPagination;
 
@@ -106,7 +106,11 @@ export function useMutation<T extends Instance<MutationReturnType>>(
         mutation,
     };
 
-    const mutate = <TResult = any>(params: { request: SnapshotIn<T['variables']['request']>; optimisticResponse?: any }) => {
+    const mutate = <TResult = any>(params: {
+        request: SnapshotIn<T['variables']['request']>;
+        optimisticResponse?: any;
+        optimisticUpdate?: () => void;
+    }) => {
         const result = mutation.mutate({ ...params, ...options } as any);
         return result as Promise<{ data: T['data']; error: any; result: TResult }>;
     };
