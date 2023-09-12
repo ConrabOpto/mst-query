@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { test, vi, expect } from 'vitest';
-import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
+import { types, unprotect, applySnapshot, getSnapshot, getRoot, destroy } from 'mobx-state-tree';
 import { useQuery, useMutation } from '../src';
 import { configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
@@ -356,17 +356,16 @@ test('mutation updates query (with optimistic response)', async () => {
     expect(q.listQuery.data?.items.length).toBe(5);
 });
 
-
 test('mutation updates query (with optimistic update)', async () => {
     const { q } = setup();
-        
+
     await q.itemQuery.query({ request: { id: 'test' } });
 
     q.setDescriptionMutation.mutate({
         request: { id: 'test', description: 'new' },
         optimisticUpdate() {
             q.itemQuery.data?.setDescription('new');
-        }
+        },
     });
 });
 
@@ -414,14 +413,14 @@ test('deep update of object', () => {
         DeepModelA,
         queryClient.config.env
     );
-    applySnapshot(a, getSnapshot(result));
+    applySnapshot(a, result);
     const result2 = merge(
         { model: { a: 'banana', b: 'apple' }, ref: { id: '1', a: 'orange' } },
         DeepModelA,
         queryClient.config.env
     );
 
-    applySnapshot(a, getSnapshot(result2));
+    applySnapshot(a, result2);
 
     expect(a.model?.a).toBe('banana');
     expect(a.model?.b).toBe('apple');
@@ -730,7 +729,7 @@ test('volatile query', () => {
 
 test('request with optional values', async () => {
     const { render, q } = setup();
-    
+
     const getItem = vi.fn(() => Promise.resolve(itemData));
 
     const Comp = observer(() => {
@@ -747,7 +746,7 @@ test('request with optional values', async () => {
 
 test('request with optional values', async () => {
     const { render, q } = setup();
-    
+
     const getItem = vi.fn(() => Promise.resolve(itemData));
 
     const Comp = observer(() => {
@@ -763,7 +762,7 @@ test('request with optional values', async () => {
 });
 
 test('set data to null when request changes', async () => {
-    const { render, q,  } = setup();
+    const { render, q } = setup();
 
     configureMobx({ enforceActions: 'never' });
 
@@ -792,6 +791,30 @@ test('set data to null when request changes', async () => {
     await wait(0);
 
     expect(d.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
+test('safeReference', async () => {
+    const { render, q, rootStore } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const Comp = observer(() => {
+        useQuery(q.safeReferenceQuery);
+        return <div></div>;
+    });
+
+    render(<Comp />);
+
+    await wait(0);
+
+    expect(q.safeReferenceQuery.data?.items.length).toBe(4);
+
+    unprotect(getRoot(q));
+    destroy(rootStore.itemStore.models.get('test'));
+
+    expect(q.safeReferenceQuery.data?.items.length).toBe(3);
 
     configureMobx({ enforceActions: 'observed' });
 });

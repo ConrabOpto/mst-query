@@ -18,13 +18,6 @@ export function merge(data: any, typeDef: any, ctx: any, cloneInstances = false)
         return data;
     }
     const instanceOrSnapshot = mergeInner(data, typeDef, ctx, cloneInstances);
-    if (Array.isArray(instanceOrSnapshot) || !instanceOrSnapshot || instanceOrSnapshot instanceof Date || typeof instanceOrSnapshot !== 'object') {
-        return instanceOrSnapshot;
-    }
-    if (!isStateTreeNode(instanceOrSnapshot)) {
-        const modelType = getSubType(typeDef);
-        return modelType.create(instanceOrSnapshot, ctx);
-    } 
     return instanceOrSnapshot;
 }
 
