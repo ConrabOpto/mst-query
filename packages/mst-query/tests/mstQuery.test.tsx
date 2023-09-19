@@ -818,3 +818,30 @@ test('safeReference', async () => {
 
     configureMobx({ enforceActions: 'observed' });
 });
+
+test('change query in useQuery', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let query = observable.box(q.itemQuery);
+
+    const Comp = observer(() => {
+        useQuery(query.get(), {
+            request: { id: 'test' },
+            meta: { getItem: api.getItem },
+        });
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await wait(0);
+    
+    query.set(q.itemQuery2);
+    await wait(0);
+    
+    expect(query.get().data).not.toBe(null);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+

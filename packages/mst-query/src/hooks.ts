@@ -38,7 +38,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     query: T,
     options: QueryOptions<T> = {}
 ) {
-    const [observer] = useState(() => new QueryObserver(query, true));
+    const [observer, setObserver] = useState(() => new QueryObserver(query, true));
 
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
@@ -59,6 +59,12 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     if (!observer.isMounted && !isRequestEqual) {
         query.setData(null);
     }
+
+    useEffect(() => {
+        if (observer.query !== query) {
+            setObserver(new QueryObserver(query, true));
+        }
+    }, [query]);
 
     useEffect(() => {
         observer.setOptions({ ...options, isRequestEqual });
@@ -90,10 +96,16 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     mutation: T,
     options: MutationOptions<T> = {}
 ) {
-    const [observer] = useState(() => new QueryObserver(mutation, false));
+    const [observer, setObserver] = useState(() => new QueryObserver(mutation, false));
 
     const queryClient = useContext(Context) as QueryClient<any>;
     options = { queryClient, ...options } as any;
+
+    useEffect(() => {
+        if (observer.query !== mutation) {
+            setObserver(new QueryObserver(mutation, false));
+        }
+    }, [mutation]);
 
     useEffect(() => {
         observer.setOptions(options);
