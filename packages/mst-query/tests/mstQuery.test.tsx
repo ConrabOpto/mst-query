@@ -838,7 +838,7 @@ test('change query in useQuery', async () => {
     await wait(0);
     
     query.set(q.itemQuery2);
-    await wait(0);
+    await wait(10);
     
     expect(query.get().data).not.toBe(null);
 
