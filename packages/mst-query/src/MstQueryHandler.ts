@@ -184,6 +184,10 @@ export class MstQueryHandler {
 
     run(options: QueryOptions = {}) {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
+                
+        if (!endpoint) {
+            throw new Error('No query endpoint or global endpoint configured');
+        }
 
         this.setVariables({ request: options.request, pagination: options.pagination });
         this.options.meta = options.meta;

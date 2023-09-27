@@ -709,22 +709,32 @@ test('subscription query', async () => {
     expect(q.subscriptionQuery.data?.count).toBe(5);
 });
 
-test('volatile query', () => {
-    const { render, q } = setup();
+test('volatile query', async () => {
+    const { render } = setup();
+    
+    const text = 'testing';
 
+    let renders = 0;
     const Comp = observer(() => {
         const { query, data } = useVolatileQuery({
-            async endpoint() {
-                return { testing: 'testing' };
+            request: { data: text },
+            async endpoint({ request }) {
+                return { testing: request.data };
             },
         });
+        renders++;
         if (!data) {
             return null;
         }
         return <div>{data.testing}</div>;
     });
 
-    render(<Comp />);
+    const { findByText } = render(<Comp />);
+    await wait(0);
+
+    await findByText(text);
+
+    expect(renders).toBe(3);
 });
 
 test('request with optional values', async () => {
