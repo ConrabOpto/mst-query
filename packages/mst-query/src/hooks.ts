@@ -147,31 +147,10 @@ export function useVolatileQuery(
 ) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     const query = useRefQuery(VolatileQuery, queryClient);
-    const [observer] = useState(() => new QueryObserver(query, true));
 
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+    if (!query.__MstQueryHandler.options.endpoint) {
+        query.__MstQueryHandler.options.endpoint = options.endpoint as any;
+    }
 
-    useEffect(() => {
-        if (options.endpoint) {
-            query.__MstQueryHandler.options.endpoint = options.endpoint;
-        }
-
-        observer.setOptions(options);
-
-        return () => {
-            observer.unsubscribe();
-        };
-    }, [options]);
-
-    return {
-        data: query.data as typeof query['data'],
-        error: query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        isFetchingMore: query.isFetchingMore,
-        query: query,
-        refetch: query.refetch,
-        cachedAt: query.__MstQueryHandler.cachedAt,
-    };
+    return useQuery(query, options);
 }
