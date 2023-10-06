@@ -1,13 +1,6 @@
-import {
-    getSnapshot,
-    getType,
-    IAnyType,
-    Instance,
-    isStateTreeNode,
-    SnapshotIn,
-} from 'mobx-state-tree';
+import { getSnapshot, getType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { createQuery, createMutation, VolatileQuery } from './create';
+import { VolatileQuery, MutationReturnType, QueryReturnType } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 import { EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
@@ -19,10 +12,6 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
         ...options,
     });
 }
-
-export type QueryReturnType = ReturnType<typeof createQuery>;
-
-export type MutationReturnType = ReturnType<typeof createMutation>;
 
 type QueryOptions<T extends Instance<QueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
