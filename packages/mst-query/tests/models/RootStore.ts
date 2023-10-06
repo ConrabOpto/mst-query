@@ -1,4 +1,4 @@
-import { IAnyModelType, Instance, types } from 'mobx-state-tree';
+import { destroy, IAnyModelType, Instance, types } from 'mobx-state-tree';
 import { createQuery } from '../../src/create';
 import { onMutate } from '../../src/MstQueryHandler';
 import { createModelStore, createRootStore } from '../../src/stores';
@@ -12,6 +12,7 @@ import { SetDescriptionMutation } from './SetDescriptionMutation';
 import { UserModel } from './UserModel';
 import { ArrayQuery } from './ArrayQuery';
 import { SafeReferenceQuery } from './SafeReferenceQuery';
+import { RemoveItemMutation } from './RemoveItemMutation';
 
 export const DateModel = types.model('DateModel', {
     id: types.identifier,
@@ -71,6 +72,7 @@ const ItemServiceStore = types
         itemQuery: optional(ItemQuery),
         itemQuery2: optional(ItemQuery),
         addItemMutation: optional(AddItemMutation),
+        removeItemMutation: optional(RemoveItemMutation),
         setDescriptionMutation: optional(SetDescriptionMutation),
         listQuery: optional(ListQuery),
         arrayQuery: optional(ArrayQuery),
@@ -80,8 +82,11 @@ const ItemServiceStore = types
     })
     .actions((self) => ({
         afterCreate() {
-            onMutate(self.addItemMutation, (data: any) => {
+            onMutate(self.addItemMutation, (data) => {
                 self.listQuery.data?.addItem(data);
+            });
+            onMutate(self.removeItemMutation, (data) => {
+                destroy(data);
             });
         },
     }));
