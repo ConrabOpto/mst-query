@@ -821,8 +821,9 @@ test('safeReference', async () => {
 
     expect(q.safeReferenceQuery.data?.items.length).toBe(4);
 
-    unprotect(getRoot(q));
-    destroy(rootStore.itemStore.models.get('test'));
+    q.removeItemMutation.mutate({ request: { id: 'test' }});
+
+    await wait(0);
 
     expect(q.safeReferenceQuery.data?.items.length).toBe(3);
 

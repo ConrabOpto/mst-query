@@ -2,16 +2,21 @@ import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
+    destroy,
     getEnv,
     getIdentifier,
     getRoot,
     getSnapshot,
     getType,
+    Instance,
     IPatchRecorder,
     isReferenceType,
     isStateTreeNode,
+    protect,
     recordPatches,
+    unprotect,
 } from 'mobx-state-tree';
+import { MutationReturnType, QueryReturnType } from './create';
 import { merge } from './merge';
 import { QueryClient } from './QueryClient';
 
@@ -119,12 +124,32 @@ function subscribe(target: any, options: any) {
     addDisposer(target, observer.unsubscribe);
 }
 
-export function onMutate(target: any, callback: any) {
-    subscribe(target, { onMutate: callback });
+export function onMutate<T extends Instance<MutationReturnType>>(
+    target: T,
+    callback: (data: T['data'], self: T) => void
+) {
+    subscribe(target, {
+        onMutate: (data: any, self: any) => {
+            const root = getRoot(self);
+            unprotect(root);
+            callback(data, self);
+            protect(root);
+        }
+    });
 }
 
-export function onQueryMore(target: any, callback: any) {
-    subscribe(target, { onQueryMore: callback });
+export function onQueryMore<T extends Instance<QueryReturnType>>(
+    target: T,
+    callback: (data: T['data'], self: T) => void
+) {
+    subscribe(target, {
+        onQueryMore: (data: any, self: any) => {
+            const root = getRoot(self);
+            unprotect(root);
+            callback(data, self);
+            protect(root);
+        }
+    });
 }
 
 export class MstQueryHandler {
@@ -184,7 +209,7 @@ export class MstQueryHandler {
 
     run(options: QueryOptions = {}) {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
-                
+
         if (!endpoint) {
             throw new Error('No query endpoint or global endpoint configured');
         }

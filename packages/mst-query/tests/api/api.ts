@@ -31,4 +31,7 @@ export const api = {
             description: 'add',
         };
     },
+    async removeItem({ request }: any) {
+        return request.id;
+    }
 };
