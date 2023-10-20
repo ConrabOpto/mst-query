@@ -182,13 +182,13 @@ test('useMutation', async () => {
 
     const button = await findByTestId('add');
     fireEvent.click(button);
-    // expect(q.listQuery.data?.items[4].id).toBe('temp');
-    // expect(q.listQuery.data?.items.length).toBe(5);
-    // await wait(0);
-    // expect(q.listQuery.data?.items[4].id!).toBe('add-test');
-    // expect(q.listQuery.data?.items.length).toBe(5);
+    expect(q.listQuery.data?.items[4].id).toBe('temp');
+    expect(q.listQuery.data?.items.length).toBe(5);
+    await wait(0);
+    expect(q.listQuery.data?.items[4].id!).toBe('add-test');
+    expect(q.listQuery.data?.items.length).toBe(5);
 
-    // expect(loadingStates).toStrictEqual([false, true, false]);
+    expect(loadingStates).toStrictEqual([false, true, false]);
 
     sub();
 });
