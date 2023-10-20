@@ -711,7 +711,7 @@ test('subscription query', async () => {
 
 test('volatile query', async () => {
     const { render } = setup();
-    
+
     const text = 'testing';
 
     let renders = 0;
@@ -821,7 +821,7 @@ test('safeReference', async () => {
 
     expect(q.safeReferenceQuery.data?.items.length).toBe(4);
 
-    q.removeItemMutation.mutate({ request: { id: 'test' }});
+    q.removeItemMutation.mutate({ request: { id: 'test' } });
 
     await wait(0);
 
@@ -847,12 +847,44 @@ test('change query in useQuery', async () => {
 
     render(<Comp />);
     await wait(0);
-    
+
     query.set(q.itemQuery2);
     await wait(10);
-    
+
     expect(query.get().data).not.toBe(null);
 
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery should not run when initialData is passed and staleTime is larger than 0', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    const initialData = await api.getItem({ request: { id: id.get() } });
+
+    const loadingStates: boolean[] = [];
+    const Comp = observer(() => {
+        const { query, isLoading } = useQuery(q.itemQuery, {
+            initialData,
+            request: { id: id.get() },
+            staleTime: 10,
+        });
+        loadingStates.push(isLoading);
+        return <div></div>;
+    });
+    render(<Comp />);
+    
+    await wait(0);
+
+    expect(loadingStates).toEqual([false, false]);
+    expect(q.itemQuery.data?.id).toBe('test');
+
+    id.set('different-test');
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('different-test');
+    expect(q.itemQuery.variables.request?.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
