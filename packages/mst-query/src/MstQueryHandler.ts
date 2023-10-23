@@ -104,11 +104,11 @@ export class QueryObserver {
         if (this.isQuery) {
             options.isMounted = this.isMounted;
 
-            this.query.__MstQueryHandler.queryWhenChanged(options);
-        }
+            if (!this.isMounted && !this.query.__MstQueryHandler.isFetched && options.initialData) {
+                this.query.__MstQueryHandler.hydrate(options);
+            }
 
-        if (!this.isMounted && !this.query.__MstQueryHandler.isFetched && options.initialData) {
-            this.query.__MstQueryHandler.setData(options.initialData);
+            this.query.__MstQueryHandler.queryWhenChanged(options);
         }
 
         if (!this.isMounted) {
@@ -134,7 +134,7 @@ export function onMutate<T extends Instance<MutationReturnType>>(
             unprotect(root);
             callback(data, self);
             protect(root);
-        }
+        },
     });
 }
 
@@ -148,7 +148,7 @@ export function onQueryMore<T extends Instance<QueryReturnType>>(
             unprotect(root);
             callback(data, self);
             protect(root);
-        }
+        },
     });
 }
 
@@ -193,6 +193,7 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
+            hydrate: action.bound,
             setData: action.bound,
             setResult: action.bound,
             setError: action.bound,
@@ -254,7 +255,7 @@ export class MstQueryHandler {
         }
 
         if (!options.isMounted) {
-            const notInitialized = !this.isFetched && !this.isLoading;
+            const notInitialized = !this.isFetched && !this.isLoading && !this.model.data;
             if (notInitialized) {
                 return this.model.query(options);
             }
@@ -262,9 +263,11 @@ export class MstQueryHandler {
             const now = new Date();
             const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
             const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
-            if (isStale) {
-                return this.model.query(options);
+            if (!isStale) {
+                return;
             }
+
+            return this.model.query(options);
         }
 
         if (!options.isRequestEqual) {
@@ -510,6 +513,17 @@ export class MstQueryHandler {
         });
 
         return this.model.data;
+    }
+
+    hydrate(options: any) {
+        const { initialData, request, pagination  } = options;
+
+        this.setVariables({ request, pagination });
+        
+        this.isLoading = false;
+
+        this.setData(initialData);
+        this.cachedAt = new Date();
     }
 
     onAfterCreate() {
