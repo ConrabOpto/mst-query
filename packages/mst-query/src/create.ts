@@ -43,6 +43,22 @@ type CreateQueryOptions<
     ) => Promise<any>;
 };
 
+type QueryOptions<TRequest, TPagination> = {
+    meta?: { [key: string]: any };
+    request?: TRequest;
+    pagination?: TPagination;
+};
+
+type ReturnData<TData, TResult> = {
+    data: TData;
+    error: any;
+    result: TResult;
+};
+
+type QueryReturn<TData = any, TRequest = any, TPagination = any> = <TResult = any>(
+    options?: QueryOptions<TRequest, TPagination>
+) => Promise<ReturnData<Instance<TData>, TResult>>;
+
 export function createQuery<
     TData extends IAnyType,
     TRequest extends IAnyType,
@@ -95,26 +111,30 @@ export function createQuery<
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            query: flow(function* <TResult = any>(
-                ...args: Parameters<typeof self.__MstQueryHandler.query>
-            ) {
-                const next = yield self.__MstQueryHandler.query<typeof self['data'], TResult>(
-                    ...args
-                );
+            query: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.query(options);
                 return next();
-            }),
-            queryMore: flow(function* <TResult = any>(
-                ...args: Parameters<typeof self.__MstQueryHandler.queryMore>
-            ) {
-                const next = yield self.__MstQueryHandler.queryMore<typeof self['data'], TResult>(
-                    ...args
-                );
+            }) as QueryReturn<
+                typeof self['data'],
+                SnapshotIn<typeof self['variables']['request']>,
+                SnapshotIn<typeof self['variables']['request']>
+            >,
+            queryMore: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.queryMore(options);
                 return next();
-            }),
-            refetch: flow(function* (...args: Parameters<typeof self.__MstQueryHandler.query>) {
-                const next = yield self.__MstQueryHandler.refetch(...args);
+            }) as QueryReturn<
+                typeof self['data'],
+                SnapshotIn<typeof self['variables']['request']>,
+                SnapshotIn<typeof self['variables']['request']>
+            >,
+            refetch: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.refetch(options);
                 return next();
-            }),
+            }) as QueryReturn<
+                typeof self['data'],
+                SnapshotIn<typeof self['variables']['request']>,
+                SnapshotIn<typeof self['variables']['request']>
+            >,
             setData(data: any) {
                 return self.__MstQueryHandler.setData(data);
             },
@@ -159,17 +179,15 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             __MstQueryHandlerAction(action: any) {
                 return action();
             },
-            mutate: flow(function* (...args) {
-                const next = yield self.__MstQueryHandler.mutate(...args);
+            mutate: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.mutate(options);
                 return next();
-            }) as <TResult = any>(
-                params: {
-                    request: SnapshotIn<TRequest>,
-                    optimisticResponse?: TResult,
-                    optimisticUpdate?: () => void,
-                    meta?: { [key: string]: any }
-                }
-            ) => Promise<{ data: typeof self['data']; error: any; result: TResult }>,
+            }) as <TResult = any>(options: {
+                request: SnapshotIn<TRequest>;
+                optimisticResponse?: TResult;
+                optimisticUpdate?: () => void;
+                meta?: { [key: string]: any };
+            }) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,
         }));
 }
