@@ -2,7 +2,6 @@ import equal from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
-    destroy,
     getEnv,
     getIdentifier,
     getRoot,
@@ -20,12 +19,6 @@ import { MutationReturnType, QueryReturnType } from './create';
 import { merge } from './merge';
 import { QueryClient } from './QueryClient';
 
-type QueryReturn<TData, TResult> = {
-    data: TData;
-    error: any;
-    result: TResult;
-};
-
 export const EmptyRequest = Symbol('EmptyRequest');
 export const EmptyPagination = Symbol('EmptyPagination');
 
@@ -40,20 +33,6 @@ export type EndpointType = (
     query: any
 ) => Promise<any>;
 
-type BaseOptions = {
-    request?: any;
-    meta?: { [key: string]: any };
-};
-
-type MutateOptions = BaseOptions & {
-    optimisticResponse?: any;
-    optimisticUpdate?: () => void;
-};
-
-type QueryOptions = BaseOptions & {
-    request?: any;
-    pagination?: any;
-};
 
 type QueryHookOptions = {
     request?: any;
@@ -208,7 +187,7 @@ export class MstQueryHandler {
         });
     }
 
-    run(options: QueryOptions = {}) {
+    run(options: any = {}) {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
         if (!endpoint) {
@@ -282,16 +261,14 @@ export class MstQueryHandler {
         }
     }
 
-    query<TData, TResult>(options: QueryOptions = {}): Promise<() => QueryReturn<TData, TResult>> {
+    query(options: any = {}): Promise<() => any> {
         return this.run(options).then(
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
     }
 
-    mutate<TData, TResult>(
-        options: MutateOptions = {}
-    ): Promise<() => QueryReturn<TData, TResult>> {
+    mutate(options: any = {}): Promise<() => any> {
         const { optimisticResponse, optimisticUpdate } = options;
         let responseRecorder: IPatchRecorder;
         if (optimisticResponse) {
@@ -312,10 +289,12 @@ export class MstQueryHandler {
         );
     }
 
-    queryMore<TData, TResult>(
-        options: QueryOptions = {}
-    ): Promise<() => QueryReturn<TData, TResult>> {
+    queryMore(options: any = {}): Promise<() => any> {
         this.isFetchingMore = true;
+        
+        options.request = options.request ?? this.model.variables.request;
+        options.pagination = options.pagination ?? this.model.variables.pagination;
+        options.meta = options.meta ?? this.options.meta;
 
         return this.run(options).then(
             (result) => this.onSuccess(result, { shouldUpdate: false }),
@@ -323,9 +302,7 @@ export class MstQueryHandler {
         );
     }
 
-    refetch<TData, TResult>(
-        options: QueryOptions = {}
-    ): Promise<() => QueryReturn<TData, TResult>> {
+    refetch(options: any = {}): Promise<() => any> {
         this.isRefetching = true;
 
         options.request = options.request ?? this.model.variables.request;
@@ -516,10 +493,10 @@ export class MstQueryHandler {
     }
 
     hydrate(options: any) {
-        const { initialData, request, pagination  } = options;
+        const { initialData, request, pagination } = options;
 
         this.setVariables({ request, pagination });
-        
+
         this.isLoading = false;
 
         this.setData(initialData);
