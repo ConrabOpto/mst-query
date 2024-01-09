@@ -117,7 +117,7 @@ export function createQuery<
             }) as QueryReturn<
                 typeof self['data'],
                 SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['request']>
+                SnapshotIn<typeof self['variables']['pagination']>
             >,
             queryMore: flow(function* (options: any) {
                 const next = yield self.__MstQueryHandler.queryMore(options);
@@ -125,7 +125,7 @@ export function createQuery<
             }) as QueryReturn<
                 typeof self['data'],
                 SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['request']>
+                SnapshotIn<typeof self['variables']['pagination']>
             >,
             refetch: flow(function* (options: any) {
                 const next = yield self.__MstQueryHandler.refetch(options);
@@ -133,7 +133,7 @@ export function createQuery<
             }) as QueryReturn<
                 typeof self['data'],
                 SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['request']>
+                SnapshotIn<typeof self['variables']['pagination']>
             >,
             setData(data: any) {
                 return self.__MstQueryHandler.setData(data);
