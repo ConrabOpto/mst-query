@@ -156,8 +156,6 @@ const MesssageView = observer((props) => {
 
 ## Paginated and infinite lists
 
-### `queryMore`
-
 ```tsx
 import { types } from 'mobx-state-tree';
 import { createQuery, RequestModel } from 'mst-query';
@@ -177,8 +175,6 @@ const MessageStore = createModelStore('MessageStore', MessageModel).props({
     messagesQuery: types.optional(MessagesQuery, {}),
 });
 ```
-
-The difference between `query` and `queryMore` is that the latter does not automatically merge it's result to the underlying query. This allows you to easily control how the data is appended to your list. It also means mst-query supports many different forms of pagination (offset-based, cursor-based, page-number-based) out of the box.
 
 ```tsx
 import { useQuery } from 'mst-query';
