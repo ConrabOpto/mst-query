@@ -33,7 +33,6 @@ export type EndpointType = (
     query: any
 ) => Promise<any>;
 
-
 type QueryHookOptions = {
     request?: any;
     staleTime?: number;
@@ -41,6 +40,7 @@ type QueryHookOptions = {
     enabled?: boolean;
     isMounted?: any;
     isRequestEqual?: boolean;
+    refetchOnMount?: 'always' | 'never' | 'if-stale';
 };
 
 type NotifyOptions = {
@@ -239,6 +239,14 @@ export class MstQueryHandler {
                 return this.model.query(options);
             }
 
+            if (options.refetchOnMount === 'always') {
+                return this.model.refetch(options);
+            }
+
+            if (options.refetchOnMount === 'never') {
+                return;
+            }
+
             const now = new Date();
             const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
             const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
@@ -291,7 +299,7 @@ export class MstQueryHandler {
 
     queryMore(options: any = {}): Promise<() => any> {
         this.isFetchingMore = true;
-        
+
         options.request = options.request ?? this.model.variables.request;
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;

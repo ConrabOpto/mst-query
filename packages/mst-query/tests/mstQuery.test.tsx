@@ -875,7 +875,7 @@ test('useQuery should not run when initialData is passed and staleTime is larger
         return <div></div>;
     });
     render(<Comp />);
-    
+
     await wait(0);
 
     expect(loadingStates).toEqual([false, false]);
@@ -885,6 +885,47 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     await wait(0);
     expect(q.itemQuery.data?.id).toBe('different-test');
     expect(q.itemQuery.variables.request?.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
+test('refetchOnMount & refetchOnRequestChanged', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem: () => getItem(),
+    };
+
+    let id = observable.box('test');
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            request: { id: id.get() },
+            refetchOnMount: 'always',
+            refetchOnRequestChanged: 'never',
+            staleTime: 5000,
+            meta: { getItem: testApi.getItem },
+        });
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await wait(0);
+    unmount();
+
+    render(<Comp />);
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(2);
+        
+    id.set('different-test');
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(2);
 
     configureMobx({ enforceActions: 'observed' });
 });

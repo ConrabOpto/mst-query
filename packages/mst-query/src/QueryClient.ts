@@ -14,6 +14,8 @@ const defaultConfig = {
     env: {},
     queryOptions: {
         staleTime: 0,
+        refetchOnMount: 'if-stale',
+        refetchOnRequestChanged: 'always',
     },
 };
 
