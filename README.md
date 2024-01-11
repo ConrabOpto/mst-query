@@ -139,8 +139,6 @@ const MesssageView = observer((props) => {
         data: snapshot,
         request: { id },
         enabled: !!id,
-        onFetched(data, self) {},
-        onSuccess(data, self) {},
         onError(data, self) {},
         staleTime: 0,
     });
