@@ -17,6 +17,8 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
     pagination?: SnapshotIn<T['variables']['pagination']>;
     onQueryMore?: (data: T['data'], self: T) => void;
+    refetchOnMount?: 'always' | 'never' | 'if-stale';
+    refetchOnRequestChanged?: 'always' | 'never';
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
@@ -35,15 +37,17 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     (options as any).request = options.request ?? EmptyRequest;
     (options as any).pagination = options.pagination ?? EmptyPagination;
 
-    let isRequestEqual: boolean;
-    if (isStateTreeNode(query.variables.request)) {
-        const requestType = getType(query.variables.request);
-        isRequestEqual = equal(
-            getSnapshot(requestType.create(options.request)),
-            getSnapshot(query.variables.request)
-        );
-    } else {
-        isRequestEqual = equal(options.request, query.variables.request);
+    let isRequestEqual: boolean = true;
+    if (options.enabled && options.refetchOnRequestChanged !== 'never') {
+        if (isStateTreeNode(query.variables.request)) {
+            const requestType = getType(query.variables.request);
+            isRequestEqual = equal(
+                getSnapshot(requestType.create(options.request)),
+                getSnapshot(query.variables.request)
+            );
+        } else {
+            isRequestEqual = equal(options.request, query.variables.request);
+        }
     }
     if (!observer.isMounted && !isRequestEqual) {
         query.setData(null);
