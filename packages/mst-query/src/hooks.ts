@@ -18,7 +18,7 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
     pagination?: SnapshotIn<T['variables']['pagination']>;
     onQueryMore?: (data: T['data'], self: T) => void;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
-    refetchOnRequestChanged?: 'always' | 'never';
+    refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
@@ -38,7 +38,9 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     (options as any).pagination = options.pagination ?? EmptyPagination;
 
     let isRequestEqual: boolean = true;
-    if (options.enabled && options.refetchOnRequestChanged !== 'never') {
+    const refetchRequestOnChanged =
+        options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
+    if (options.enabled && refetchRequestOnChanged) {
         if (isStateTreeNode(query.variables.request)) {
             const requestType = getType(query.variables.request);
             isRequestEqual = equal(
