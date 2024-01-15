@@ -906,7 +906,7 @@ test('refetchOnMount & refetchOnRequestChanged', async () => {
         useQuery(q.itemQuery, {
             request: { id: id.get() },
             refetchOnMount: 'always',
-            refetchOnRequestChanged: 'never',
+            refetchOnChanged: 'never',
             staleTime: 5000,
             meta: { getItem: testApi.getItem },
         });

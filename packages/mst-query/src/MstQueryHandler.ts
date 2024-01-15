@@ -41,6 +41,7 @@ type QueryHookOptions = {
     isMounted?: any;
     isRequestEqual?: boolean;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
+    refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
 };
 
 type NotifyOptions = {
@@ -261,7 +262,13 @@ export class MstQueryHandler {
             return this.model.query(options);
         }
 
-        if (options.pagination !== EmptyPagination && this.isFetched) {
+        const refetchPaginationOnChanged =
+            options.refetchOnChanged === 'all' || options.refetchOnChanged === 'pagination';
+        if (
+            refetchPaginationOnChanged &&
+            options.pagination !== EmptyPagination &&
+            this.isFetched
+        ) {
             const isPaginationEqual = equal(options.pagination, this.model.variables.pagination);
             if (!isPaginationEqual) {
                 return this.model.queryMore(options);
