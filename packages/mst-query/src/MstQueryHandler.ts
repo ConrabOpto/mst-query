@@ -105,7 +105,9 @@ function subscribe(target: any, options: any) {
     const observer = new QueryObserver(target, false);
     observer.setOptions(options);
     observer.subscribe();
-    addDisposer(target, observer.unsubscribe);
+    addDisposer(target, () => {
+        observer.unsubscribe();
+    });
 }
 
 export function onMutate<T extends Instance<MutationReturnType>>(
