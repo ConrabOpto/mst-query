@@ -69,11 +69,15 @@ export class QueryObserver {
     }
 
     subscribe() {
-        this.query.__MstQueryHandler.addQueryObserver(this);
+        if (this.query) {
+            this.query.__MstQueryHandler.addQueryObserver(this);
+        }
     }
 
     unsubscribe() {
-        this.query.__MstQueryHandler.removeQueryObserver(this);
+        if (this.query) {
+            this.query.__MstQueryHandler.removeQueryObserver(this);
+        }
     }
 
     setOptions(options: any) {
