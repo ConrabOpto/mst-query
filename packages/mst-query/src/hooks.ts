@@ -115,7 +115,6 @@ export function useMutation<T extends Instance<MutationReturnType>>(
 
     const mutate = <TResult = any>(params: {
         request: SnapshotIn<T['variables']['request']>;
-        optimisticResponse?: any;
         optimisticUpdate?: () => void;
     }) => {
         const result = mutation.mutate({ ...params, ...options } as any);

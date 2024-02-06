@@ -184,7 +184,6 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 return next();
             }) as <TResult = any>(options: {
                 request: SnapshotIn<TRequest>;
-                optimisticResponse?: TResult;
                 optimisticUpdate?: () => void;
                 meta?: { [key: string]: any };
             }) => Promise<ReturnData<Instance<TData>, TResult>>,

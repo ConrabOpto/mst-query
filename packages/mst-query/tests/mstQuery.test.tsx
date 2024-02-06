@@ -141,7 +141,7 @@ test('useQuery', async () => {
 });
 
 test('useMutation', async () => {
-    const { render, q } = setup();
+    const { render, q, rootStore } = setup();
 
     let loadingStates: boolean[] = [false];
 
@@ -163,9 +163,9 @@ test('useMutation', async () => {
                     onClick={() => {
                         add({
                             request: { path: 'test', message: 'new message' },
-                            optimisticResponse: {
-                                ...itemData,
-                                id: 'temp',
+                            optimisticUpdate() {
+                                const item = rootStore.itemStore.merge({ ...itemData, id: 'temp' });
+                                q.listQuery.data?.addItem(item);
                             },
                         });
                     }}>
@@ -337,15 +337,18 @@ test('refetching query', async () => {
     expect(q.itemQuery.data?.description).toBe('Test item');
 });
 
-test('mutation updates query (with optimistic response)', async () => {
-    const { q } = setup();
+test('mutation updates query (with optimistic update)', async () => {
+    const { q, rootStore } = setup();
 
     await q.listQuery.query();
     expect(q.listQuery.data?.items.length).toBe(4);
 
     q.addItemMutation.mutate({
         request: { path: 'test', message: 'testing' },
-        optimisticResponse: { ...itemData, id: 'temp' },
+        optimisticUpdate() {
+            const item = rootStore.itemStore.merge({ ...itemData, id: 'temp' });
+            q.listQuery.data?.addItem(item);
+        },
     });
 
     expect(q.listQuery.data?.items[4].id).toBe('temp');
@@ -354,19 +357,6 @@ test('mutation updates query (with optimistic response)', async () => {
 
     expect(q.listQuery.data?.items[4].id).toBe('add-test');
     expect(q.listQuery.data?.items.length).toBe(5);
-});
-
-test('mutation updates query (with optimistic update)', async () => {
-    const { q } = setup();
-
-    await q.itemQuery.query({ request: { id: 'test' } });
-
-    q.setDescriptionMutation.mutate({
-        request: { id: 'test', description: 'new' },
-        optimisticUpdate() {
-            q.itemQuery.data?.setDescription('new');
-        },
-    });
 });
 
 test('merge of date objects', () => {
@@ -921,7 +911,7 @@ test('refetchOnMount & refetchOnRequestChanged', async () => {
     await wait(0);
 
     expect(getItem).toHaveBeenCalledTimes(2);
-        
+
     id.set('different-test');
     await wait(0);
 
