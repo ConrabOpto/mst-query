@@ -135,6 +135,9 @@ export function createQuery<
                 SnapshotIn<typeof self['variables']['request']>,
                 SnapshotIn<typeof self['variables']['pagination']>
             >,
+            invalidate() {
+                self.__MstQueryHandler.invalidate();
+            },
             setData(data: any) {
                 return self.__MstQueryHandler.setData(data);
             },

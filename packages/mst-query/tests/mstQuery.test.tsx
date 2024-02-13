@@ -896,7 +896,7 @@ test('refetchOnMount & refetchOnRequestChanged', async () => {
         useQuery(q.itemQuery, {
             request: { id: id.get() },
             refetchOnMount: 'always',
-            refetchOnChanged: 'never',
+            refetchOnChanged: 'none',
             staleTime: 5000,
             meta: { getItem: testApi.getItem },
         });
@@ -916,6 +916,45 @@ test('refetchOnMount & refetchOnRequestChanged', async () => {
     await wait(0);
 
     expect(getItem).toHaveBeenCalledTimes(2);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
+test('invalidate', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem: () => getItem(),
+    };
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            request: { id: id.get() },
+            staleTime: 10,
+            meta: { getItem: testApi.getItem },
+        });
+        return <div></div>;
+    });
+
+    const { unmount } = render(<Comp />);
+    await wait(0);
+    unmount();
+
+    q.itemQuery.invalidate();
+    expect(getItem).toHaveBeenCalledTimes(1);
+
+    render(<Comp />);
+    await wait(0);
+    expect(getItem).toHaveBeenCalledTimes(2);
+
+    q.itemQuery.invalidate();
+    expect(getItem).toHaveBeenCalledTimes(3);
 
     configureMobx({ enforceActions: 'observed' });
 });

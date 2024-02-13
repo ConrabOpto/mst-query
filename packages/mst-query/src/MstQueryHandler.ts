@@ -240,17 +240,17 @@ export class MstQueryHandler {
         }
 
         if (!options.isMounted) {
-            const notInitialized = !this.isFetched && !this.isLoading && !this.model.data;
+            const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
             if (notInitialized) {
                 return this.model.query(options);
             }
 
-            if (options.refetchOnMount === 'always') {
-                return this.model.refetch(options);
-            }
-
             if (options.refetchOnMount === 'never') {
                 return;
+            }
+                                    
+            if (options.refetchOnMount === 'always') {
+                return this.model.refetch(options);
             }
 
             const now = new Date();
@@ -259,8 +259,8 @@ export class MstQueryHandler {
             if (!isStale) {
                 return;
             }
-
-            return this.model.query(options);
+            
+            return this.model.refetch(options);
         }
 
         if (!options.isRequestEqual) {
@@ -326,6 +326,18 @@ export class MstQueryHandler {
             (result) => this.onSuccess(result),
             (err) => this.onError(err)
         );
+    }
+    
+    invalidate() {
+        this.cachedAt = undefined;
+        
+        if (this.isFetched) {
+            this.isFetched = false;
+        }
+
+        if (this.queryObservers.length > 0) {
+            this.refetch();
+        } 
     }
 
     onSuccess(result: any, options: OnResponseOptions = {}) {
