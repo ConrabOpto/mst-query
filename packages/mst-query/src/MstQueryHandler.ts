@@ -328,7 +328,12 @@ export class MstQueryHandler {
         );
     }
     
-    invalidate() {
+    invalidate() {        
+        const refetchQuery = async () => {
+            const next = await this.refetch();
+            next();
+        };
+
         this.cachedAt = undefined;
         
         if (this.isFetched) {
@@ -336,7 +341,7 @@ export class MstQueryHandler {
         }
 
         if (this.queryObservers.length > 0) {
-            this.refetch();
+            refetchQuery();
         } 
     }
 

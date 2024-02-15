@@ -953,8 +953,14 @@ test('invalidate', async () => {
     await wait(0);
     expect(getItem).toHaveBeenCalledTimes(2);
 
+    q.itemQuery.data?.setDescription('new description');
+
     q.itemQuery.invalidate();
     expect(getItem).toHaveBeenCalledTimes(3);
+
+    await wait(0);
+
+    expect(q.itemQuery.data?.description).toBe('Test item');
 
     configureMobx({ enforceActions: 'observed' });
 });
