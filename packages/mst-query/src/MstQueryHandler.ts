@@ -28,7 +28,7 @@ export type EndpointType = (
         pagination?: any;
         meta: { [key: string]: any };
         signal: AbortSignal;
-        setData: (data: any) => void;
+        setData: (data: any) => any;
     },
     query: any
 ) => Promise<any>;
