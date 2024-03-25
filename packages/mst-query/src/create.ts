@@ -19,7 +19,7 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
         options: {
             request: Instance<TRequest>;
             meta: { [key: string]: any };
-            setData: (data: any) => void;
+            setData: (data: any) => any;
         },
         query: any
     ) => Promise<any>;
@@ -37,7 +37,7 @@ type CreateQueryOptions<
             pagination: Instance<TPagination>;
             meta: { [key: string]: any };
             signal: AbortSignal;
-            setData: (data: any) => void;
+            setData: (data: any) => any;
         },
         query: any
     ) => Promise<any>;
