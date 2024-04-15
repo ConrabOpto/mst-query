@@ -1,6 +1,17 @@
 import { destroy, IAnyModelType, Instance } from 'mobx-state-tree';
 import { QueryStore } from './QueryStore';
 
+export type EndpointType = (
+    options: {
+        request?: any;
+        pagination?: any;
+        meta: { [key: string]: any };
+        signal: AbortSignal;
+        setData: (data: any) => any;
+    },
+    query: any
+) => Promise<any>;
+
 type QueryClientConfig<T extends IAnyModelType> = {
     env?: any;
     queryOptions?: {

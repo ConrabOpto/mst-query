@@ -17,21 +17,10 @@ import {
 } from 'mobx-state-tree';
 import { MutationReturnType, QueryReturnType } from './create';
 import { merge } from './merge';
-import { QueryClient } from './QueryClient';
+import { QueryClient, EndpointType } from './QueryClient';
 
 export const EmptyRequest = Symbol('EmptyRequest');
 export const EmptyPagination = Symbol('EmptyPagination');
-
-export type EndpointType = (
-    options: {
-        request?: any;
-        pagination?: any;
-        meta: { [key: string]: any };
-        signal: AbortSignal;
-        setData: (data: any) => any;
-    },
-    query: any
-) => Promise<any>;
 
 type QueryHookOptions = {
     request?: any;
@@ -248,7 +237,7 @@ export class MstQueryHandler {
             if (options.refetchOnMount === 'never') {
                 return;
             }
-                                    
+
             if (options.refetchOnMount === 'always') {
                 return this.model.refetch(options);
             }
@@ -259,7 +248,7 @@ export class MstQueryHandler {
             if (!isStale) {
                 return;
             }
-            
+
             return this.model.refetch(options);
         }
 
@@ -327,22 +316,22 @@ export class MstQueryHandler {
             (err) => this.onError(err)
         );
     }
-    
-    invalidate() {        
+
+    invalidate() {
         const refetchQuery = async () => {
             const next = await this.refetch();
             next();
         };
 
         this.cachedAt = undefined;
-        
+
         if (this.isFetched) {
             this.isFetched = false;
         }
 
         if (this.queryObservers.length > 0) {
             refetchQuery();
-        } 
+        }
     }
 
     onSuccess(result: any, options: OnResponseOptions = {}) {
