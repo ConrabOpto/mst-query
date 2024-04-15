@@ -83,6 +83,8 @@ export function createQuery<
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            isQuery: true,
+            isMutation: false,
         }))
         .views((self) => ({
             get isLoading() {
@@ -166,6 +168,8 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            isQuery: false,
+            isMutation: true,
         }))
         .views((self) => ({
             get isLoading() {

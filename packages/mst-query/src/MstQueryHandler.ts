@@ -387,8 +387,7 @@ export class MstQueryHandler {
                 this.isFetched = true;
             }
 
-            // TODO: make nicer brand check
-            if (this.model.mutate) {
+            if (this.model.isMutation) {
                 this.notify({ onMutate: true }, data, this.model);
             }
 
