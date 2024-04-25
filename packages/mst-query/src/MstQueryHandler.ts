@@ -318,18 +318,20 @@ export class MstQueryHandler {
     }
 
     invalidate() {
+        const isFetched = this.isFetched;
+
         const refetchQuery = async () => {
             const next = await this.refetch();
             next();
         };
 
         this.cachedAt = undefined;
-
-        if (this.isFetched) {
+        
+        if (isFetched) {
             this.isFetched = false;
         }
 
-        if (this.queryObservers.length > 0) {
+        if (isFetched && this.queryObservers.length > 0) {
             refetchQuery();
         }
     }
