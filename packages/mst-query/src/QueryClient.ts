@@ -9,14 +9,14 @@ export type EndpointType = (
         signal: AbortSignal;
         setData: (data: any) => any;
     },
-    query: any
+    model: any
 ) => Promise<any>;
 
 type QueryClientConfig<T extends IAnyModelType> = {
     env?: any;
     queryOptions?: {
         staleTime?: number;
-        endpoint?: (args: { request: any, pagination: any, meta: any, signal: AbortSignal }) => Promise<any>;
+        endpoint?: EndpointType;
     };
     RootStore: T;
 };
