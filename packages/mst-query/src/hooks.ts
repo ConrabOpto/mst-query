@@ -1,10 +1,11 @@
 import { getSnapshot, getType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { VolatileQuery, MutationReturnType, QueryReturnType } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 import { EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
 import equal from '@wry/equality';
+import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
     return Object.assign({ queryClient }, (queryClient.config as any)[key], {
@@ -113,13 +114,15 @@ export function useMutation<T extends Instance<MutationReturnType>>(
         mutation,
     };
 
-    const mutate = <TResult = any>(params: {
-        request: SnapshotIn<T['variables']['request']>;
-        optimisticUpdate?: () => void;
-    }) => {
-        const result = mutation.mutate({ ...params, ...options } as any);
-        return result as Promise<{ data: T['data']; error: any; result: TResult }>;
-    };
+    const mutate = useEvent(
+        <TResult = any>(params: {
+            request: SnapshotIn<T['variables']['request']>;
+            optimisticUpdate?: () => void;
+        }) => {
+            const result = mutation.mutate({ ...params, ...options } as any);
+            return result as Promise<{ data: T['data']; error: any; result: TResult }>;
+        }
+    );
 
     return [mutate, result] as [typeof mutate, typeof result];
 }

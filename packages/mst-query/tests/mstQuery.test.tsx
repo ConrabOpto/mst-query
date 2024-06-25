@@ -964,3 +964,26 @@ test('invalidate', async () => {
 
     configureMobx({ enforceActions: 'observed' });
 });
+
+test('stable identity for hook callbacks', async () => {
+    const { render, q } = setup();
+
+    const runSideEffect = vi.fn();
+
+    const Comp = observer(() => {
+        const [add] = useMutation(q.addItemMutation);
+        React.useEffect(() => {
+            runSideEffect();
+        }, [add]);
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await wait(0);
+
+    q.addItemMutation.mutate({ request: { message: 'test', path: 'test' } });
+
+    await wait(0);
+
+    expect(runSideEffect).toHaveBeenCalledTimes(1);
+});
