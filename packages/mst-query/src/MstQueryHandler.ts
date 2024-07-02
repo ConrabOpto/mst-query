@@ -148,6 +148,7 @@ export class MstQueryHandler {
     abortController?: AbortController;
 
     cachedAt?: Date;
+    markedAsStale = false;
 
     isDisposed = false;
 
@@ -242,10 +243,7 @@ export class MstQueryHandler {
                 return this.model.refetch(options);
             }
 
-            const now = new Date();
-            const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
-            const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
-            if (!isStale) {
+            if (!this.isStale(options)) {
                 return;
             }
 
@@ -318,15 +316,9 @@ export class MstQueryHandler {
     }
 
     invalidate() {
-        const isFetched = this.isFetched;
+        this.markedAsStale = true;
 
-        this.cachedAt = undefined;
-        
-        if (isFetched) {
-            this.isFetched = false;
-        }
-
-        if (isFetched && this.queryObservers.length > 0) {
+        if (this.isFetched && this.queryObservers.length > 0) {
             this.model.refetch();
         }
     }
@@ -340,6 +332,10 @@ export class MstQueryHandler {
 
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
+            }
+
+            if (this.markedAsStale) {
+                this.markedAsStale = false;
             }
 
             this.setResult(result);
@@ -513,6 +509,13 @@ export class MstQueryHandler {
 
         this.setData(initialData);
         this.cachedAt = new Date();
+    }
+
+    isStale(options: any) {        
+        const now = new Date();
+        const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
+        const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
+        return this.markedAsStale || isStale;
     }
 
     onAfterCreate() {
