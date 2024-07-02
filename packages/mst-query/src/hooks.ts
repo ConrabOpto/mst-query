@@ -80,6 +80,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         query: query,
         refetch: query.refetch,
         cachedAt: query.__MstQueryHandler.cachedAt,
+        isStale: query.__MstQueryHandler.isStale(options),
     };
 }
 
