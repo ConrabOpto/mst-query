@@ -987,3 +987,11 @@ test('stable identity for hook callbacks', async () => {
 
     expect(runSideEffect).toHaveBeenCalledTimes(1);
 });
+
+test('imperative api - basic error', async () => {
+    const { q } = setup();
+    
+    const { error } = await q.errorMutation.mutate({ request: {} });
+
+    expect(error.message).toBe('Server side error');
+});

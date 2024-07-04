@@ -13,6 +13,7 @@ import { UserModel } from './UserModel';
 import { ArrayQuery } from './ArrayQuery';
 import { SafeReferenceQuery } from './SafeReferenceQuery';
 import { RemoveItemMutation } from './RemoveItemMutation';
+import { ErrorMutation } from './ErrorMutation';
 
 export const DateModel = types.model('DateModel', {
     id: types.identifier,
@@ -78,7 +79,8 @@ const ItemServiceStore = types
         arrayQuery: optional(ArrayQuery),
         safeReferenceQuery: optional(SafeReferenceQuery),
         subscriptionQuery: optional(SubscriptionItemQuery),
-        itemQueryWihthOptionalRequest: optional(ItemQueryWithOptionalRequest)
+        itemQueryWihthOptionalRequest: optional(ItemQueryWithOptionalRequest),
+        errorMutation: optional(ErrorMutation),
     })
     .actions((self) => ({
         afterCreate() {
