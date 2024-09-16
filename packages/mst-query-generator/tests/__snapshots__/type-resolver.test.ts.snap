@@ -1,0 +1,315 @@
+// Vitest Snapshot v1
+
+exports[`type resolver > should match snapshot 1`] = `
+Map {
+  "Owner" => InterfaceOrUnionTypeResult {
+    "fields": [
+      Field {
+        "args": [],
+        "deprecationReason": null,
+        "description": "",
+        "isDeprecated": false,
+        "name": "id",
+        "originalName": "id",
+        "type": Type {
+          "kind": Kind {
+            "value": "NON_NULL",
+          },
+          "name": null,
+          "ofType": Type {
+            "kind": Kind {
+              "value": "SCALAR",
+            },
+            "name": "ID",
+            "ofType": null,
+          },
+        },
+      },
+      Field {
+        "args": [],
+        "deprecationReason": null,
+        "description": "",
+        "isDeprecated": false,
+        "name": "name",
+        "originalName": "name",
+        "type": Type {
+          "kind": Kind {
+            "value": "NON_NULL",
+          },
+          "name": null,
+          "ofType": Type {
+            "kind": Kind {
+              "value": "SCALAR",
+            },
+            "name": "String",
+            "ofType": null,
+          },
+        },
+      },
+    ],
+    "kind": Kind {
+      "value": "INTERFACE",
+    },
+    "name": "Owner",
+    "rootTypes": [
+      RootType {
+        "description": null,
+        "enumValues": [],
+        "fields": [
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "id",
+            "originalName": "id",
+            "type": Type {
+              "kind": Kind {
+                "value": "NON_NULL",
+              },
+              "name": null,
+              "ofType": Type {
+                "kind": Kind {
+                  "value": "SCALAR",
+                },
+                "name": "ID",
+                "ofType": null,
+              },
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "name",
+            "originalName": "name",
+            "type": Type {
+              "kind": Kind {
+                "value": "NON_NULL",
+              },
+              "name": null,
+              "ofType": Type {
+                "kind": Kind {
+                  "value": "SCALAR",
+                },
+                "name": "String",
+                "ofType": null,
+              },
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "avatar",
+            "originalName": "avatar",
+            "type": Type {
+              "kind": Kind {
+                "value": "NON_NULL",
+              },
+              "name": null,
+              "ofType": Type {
+                "kind": Kind {
+                  "value": "SCALAR",
+                },
+                "name": "String",
+                "ofType": null,
+              },
+            },
+          },
+        ],
+        "inputFields": [],
+        "interfaces": [
+          Type {
+            "kind": Kind {
+              "value": "INTERFACE",
+            },
+            "name": "Owner",
+            "ofType": null,
+          },
+        ],
+        "kind": Kind {
+          "value": "OBJECT",
+        },
+        "name": "User",
+        "originalName": "User",
+        "possibleTypes": [],
+      },
+    ],
+  },
+  "Todo" => InterfaceOrUnionTypeResult {
+    "fields": [],
+    "kind": Kind {
+      "value": "UNION",
+    },
+    "name": "Todo",
+    "rootTypes": [
+      RootType {
+        "description": null,
+        "enumValues": [],
+        "fields": [
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "id",
+            "originalName": "id",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "ID",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "text",
+            "originalName": "text",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "String",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "complete",
+            "originalName": "complete",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "Boolean",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "owner",
+            "originalName": "owner",
+            "type": Type {
+              "kind": Kind {
+                "value": "INTERFACE",
+              },
+              "name": "Owner",
+              "ofType": null,
+            },
+          },
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": Kind {
+          "value": "OBJECT",
+        },
+        "name": "BasicTodo",
+        "originalName": "BasicTodo",
+        "possibleTypes": [],
+      },
+      RootType {
+        "description": null,
+        "enumValues": [],
+        "fields": [
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "id",
+            "originalName": "id",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "ID",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "label",
+            "originalName": "label",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "String",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "color",
+            "originalName": "color",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "String",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "complete",
+            "originalName": "complete",
+            "type": Type {
+              "kind": Kind {
+                "value": "SCALAR",
+              },
+              "name": "Boolean",
+              "ofType": null,
+            },
+          },
+          Field {
+            "args": [],
+            "deprecationReason": null,
+            "description": "",
+            "isDeprecated": false,
+            "name": "owner",
+            "originalName": "owner",
+            "type": Type {
+              "kind": Kind {
+                "value": "INTERFACE",
+              },
+              "name": "Owner",
+              "ofType": null,
+            },
+          },
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": Kind {
+          "value": "OBJECT",
+        },
+        "name": "FancyTodo",
+        "originalName": "FancyTodo",
+        "possibleTypes": [],
+      },
+    ],
+  },
+}
+`;

@@ -1,6 +1,6 @@
 import { Field } from '../src/models';
 import { FieldHandlerProps, HandlerOptions } from '../src/types';
-import { fieldHandler } from '../src/fieldHandler';
+import { fieldHandler } from '../src/field-handler';
 import { test, expect, describe } from 'vitest';
 
 describe('field handler', () => {

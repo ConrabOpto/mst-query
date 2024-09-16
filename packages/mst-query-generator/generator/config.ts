@@ -19,6 +19,7 @@ const parseArgs = () => {
         '--models': Boolean,
         '--index': Boolean,
         '--fieldOverrides': String,
+        '--withTypeRefsPath': String,
     };
 
     try {
@@ -52,6 +53,7 @@ export const parseConfigOrDefault = (args: arg.Result<arg.Spec>): Config => {
         index: args['--index'] || false,
         fieldOverrides: args['--fieldOverrides'] || '',
         excludes: args['--excludes'] || '',
+        withTypeRefsPath: args['--withTypeRefsPath'] || '',
     };
     const defaultConfig = new Config(configArgs);
 

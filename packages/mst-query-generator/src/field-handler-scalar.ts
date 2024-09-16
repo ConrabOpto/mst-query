@@ -1,6 +1,8 @@
-import { GeneratedField } from '../models';
-import { FieldHandlerProps, IHandleField, HandlerOptions, FieldOverrideType } from '../types';
-import { primitiveFieldNames, requiredTypes } from '../utils';
+import { isPrimitive } from 'util';
+import { GeneratedField } from './models';
+import { FieldOverride } from './models/FieldOverride';
+import { FieldHandlerProps, IHandleField, HandlerOptions } from './types';
+import { primitiveFieldNames, requiredTypes } from './utils';
 
 export const handleScalarField: IHandleField = (
     props: FieldHandlerProps,
@@ -12,8 +14,15 @@ export const handleScalarField: IHandleField = (
         const primitiveType = getFieldTypeOrDefault(fieldType.name, override);
         const isRequired = requiredTypes.includes(primitiveType);
 
+        let value = `types.${primitiveType}`;
+
+        if (override && override.typeImportPath) {
+            value = primitiveType;
+            options.addImport?.(override.typeImportPath, override.newFieldType);
+        }
+
         return new GeneratedField({
-            value: `types.${primitiveType}`,
+            value,
             isRequired,
             isNullable,
             isNested,
@@ -24,7 +33,7 @@ export const handleScalarField: IHandleField = (
 
 const getFieldTypeOrDefault = (
     fieldTypeName: string | null | undefined,
-    override: FieldOverrideType | undefined
+    override: FieldOverride | undefined
 ) => {
     if (!fieldTypeName) {
         return 'frozen()';
@@ -33,5 +42,6 @@ const getFieldTypeOrDefault = (
     if (override) {
         return override.newFieldType;
     }
+
     return primitiveFieldNames[fieldTypeName] ?? 'frozen()';
 };

@@ -1,7 +1,10 @@
 import { RootType, GeneratedFile } from './models';
 import { IHandleType, HandlerOptions, TypeHandlerProps } from './types';
-import { fieldHandler as defaultFieldHandler } from './fieldHandler';
-import { handleEnumType, handleInterfaceOrUnionType, handleObjectType } from './typeHandlers';
+import { handleEnumType } from './type-handler-enum';
+import { handleInterfaceOrUnionType } from './type-handler-interface-union';
+import { handleObjectType } from './type-handler-object';
+import { fieldHandler as defaultFieldHandler } from './field-handler';
+import { Overrides } from './models/Overrides';
 
 export const defaultTypeHandlers = [handleEnumType, handleInterfaceOrUnionType, handleObjectType];
 
@@ -11,7 +14,6 @@ export const typeHandler = (props: TypeHandlerProps, options: HandlerOptions): G
     const typeHandlers = options.typeHandlers ?? defaultTypeHandlers;
     const fieldHandler = options.fieldHandler ?? defaultFieldHandler;
     const imports = new Map<string, Set<string>>();
-    const overrides = config?.fieldOverrides?.filter((o) => o.rootTypeName === rootType.name) ?? [];
 
     validateTypeHandlers(rootType, typeHandlers);
 
@@ -25,7 +27,12 @@ export const typeHandler = (props: TypeHandlerProps, options: HandlerOptions): G
 
     const generatedFiles = typeHandlers.map((handleType) => {
         const handlerProps = { ...props, rootType, imports };
-        const handlerOptions = { ...options, fieldHandler, addImport, overrides };
+        const handlerOptions = {
+            ...options,
+            fieldHandler,
+            addImport,
+            overrides: config?.overrides ?? Overrides.Empty,
+        };
         return handleType(handlerProps, handlerOptions);
     });
 

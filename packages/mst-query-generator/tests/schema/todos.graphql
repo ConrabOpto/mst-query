@@ -1,11 +1,14 @@
+scalar DateTime
+
 type Query {
-  todos: [Todo]!
+    todos: [Todo]!
 }
 type Mutation {
-  toggleTodo(id: ID!): Todo
+    toggleTodo(id: ID!): Todo
 }
 type Todo {
-  id: ID
-  text: String!
-  complete: Boolean!
+    id: ID
+    text: String!
+    complete: Boolean!
+    date: DateTime
 }

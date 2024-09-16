@@ -1,11 +1,11 @@
 import path from 'path';
 import { FieldHandlerProps, HandlerOptions, TypeHandlerProps } from '../src/types';
 import { RootType, Schema, Config } from '../src/models';
-import { TypeResolver } from '../src/TypeResolver';
+import { TypeResolver } from '../src/models/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
-import { typeHandler } from '../src/typeHandler';
+import { typeHandler } from '../src/type-handler';
 
 describe('type handler', () => {
     const createGeneratedFiles = (schemaFile: string, rootTypeName: string) => {

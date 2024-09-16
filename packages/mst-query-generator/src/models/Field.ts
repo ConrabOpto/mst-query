@@ -27,4 +27,8 @@ export class Field {
     public isIdentifier(): boolean {
         return Boolean(this.name === 'id');
     }
+
+    public GetTypeOrDefault(): Type | null {
+        return this.type?.kind.isNonNull ? this.type?.ofType : this.type;
+    }
 }

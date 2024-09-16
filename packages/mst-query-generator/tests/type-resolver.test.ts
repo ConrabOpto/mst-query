@@ -1,11 +1,11 @@
 import path from 'path';
 import { Config, Schema } from '../src/models';
-import { TypeResolver } from '../src/TypeResolver';
+import { TypeResolver } from '../src/models/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
 
-describe('TypeResolver', () => {
+describe('type resolver', () => {
     test('should combine interface and union types to result model', () => {
         const expected = ['Owner', 'Todo'];
 

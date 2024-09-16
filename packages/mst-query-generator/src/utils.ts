@@ -1,14 +1,13 @@
 import camelcase from 'camelcase';
 import { RootType } from './models';
+import { FieldOverride } from './models/FieldOverride';
 
 export const primitiveFieldNames: { [key: string]: string } = {
     ID: 'identifier',
     Int: 'integer',
     String: 'string',
     Float: 'number',
-    Decimal: 'number',
     Boolean: 'boolean',
-    Path: 'string',
 };
 export const requiredTypes = ['identifier', 'identifierNumber'];
 export const reservedGraphqlNames = ['Mutation', 'CacheControlScope', 'Query', 'Subscription'];
@@ -61,4 +60,12 @@ export const validateTypes = (
             `The root type specified: '${type.name}' is unknown, excluded or not an OBJECT type!`
         );
     });
+};
+
+export const isOnlyWildcard = (text: string) => {
+    return text === '*';
+};
+
+export const isIdType = (override: FieldOverride, type: string) => {
+    return override.isIdentifier() || type === 'ID';
 };

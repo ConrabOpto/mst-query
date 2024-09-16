@@ -1,5 +1,5 @@
-import { GeneratedField } from '../models';
-import { FieldHandlerProps, IHandleField, ModelFieldRef, HandlerOptions } from '../types';
+import { GeneratedField } from './models';
+import { FieldHandlerProps, IHandleField, ModelFieldRef, HandlerOptions } from './types';
 
 export const handleObjectField: IHandleField = (
     props: FieldHandlerProps,

@@ -1,7 +1,7 @@
-import { Field, GeneratedFile } from '../models';
-import { FieldHandlerProps } from '../types';
-import { IHandleType, ModelFieldRef, HandlerOptions, TypeHandlerProps } from '../types';
-import { header, indent, newRow } from '../utils';
+import { Config, Field, GeneratedFile } from './models';
+import { FieldHandlerProps } from './types';
+import { IHandleType, ModelFieldRef, HandlerOptions, TypeHandlerProps } from './types';
+import { header, indent, newRow } from './utils';
 
 export const handleObjectType: IHandleType = (
     props: TypeHandlerProps,
@@ -33,7 +33,7 @@ const handle = (props: TypeHandlerProps, options: HandlerOptions): GeneratedFile
         newRow,
         `import { ModelBase } from './ModelBase';`,
         printMstQueryRefImport(fields),
-        printWithTypeRefImport(refs),
+        printWithTypeRefImport(refs, config),
         printRelativeImports(imports),
         newRow,
         newRow,
@@ -93,9 +93,9 @@ const printTypeRefValue = (modelFieldRefs: ModelFieldRef[]) => {
     return modelFieldRefs.length > 0 ? `${textRows.join('')}${newRow}` : '';
 };
 
-const printWithTypeRefImport = (refs: ModelFieldRef[]) => {
+const printWithTypeRefImport = (refs: ModelFieldRef[], config?: Config) => {
     return refs.length > 0
-        ? `${newRow}import { withTypedRefs } from '../Utils/WithTypedRefs';`
+        ? `${newRow}import { withTypedRefs } from '${config?.withTypeRefsPath}';`
         : '';
 };
 
@@ -115,7 +115,9 @@ const printRelativeImports = (imports: Map<string, Set<string>> | undefined): st
             const result = imports.get(moduleName) ?? '';
             const sortedImports = [...result].sort();
             const importValue = [...sortedImports].join(', ');
-            return `import { ${importValue} } from './${moduleName}';`;
+            const isRelative = !moduleName.startsWith('-');
+            const fromValue = isRelative ? moduleName : moduleName.slice(1, moduleName.length);
+            return `import { ${importValue} } from '${isRelative ? './' : ''}${fromValue}';`;
         })
         .join(newRow);
 
