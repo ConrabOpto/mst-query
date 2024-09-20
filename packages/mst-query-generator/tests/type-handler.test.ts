@@ -118,7 +118,7 @@ export const TestObjectModelBase = ModelBase.named('TestObject').props({
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
@@ -146,7 +146,7 @@ export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { UserModel, UserModelType } from './UserModel';
 
 type Refs = {
@@ -176,7 +176,7 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
