@@ -1,6 +1,6 @@
 {
     "name": "mst-query-generator",
-    "version": "1.0.2",
+    "version": "3.4.0",
     "description": "Code generator for mst-query",
     "source": "src/index.ts",
     "main": "dist/src/index.js",
