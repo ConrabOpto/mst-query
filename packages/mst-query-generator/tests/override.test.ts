@@ -1,13 +1,13 @@
 import path from 'path';
-import { FieldHandlerProps, HandlerOptions, TypeHandlerProps } from '../src/types';
-import { FieldOverrideType } from '../src/types';
+import { FieldHandlerProps, HandlerOptions } from '../src/types';
 import { Schema, Config } from '../src/models';
-import { TypeResolver } from '../src/TypeResolver';
+import { TypeResolver } from '../src/models/TypeResolver';
 import { filterTypes } from '../src/utils';
-import { parseFieldOverrides } from '../src/overrides';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
-import { typeHandler } from '../src/typeHandler';
+import { typeHandler } from '../src/type-handler';
+import { FieldOverride } from '../src/models/FieldOverride';
+import { Overrides } from '../src/models/Overrides';
 
 describe('field overrides', () => {
     const createGeneratedFiles = (
@@ -40,31 +40,34 @@ describe('field overrides', () => {
                 fieldName: 'user_id',
                 oldFieldType: 'ID',
                 newFieldType: 'string',
+                typeImportPath: undefined,
             },
-        ] as FieldOverrideType[];
+        ];
 
-        const result: FieldOverrideType[] = parseFieldOverrides(override);
+        const fieldOverrides = FieldOverride.parse(override);
+        const overrides = new Overrides({ overrides: fieldOverrides });
 
-        expect(result).toEqual(expected);
+        expect(overrides.fieldOverrides.map((o) => o.json())).toEqual(expected);
     });
 
     test('should parse string or array overrides', () => {
-        const overrideValue = 'User.user_id:ID:string';
-        const overrideList = ['User.user_id:ID:string'];
+        const override = 'User.user_id:ID:string';
+        const overrides = ['User.user_id:ID:string'];
         const expected = [
             {
                 rootTypeName: 'User',
                 fieldName: 'user_id',
                 oldFieldType: 'ID',
                 newFieldType: 'string',
+                typeImportPath: undefined,
             },
         ];
 
-        const overrideValueResult: FieldOverrideType[] = parseFieldOverrides(overrideValue);
-        expect(overrideValueResult).toEqual(expected);
+        const overrideResult: FieldOverride[] = FieldOverride.parse(override);
+        expect(overrideResult.map((x) => x.json())).toEqual(expected);
 
-        const overrideListResult: FieldOverrideType[] = parseFieldOverrides(overrideList);
-        expect(overrideListResult).toEqual(expected);
+        const overridesResult: FieldOverride[] = FieldOverride.parse(overrides);
+        expect(overridesResult.map((x) => x.json())).toEqual(expected);
     });
 
     test('should override model fields', () => {
@@ -74,15 +77,21 @@ describe('field overrides', () => {
 /* tslint:disable */
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
+import { CustomDateTime } from '@conrabopto/components';
 
 export const TodoModelBase = ModelBase.named('Todo').props({
     __typename: types.optional(types.literal('Todo'), 'Todo'),
     id: types.union(types.undefined, types.null, types.string),
     text: types.union(types.undefined, types.testType),
     complete: types.union(types.undefined, types.boolean),
+    date: types.union(types.undefined, types.null, CustomDateTime),
 });`;
 
-        const override = 'Todo.text:string:testType,Todo.id:ID:string';
+        const idOverride = 'Todo.id:ID:string';
+        const testTypeOverride = 'Todo.text:String:testType';
+        const dateOverride = 'Todo.date:DateTime:CustomDateTime:-@conrabopto/components';
+        const override = `${idOverride},${testTypeOverride},${dateOverride}`;
+
         const files = createGeneratedFiles('todos.graphql', 'Todo', override);
         const content = files[0].toString();
 

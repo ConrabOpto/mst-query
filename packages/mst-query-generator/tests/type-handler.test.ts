@@ -1,11 +1,11 @@
 import path from 'path';
 import { FieldHandlerProps, HandlerOptions, TypeHandlerProps } from '../src/types';
 import { RootType, Schema, Config } from '../src/models';
-import { TypeResolver } from '../src/TypeResolver';
+import { TypeResolver } from '../src/models/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { scaffold } from '../generator/scaffold';
 import { test, expect, describe } from 'vitest';
-import { typeHandler } from '../src/typeHandler';
+import { typeHandler } from '../src/type-handler';
 
 describe('type handler', () => {
     const createGeneratedFiles = (schemaFile: string, rootTypeName: string) => {
@@ -118,7 +118,7 @@ export const TestObjectModelBase = ModelBase.named('TestObject').props({
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 
@@ -146,7 +146,7 @@ export const TodoListModelBase = withTypedRefs<Refs>()(ModelBase.named('TodoList
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { UserModel, UserModelType } from './UserModel';
 
 type Refs = {
@@ -176,7 +176,7 @@ export const FancyTodoModelBase = withTypedRefs<Refs>()(ModelBase.named('FancyTo
 import { types } from 'mobx-state-tree';
 import { ModelBase } from './ModelBase';
 import { MstQueryRef } from 'mst-query';
-import { withTypedRefs } from '../Utils/WithTypedRefs';
+import { withTypedRefs } from '@utils';
 import { BasicTodoModel, BasicTodoModelType } from './BasicTodoModel';
 import { FancyTodoModel, FancyTodoModelType } from './FancyTodoModel';
 

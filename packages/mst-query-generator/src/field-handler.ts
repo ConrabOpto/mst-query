@@ -1,12 +1,10 @@
 import { GeneratedField } from './models';
 import { FieldHandlerProps, IHandleField, HandlerOptions } from './types';
-import {
-    handleEnumField,
-    handleInterfaceOrUnionField,
-    handleListField,
-    handleObjectField,
-    handleScalarField,
-} from './fieldHandlers';
+import { handleEnumField } from './field-handler-enum';
+import { handleListField } from './field-handler-list';
+import { handleObjectField } from './field-handler-object';
+import { handleInterfaceOrUnionField } from './field-handler-interface-union';
+import { handleScalarField } from './field-handler-scalar';
 
 export const defaultFieldHandlers = new Map<string, IHandleField>([
     ['ENUM', handleEnumField],
@@ -21,18 +19,22 @@ export const fieldHandler = (
     props: FieldHandlerProps,
     options: HandlerOptions
 ): GeneratedField | null => {
-    const { field, fieldHandlers = defaultFieldHandlers } = props;
+    const { rootType, field, fieldHandlers = defaultFieldHandlers } = props;
     const { overrides } = options;
     const actualFieldType = field.type?.asActualType;
     const isNullable = field.type?.isNullable;
-    const override = overrides?.find((o) => o.fieldName === field.name);
+    const fieldOverride = overrides?.getOverrideForField(
+        rootType.name,
+        field.name,
+        actualFieldType?.name
+    );
 
     const handlerProps = {
         ...props,
         fieldType: actualFieldType,
         isNullable,
         fieldHandlers,
-        override,
+        override: fieldOverride,
     } as FieldHandlerProps;
 
     const handlerName = actualFieldType?.kind.value ?? '';

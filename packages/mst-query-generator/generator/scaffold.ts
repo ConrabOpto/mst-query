@@ -10,10 +10,10 @@ import fs from 'fs';
 import path from 'path';
 import { Config, Schema, GeneratedFile } from '../src/models';
 import { Generate } from './generate';
-import { TypeResolver } from '../src/TypeResolver';
+import { TypeResolver } from '../src/models/TypeResolver';
 import { filterTypes } from '../src/utils';
 import { getConfig } from './config';
-import { typeHandler } from '../src/typeHandler';
+import { typeHandler } from '../src/type-handler';
 import { buildSchema, graphqlSync, getIntrospectionQuery } from 'graphql';
 
 function main() {

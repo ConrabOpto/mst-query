@@ -1,6 +1,6 @@
-import { GeneratedFile } from '../models';
-import { IHandleType, TypeHandlerProps } from '../types';
-import { header, indent, nameToCamelCase, newRow } from '../utils';
+import { GeneratedFile } from './models';
+import { IHandleType, TypeHandlerProps } from './types';
+import { header, indent, nameToCamelCase, newRow } from './utils';
 
 export const handleEnumType: IHandleType = (props: TypeHandlerProps): GeneratedFile[] => {
     const { rootType } = props;

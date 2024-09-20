@@ -1,5 +1,5 @@
-import { ITypeResolver } from './types';
-import { RootType, InterfaceOrUnionTypeResult } from './models';
+import { ITypeResolver } from '../types';
+import { RootType, InterfaceOrUnionTypeResult } from './';
 
 export class TypeResolver implements ITypeResolver {
     interfaceMap: Map<string, RootType>;

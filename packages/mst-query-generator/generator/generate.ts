@@ -8,7 +8,7 @@ import {
     reservedGraphqlNames,
     validateTypes,
 } from '../src/utils';
-import { typeHandler as defaultTypeHandler } from '../src/typeHandler';
+import { typeHandler as defaultTypeHandler } from '../src/type-handler';
 
 export interface GenerateProps {
     rootTypes: RootType[];

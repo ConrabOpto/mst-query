@@ -1,6 +1,6 @@
-import { GeneratedFile, RootType } from '../models';
-import { IHandleType, HandlerOptions, TypeHandlerProps } from '../types';
-import { header, newRow } from '../utils';
+import { GeneratedFile, RootType } from './models';
+import { IHandleType, HandlerOptions, TypeHandlerProps } from './types';
+import { header, newRow } from './utils';
 
 export const handleInterfaceOrUnionType: IHandleType = (
     props: TypeHandlerProps,

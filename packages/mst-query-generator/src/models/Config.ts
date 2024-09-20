@@ -1,5 +1,5 @@
-import { parseFieldOverrides } from '../overrides';
-import { FieldOverrideType } from '../types';
+import { FieldOverride } from './FieldOverride';
+import { Overrides } from './Overrides';
 
 export type ConfigProps = {
     force?: boolean;
@@ -10,6 +10,7 @@ export type ConfigProps = {
     models?: boolean;
     index?: boolean;
     fieldOverrides?: string | Array<string>;
+    withTypeRefsPath?: string;
 };
 
 export class Config {
@@ -20,7 +21,8 @@ export class Config {
     verbose: boolean;
     models?: boolean;
     index?: boolean;
-    fieldOverrides?: FieldOverrideType[];
+    overrides?: Overrides;
+    withTypeRefsPath: string;
 
     constructor(params: ConfigProps = {}) {
         this.force = params.force ?? false;
@@ -37,8 +39,12 @@ export class Config {
         this.verbose = params.verbose ?? false;
         this.models = params.models ?? false;
         this.index = params.index ?? false;
-        this.fieldOverrides = params.fieldOverrides
-            ? parseFieldOverrides(params.fieldOverrides)
-            : [];
+        this.withTypeRefsPath = params.withTypeRefsPath ?? '@utils';
+
+        const overrides: FieldOverride[] = !Array.isArray(params.fieldOverrides)
+            ? FieldOverride.parse(params.fieldOverrides)
+            : (params.fieldOverrides as string[]).map((o) => FieldOverride.parse(o)).flat(1);
+
+        this.overrides = new Overrides({ overrides });
     }
 }
