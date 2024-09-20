@@ -52,9 +52,6 @@ export function useQuery<T extends Instance<QueryReturnType>>(
             isRequestEqual = equal(options.request, query.variables.request);
         }
     }
-    if (!observer.isMounted && !isRequestEqual) {
-        query.setData(null);
-    }
 
     useEffect(() => {
         if (observer.query !== query) {
@@ -69,9 +66,11 @@ export function useQuery<T extends Instance<QueryReturnType>>(
             observer.unsubscribe();
         };
     }, [options]);
+    
+    const data = isRequestEqual ? query.data : null;
 
     return {
-        data: query.data as typeof query['data'],
+        data: data as typeof query['data'],
         error: query.error,
         isFetched: query.isFetched,
         isLoading: query.isLoading,

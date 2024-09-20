@@ -76,6 +76,10 @@ export class QueryObserver {
         if (this.isQuery) {
             options.isMounted = this.isMounted;
 
+            if (!options.isRequestEqual) {
+                this.query.setData(null);
+            }
+
             if (!this.isMounted && !this.query.__MstQueryHandler.isFetched && options.initialData) {
                 this.query.__MstQueryHandler.hydrate(options);
             }
@@ -511,7 +515,7 @@ export class MstQueryHandler {
         this.cachedAt = new Date();
     }
 
-    isStale(options: any) {        
+    isStale(options: any) {
         const now = new Date();
         const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
         const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);

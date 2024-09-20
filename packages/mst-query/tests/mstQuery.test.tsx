@@ -995,3 +995,33 @@ test('imperative api - basic error', async () => {
 
     expect(error.message).toBe('Server side error');
 });
+
+
+test('render null when request changes', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    let dataRenders: any[] = [];
+
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            request: { id: id.get() },
+        });
+        dataRenders.push(data);
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await wait(0);
+
+    expect(dataRenders.filter(d => !d).length).toBe(2);
+
+    id.set('different-test');
+    await wait(0);
+    expect(dataRenders.filter(d => !d).length).toBe(3);
+    expect(dataRenders[4].id).toBe('different-test');    
+
+    configureMobx({ enforceActions: 'observed' });
+});
