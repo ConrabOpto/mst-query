@@ -508,6 +508,7 @@ export class MstQueryHandler {
         const { initialData, request, pagination } = options;
 
         this.setVariables({ request, pagination });
+        this.options.meta = options.meta;
 
         this.isLoading = false;
 
