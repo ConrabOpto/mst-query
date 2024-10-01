@@ -80,8 +80,11 @@ export class QueryObserver {
                 this.query.setData(null);
             }
 
-            if (!this.isMounted && !this.query.__MstQueryHandler.isFetched && options.initialData) {
-                this.query.__MstQueryHandler.hydrate(options);
+            if (!this.isMounted && options.initialData) {
+                const initialDataUpdatedAt = options.initialDataUpdatedAt ?? new Date();
+                if (!isDataStale(initialDataUpdatedAt, options.staleTime)) {
+                    this.query.__MstQueryHandler.hydrate(options);
+                }
             }
 
             this.query.__MstQueryHandler.queryWhenChanged(options);
@@ -517,10 +520,11 @@ export class MstQueryHandler {
     }
 
     isStale(options: any) {
-        const now = new Date();
-        const cachedAt = this.cachedAt?.getTime() ?? now.getTime();
-        const isStale = now.getTime() - cachedAt >= (options.staleTime ?? 0);
-        return this.markedAsStale || isStale;
+        if (!this.cachedAt) {
+            return false;
+        }
+
+        return this.markedAsStale || isDataStale(this.cachedAt.getTime(), options.staleTime);
     }
 
     onAfterCreate() {
@@ -532,4 +536,8 @@ export class MstQueryHandler {
         this.isDisposed = true;
         this.abort();
     }
+}
+
+function isDataStale(cachedAt: number, staleTime: number = 0) {
+    return Date.now() - cachedAt >= staleTime;
 }

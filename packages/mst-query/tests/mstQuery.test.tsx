@@ -879,6 +879,42 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery should run when initialData is passed and initialDataUpdatedAt is older than staleTime', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    const initialData = await api.getItem({ request: { id: id.get() } });
+    const initialDataUpdatedAt = Date.now() - 1000;
+
+    const loadingStates: boolean[] = [];
+    const Comp = observer(() => {
+        const { query, isLoading } = useQuery(q.itemQuery, {
+            initialData,
+            initialDataUpdatedAt,
+            request: { id: id.get() },
+            staleTime: 500,
+        });
+        loadingStates.push(isLoading);
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    expect(loadingStates).toEqual([false, true, false]);
+    expect(q.itemQuery.data?.id).toBe('test');
+
+    id.set('different-test');
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('different-test');
+    expect(q.itemQuery.variables.request?.id).toBe('different-test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
+
 test('refetchOnMount & refetchOnRequestChanged', async () => {
     const { render, q } = setup();
 

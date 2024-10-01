@@ -23,6 +23,7 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
+    initialDataUpdatedAt?: number;
     meta?: { [key: string]: any };
 };
 
@@ -66,11 +67,12 @@ export function useQuery<T extends Instance<QueryReturnType>>(
             observer.unsubscribe();
         };
     }, [options]);
-    
+
     const data = isRequestEqual ? query.data : null;
 
     return {
         data: data as typeof query['data'],
+        dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,
         isLoading: query.isLoading,
@@ -78,7 +80,6 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         isFetchingMore: query.isFetchingMore,
         query: query,
         refetch: query.refetch,
-        cachedAt: query.__MstQueryHandler.cachedAt,
         isStale: query.__MstQueryHandler.isStale(options),
     };
 }
