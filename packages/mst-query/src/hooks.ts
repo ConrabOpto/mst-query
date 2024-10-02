@@ -1,5 +1,5 @@
 import { getSnapshot, getType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { VolatileQuery, MutationReturnType, QueryReturnType } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
@@ -81,6 +81,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         query: query,
         refetch: query.refetch,
         isStale: query.__MstQueryHandler.isStale(options),
+        isFetchedAfterMount: observer.isFetchedAfterMount,
     };
 }
 

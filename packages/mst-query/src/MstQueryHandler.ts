@@ -50,10 +50,15 @@ export class QueryObserver {
     options: any;
     isQuery: boolean;
     isMounted = false;
+    isFetchedAfterMount = false;
 
     constructor(query: any, isQuery: boolean) {
         this.query = query;
         this.isQuery = isQuery;
+
+        makeObservable(this, {
+            isFetchedAfterMount: observable,
+        });
     }
 
     subscribe() {
@@ -375,6 +380,9 @@ export class MstQueryHandler {
             if (!this.isFetched) {
                 this.isFetched = true;
             }
+            this.queryObservers.forEach((observer) => {
+                observer.isFetchedAfterMount = true;
+            });
 
             if (this.model.isMutation) {
                 this.notify({ onMutate: true }, data, this.model);
