@@ -270,7 +270,7 @@ npx mst-query-generator schema.graphql
 
 ## Cache
 
-Queries are cached by instance and request arguments. The option `staleTime` controls how much time should pass before a cached value needs to be refetched from the server.
+The option `staleTime` controls how much time should pass before a cached value needs to be refetched from the server.
 
 ### Garbage collection
 
