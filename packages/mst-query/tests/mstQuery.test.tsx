@@ -1,8 +1,8 @@
 import * as React from 'react';
-import { test, vi, expect } from 'vitest';
+import { test, vi, expect, afterAll } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot, getRoot, destroy } from 'mobx-state-tree';
 import { useQuery, useMutation } from '../src';
-import { configure as configureMobx, observable, reaction, when } from 'mobx';
+import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
 import { fireEvent, render as r } from '@testing-library/react';
@@ -914,6 +914,40 @@ test('useQuery should run when initialData is passed and initialDataUpdatedAt is
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery should run when initialData is given and invalidate is called', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    const initialData = await api.getItem({ request: { id: id.get() } });
+
+    const loadingStates: boolean[] = [];
+    const disposer = autorun(() => {
+        loadingStates.push(q.itemQuery.isLoading);
+    });
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            initialData,
+            request: { id: id.get() },
+            staleTime: 500,
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    q.itemQuery.invalidate();
+
+    await wait(10);
+
+    expect(loadingStates).toEqual([false, true, false]);
+
+    disposer();
+    configureMobx({ enforceActions: 'observed' });    
+});
 
 test('refetchOnMount & refetchOnRequestChanged', async () => {
     const { render, q } = setup();
@@ -1026,12 +1060,11 @@ test('stable identity for hook callbacks', async () => {
 
 test('imperative api - basic error', async () => {
     const { q } = setup();
-    
+
     const { error } = await q.errorMutation.mutate({ request: {} });
 
     expect(error.message).toBe('Server side error');
 });
-
 
 test('render null when request changes', async () => {
     const { render, q } = setup();
@@ -1052,12 +1085,12 @@ test('render null when request changes', async () => {
     render(<Comp />);
     await wait(0);
 
-    expect(dataRenders.filter(d => !d).length).toBe(2);
+    expect(dataRenders.filter((d) => !d).length).toBe(2);
 
     id.set('different-test');
     await wait(0);
-    expect(dataRenders.filter(d => !d).length).toBe(3);
-    expect(dataRenders[4].id).toBe('different-test');    
+    expect(dataRenders.filter((d) => !d).length).toBe(3);
+    expect(dataRenders[4].id).toBe('different-test');
 
     configureMobx({ enforceActions: 'observed' });
 });

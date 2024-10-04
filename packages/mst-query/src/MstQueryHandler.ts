@@ -330,7 +330,7 @@ export class MstQueryHandler {
     invalidate() {
         this.markedAsStale = true;
 
-        if (this.isFetched && this.queryObservers.length > 0) {
+        if (this.queryObservers.length > 0) {
             this.model.refetch();
         }
     }
