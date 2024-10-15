@@ -81,18 +81,20 @@ export class QueryObserver {
         if (this.isQuery) {
             options.isMounted = this.isMounted;
 
-            if (!options.isRequestEqual) {
-                this.query.setData(null);
-            }
-
-            if (!this.isMounted && options.initialData) {
-                const initialDataUpdatedAt = options.initialDataUpdatedAt ?? new Date();
-                if (!isDataStale(initialDataUpdatedAt, options.staleTime)) {
+            if (options.initialData) {
+                const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
+                if (!isStale) {
                     this.query.__MstQueryHandler.hydrate(options);
+                } else {
+                    this.query.__MstQueryHandler.queryWhenChanged(options);
                 }
-            }
+            } else {
+                if (!options.isRequestEqual) {
+                    this.query.setData(null);
+                }
 
-            this.query.__MstQueryHandler.queryWhenChanged(options);
+                this.query.__MstQueryHandler.queryWhenChanged(options);
+            }
         }
 
         if (!this.isMounted) {
@@ -546,6 +548,8 @@ export class MstQueryHandler {
     }
 }
 
-function isDataStale(cachedAt: number, staleTime: number = 0) {
-    return Date.now() - cachedAt >= staleTime;
+function isDataStale(cachedAt?: number, staleTime: number = 0) {
+    const now = Date.now();
+    const cachedTime = cachedAt ?? now;
+    return now - cachedTime >= staleTime;
 }

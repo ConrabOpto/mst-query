@@ -854,30 +854,52 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     let id = observable.box('test');
     const initialData = await api.getItem({ request: { id: id.get() } });
 
-    const loadingStates: boolean[] = [];
+    let loadingStates: boolean[] = [];
+    const isLoadingReaction = reaction(
+        () => q.itemQuery.isLoading,
+        (isLoading) => {
+            loadingStates.push(isLoading);
+        }
+    );
+
+    let dataStates: any[] = [];
+    const dataReaction = reaction(
+        () => q.itemQuery.data,
+        (data: any) => {
+            dataStates.push(data ? data.id : null);
+        }
+    );
+
     const Comp = observer(() => {
         const { query, isLoading } = useQuery(q.itemQuery, {
             initialData,
             request: { id: id.get() },
             staleTime: 10,
         });
-        loadingStates.push(isLoading);
         return <div></div>;
     });
     render(<Comp />);
 
     await wait(0);
 
-    expect(loadingStates).toEqual([false, false]);
+    expect(loadingStates).toEqual([]);
+    expect(dataStates).toEqual(["test"]);
     expect(q.itemQuery.data?.id).toBe('test');
 
     id.set('different-test');
     await wait(0);
-    expect(q.itemQuery.data?.id).toBe('different-test');
+
+    expect(q.itemQuery.data?.id).toBe('test');
     expect(q.itemQuery.variables.request?.id).toBe('different-test');
+    expect(loadingStates).toEqual([]);
+    expect(dataStates).toEqual(["test"]);
+    
+    isLoadingReaction();
+    dataReaction();
 
     configureMobx({ enforceActions: 'observed' });
 });
+
 
 test('useQuery should run when initialData is passed and initialDataUpdatedAt is older than staleTime', async () => {
     const { render, q } = setup();
