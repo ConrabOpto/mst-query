@@ -1,4 +1,4 @@
-import equal from '@wry/equality';
+import { equal } from '@wry/equality';
 import { makeObservable, observable, action } from 'mobx';
 import {
     addDisposer,
@@ -15,7 +15,7 @@ import {
     recordPatches,
     unprotect,
 } from 'mobx-state-tree';
-import { MutationReturnType, QueryReturnType } from './create';
+import { MutationReturnType } from './create';
 import { merge } from './merge';
 import { QueryClient, EndpointType } from './QueryClient';
 
@@ -35,7 +35,6 @@ type QueryHookOptions = {
 
 type NotifyOptions = {
     onMutate?: boolean;
-    onQueryMore?: boolean;
 };
 
 type OnResponseOptions = {
@@ -114,24 +113,10 @@ function subscribe(target: any, options: any) {
 
 export function onMutate<T extends Instance<MutationReturnType>>(
     target: T,
-    callback: (data: T['data'], self: T) => void
+    callback: (data: T['data'], self: T) => void,
 ) {
     subscribe(target, {
         onMutate: (data: any, self: any) => {
-            const root = getRoot(self);
-            unprotect(root);
-            callback(data, self);
-            protect(root);
-        },
-    });
-}
-
-export function onQueryMore<T extends Instance<QueryReturnType>>(
-    target: T,
-    callback: (data: T['data'], self: T) => void
-) {
-    subscribe(target, {
-        onQueryMore: (data: any, self: any) => {
             const root = getRoot(self);
             unprotect(root);
             callback(data, self);
@@ -148,9 +133,9 @@ export class MstQueryHandler {
     error: any = null;
     queryObservers = [] as any[];
 
-    result: any;
     options: {
         endpoint: EndpointType;
+        onQueryMore?: (options: any) => void;
         meta?: { [key: string]: any };
     };
 
@@ -184,7 +169,6 @@ export class MstQueryHandler {
             error: observable,
             hydrate: action.bound,
             setData: action.bound,
-            setResult: action.bound,
             setError: action.bound,
             run: action.bound,
             query: action.bound,
@@ -224,9 +208,10 @@ export class MstQueryHandler {
             meta: options.meta ?? {},
             signal: this.abortController.signal,
             setData: this.model.setData,
+            query: this.model,
         };
 
-        return endpoint(opts, this.model).then((result: any) => {
+        return endpoint(opts).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
@@ -285,7 +270,7 @@ export class MstQueryHandler {
     query(options: any = {}): Promise<() => any> {
         return this.run(options).then(
             (result) => this.onSuccess(result),
-            (err) => this.onError(err)
+            (err) => this.onError(err),
         );
     }
 
@@ -299,7 +284,7 @@ export class MstQueryHandler {
         }
         return this.run(options).then(
             (result) => this.onSuccess(result, { updateRecorder }),
-            (err) => this.onError(err, { updateRecorder })
+            (err) => this.onError(err, { updateRecorder }),
         );
     }
 
@@ -312,7 +297,7 @@ export class MstQueryHandler {
 
         return this.run(options).then(
             (result) => this.onSuccess(result, { shouldUpdate: false }),
-            (err) => this.onError(err, { shouldUpdate: false })
+            (err) => this.onError(err, { shouldUpdate: false }),
         );
     }
 
@@ -325,7 +310,7 @@ export class MstQueryHandler {
 
         return this.run(options).then(
             (result) => this.onSuccess(result),
-            (err) => this.onError(err)
+            (err) => this.onError(err),
         );
     }
 
@@ -352,8 +337,6 @@ export class MstQueryHandler {
                 this.markedAsStale = false;
             }
 
-            this.setResult(result);
-
             let data;
             if (shouldUpdate) {
                 data = this.setData(result);
@@ -376,7 +359,12 @@ export class MstQueryHandler {
 
             if (this.isFetchingMore) {
                 this.isFetchingMore = false;
-                this.notify({ onQueryMore: true }, data, this.model);
+                this.options.onQueryMore?.({
+                    data,
+                    pagination: this.model.variables.pagination,
+                    request: this.model.variables.request,
+                    query: this.model,
+                });
             }
 
             if (!this.isFetched) {
@@ -458,16 +446,8 @@ export class MstQueryHandler {
         }
     }
 
-    setResult(result: any) {
-        this.result = result;
-    }
-
     setError(error: any) {
         this.error = error;
-    }
-
-    setOptions(options: any) {
-        this.options = { ...this.options, ...options };
     }
 
     setVariables(variables: any) {
@@ -509,7 +489,7 @@ export class MstQueryHandler {
                 this.model.data = merge(
                     data,
                     this.type.properties.data,
-                    this.queryClient.config.env
+                    this.queryClient.config.env,
                 );
             }
         });
