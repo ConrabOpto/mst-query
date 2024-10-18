@@ -1,15 +1,24 @@
 {
     "name": "mst-query",
-    "version": "3.4.0-canary.16",
+    "version": "3.4.0-canary.21",
     "description": "Query library for mobx-state-tree",
     "source": "src/index.ts",
-    "main": "dist/mst-query.js",
-    "exports": "./dist/mst-query.modern.js",
-    "module": "dist/mst-query.module.js",
-    "unpkg": "dist/mst-query.umd.js",
+    "type": "module",
+    "main": "dist/index.cjs",
+    "module": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        "import": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "require": {
+            "types": "./dist/index.d.cts",
+            "require": "./dist/index.cjs"
+        }
+    },
     "scripts": {
-        "build": "microbundle --tsconfig tsconfig.build.json --no-compress --external mobx,mobx-state-tree,react --jsx React.createElement",
+        "build": "tsup src/index.ts --format cjs,esm --dts --clean --sourcemap",
         "watch": "vitest",
         "test": "vitest run"
     },
@@ -23,25 +32,27 @@
         "dist"
     ],
     "devDependencies": {
-        "@testing-library/react": "^13.4.0",
-        "@types/react": "^18.3.3",
-        "jsdom": "^20.0.1",
-        "microbundle": "^0.15.0",
-        "mobx": "6.6.1",
-        "mobx-react": "7.5.2",
-        "mobx-state-tree": "5.1.5",
-        "prettier": "^2.2.1",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
-        "typescript": "^4.6.4",
-        "vitest": "^0.24.3"
+        "@testing-library/react": "16.0.1",
+        "@types/react": "18.3.3",
+        "jsdom": "25.0.1",
+        "mobx": "6.13.5",
+        "mobx-react": "9.1.1",
+        "mobx-state-tree": "6.0.1",
+        "prettier": "3.3.3",
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "tsup": "8.3.0",
+        "typescript": "5.6.3",
+        "vitest": "2.1.3"
     },
     "peerDependencies": {
-        "mobx": "^6.0.0",
-        "mobx-state-tree": "^5.0.0"
+        "mobx": ">=6.0.0 <7.0.0",
+        "mobx-state-tree": ">=5.0.0 <7.0.0",
+        "react": ">=18.0.0 <20.0.0",
+        "react-dom": ">=18.0.0 <20.0.0"
     },
     "dependencies": {
-        "@wry/equality": "^0.4.0"
+        "@wry/equality": "0.5.7"
     },
     "volta": {
         "node": "18.12.1"

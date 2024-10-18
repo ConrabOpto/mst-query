@@ -14,7 +14,7 @@ import { wait } from './utils';
 import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { DateModel, DeepModelA, Root } from './models/RootStore';
-import { useVolatileQuery } from '../src/hooks';
+import { useInfiniteQuery, useVolatileQuery } from '../src/hooks';
 
 const setup = () => {
     const queryClient = new QueryClient({ RootStore: Root });
@@ -75,7 +75,7 @@ test('gc - only walk model props', () => {
             id: types.identifier,
             modelProp: types.string,
             arr: types.late(() =>
-                types.array(types.model({ id: types.identifier, b: types.maybe(types.string) }))
+                types.array(types.model({ id: types.identifier, b: types.maybe(types.string) })),
             ),
         })
         .volatile(() => ({
@@ -84,7 +84,7 @@ test('gc - only walk model props', () => {
     const idents = new Set();
     collectSeenIdentifiers(
         ModelA.create({ id: '1', modelProp: 'hey', arr: [{ id: '3' }] }),
-        idents
+        idents,
     );
     expect(idents.size).toBe(2);
 });
@@ -121,7 +121,7 @@ test('useQuery', async () => {
         () => q.itemQuery.isLoading,
         (isLoading) => {
             loadingStates.push(isLoading);
-        }
+        },
     );
 
     const Comp = observer(() => {
@@ -149,11 +149,11 @@ test('useMutation', async () => {
         () => q.addItemMutation.isLoading,
         (isLoading) => {
             loadingStates.push(isLoading);
-        }
+        },
     );
 
     const Comp = observer(() => {
-        useQuery(q.listQuery);
+        useInfiniteQuery(q.listQuery);
         const [add] = useMutation(q.addItemMutation);
         return (
             <div>
@@ -181,6 +181,7 @@ test('useMutation', async () => {
     expect(q.listQuery.data?.items.length).toBe(4);
 
     const button = await findByTestId('add');
+
     fireEvent.click(button);
     expect(q.listQuery.data?.items[4].id).toBe('temp');
     expect(q.listQuery.data?.items.length).toBe(5);
@@ -219,7 +220,7 @@ test('useQuery - reactive request', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
-test('useQueryMore', async () => {
+test('onQueryMore', async () => {
     const { render, q } = setup();
 
     configureMobx({ enforceActions: 'never' });
@@ -237,13 +238,13 @@ test('useQueryMore', async () => {
     let isFetchingMoreStates: boolean[] = [false];
     reaction(
         () => q.listQuery.isFetchingMore,
-        (isFetchingMore) => isFetchingMoreStates.push(isFetchingMore)
+        (isFetchingMore) => isFetchingMoreStates.push(isFetchingMore),
     );
 
     let offset = observable.box(0);
 
     const Comp = observer(() => {
-        useQuery(q.listQuery, {
+        useInfiniteQuery(q.listQuery, {
             pagination: { offset: offset.get() },
             meta: { getItems: customApi.getItems },
         });
@@ -305,7 +306,7 @@ test('model with optional identifier', async () => {
     };
 
     const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, {
+        const { query } = useInfiniteQuery(q.listQuery, {
             request: { id: 'test' },
             meta: { getItems: customApi.getItems },
         });
@@ -372,7 +373,7 @@ test('merge of date objects', () => {
             },
         },
         DateModel,
-        queryClient.config.env
+        queryClient.config.env,
     );
     const result = merge(
         {
@@ -382,7 +383,7 @@ test('merge of date objects', () => {
             },
         },
         DateModel,
-        queryClient.config.env
+        queryClient.config.env,
     );
     expect((getSnapshot(result) as any).changed.at).toBe(1583193600000);
 
@@ -401,13 +402,13 @@ test('deep update of object', () => {
     const result = merge(
         { model: { a: 'banana' }, ref: { id: '1', a: 'fruit' } },
         DeepModelA,
-        queryClient.config.env
+        queryClient.config.env,
     );
     applySnapshot(a, result);
     const result2 = merge(
         { model: { a: 'banana', b: 'apple' }, ref: { id: '1', a: 'orange' } },
         DeepModelA,
-        queryClient.config.env
+        queryClient.config.env,
     );
 
     applySnapshot(a, result2);
@@ -431,7 +432,7 @@ test('merge frozen type', () => {
         rootStore.serviceStore.frozenQuery.__MstQueryHandler.setData({
             id: 'test',
             frozen: { data1: 'data1', data2: 'data2' },
-        })
+        }),
     ).not.toThrow();
 });
 
@@ -457,7 +458,7 @@ test('merge with undefined data and union type', () => {
             id: 'test',
             folderPath: 'test',
             origin: undefined,
-        })
+        }),
     ).not.toThrow();
 });
 
@@ -468,13 +469,13 @@ test('findAll', () => {
 
     const queries = queryClient.queryStore.getQueries(
         ItemQuery,
-        (query) => !!query.variables.request?.id.includes('t')
+        (query) => !!query.variables.request?.id.includes('t'),
     );
     expect(queries.length).toBe(1);
 
     const queries2 = queryClient.queryStore.getQueries(
         ItemQuery,
-        (query) => !!query.variables.request?.id.includes('o')
+        (query) => !!query.variables.request?.id.includes('o'),
     );
     expect(queries2.length).toBe(0);
 });
@@ -575,7 +576,7 @@ test('hook - handle async return values in different order', async () => {
     let id = observable.box('test');
 
     const Comp = observer(() => {
-        useQuery(q.listQuery, {
+        useInfiniteQuery(q.listQuery, {
             request: { id: id.get() },
             meta: { getItems: testApi.getItems },
         });
@@ -600,7 +601,7 @@ test('hook - enabled prop', async () => {
     const enabled = observable.box(false);
 
     const Comp = observer(() => {
-        const { query } = useQuery(q.listQuery, {
+        const { query } = useInfiniteQuery(q.listQuery, {
             pagination: { offset: 0 },
             enabled: enabled.get(),
         });
@@ -655,7 +656,7 @@ test('support map type', () => {
     });
 
     expect(rootStore.serviceStore.frozenQuery.data?.amountLimit?.content?.get('native')?.tag).toBe(
-        'Limited'
+        'Limited',
     );
 });
 
@@ -669,7 +670,7 @@ test('merge with partial data', () => {
             optionalProps1: 'optional',
             optionalProps2: ['optional'],
             optionalProps3: { a: 'a' },
-        })
+        }),
     ).not.toThrow();
     expect(rootStore.serviceStore.frozenQuery.data?.id).toBe('test');
     expect(rootStore.serviceStore.frozenQuery.data?.origin).toBe('a');
@@ -859,7 +860,7 @@ test('useQuery should not run when initialData is passed and staleTime is larger
         () => q.itemQuery.isLoading,
         (isLoading) => {
             loadingStates.push(isLoading);
-        }
+        },
     );
 
     let dataStates: any[] = [];
@@ -867,7 +868,7 @@ test('useQuery should not run when initialData is passed and staleTime is larger
         () => q.itemQuery.data,
         (data: any) => {
             dataStates.push(data ? data.id : null);
-        }
+        },
     );
 
     const Comp = observer(() => {
@@ -883,7 +884,7 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     await wait(0);
 
     expect(loadingStates).toEqual([]);
-    expect(dataStates).toEqual(["test"]);
+    expect(dataStates).toEqual(['test']);
     expect(q.itemQuery.data?.id).toBe('test');
 
     id.set('different-test');
@@ -892,14 +893,13 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     expect(q.itemQuery.data?.id).toBe('test');
     expect(q.itemQuery.variables.request?.id).toBe('different-test');
     expect(loadingStates).toEqual([]);
-    expect(dataStates).toEqual(["test"]);
-    
+    expect(dataStates).toEqual(['test']);
+
     isLoadingReaction();
     dataReaction();
 
     configureMobx({ enforceActions: 'observed' });
 });
-
 
 test('useQuery should run when initialData is passed and initialDataUpdatedAt is older than staleTime', async () => {
     const { render, q } = setup();
@@ -968,7 +968,7 @@ test('useQuery should run when initialData is given and invalidate is called', a
     expect(loadingStates).toEqual([false, true, false]);
 
     disposer();
-    configureMobx({ enforceActions: 'observed' });    
+    configureMobx({ enforceActions: 'observed' });
 });
 
 test('refetchOnMount & refetchOnRequestChanged', async () => {
@@ -1094,25 +1094,32 @@ test('render null when request changes', async () => {
     configureMobx({ enforceActions: 'never' });
 
     let id = observable.box('test');
-    let dataRenders: any[] = [];
+
+    let dataStates: any[] = [];
+    const sub = reaction(
+        () => q.itemQuery.data,
+        (data: any) => {
+            dataStates.push(data);
+        },
+    );
 
     const Comp = observer(() => {
         const { data } = useQuery(q.itemQuery, {
             request: { id: id.get() },
         });
-        dataRenders.push(data);
         return <div></div>;
     });
 
     render(<Comp />);
     await wait(0);
 
-    expect(dataRenders.filter((d) => !d).length).toBe(2);
+    expect(dataStates.length).toBe(1);
 
     id.set('different-test');
     await wait(0);
-    expect(dataRenders.filter((d) => !d).length).toBe(3);
-    expect(dataRenders[4].id).toBe('different-test');
+
+    expect(dataStates[1]).toBe(null);
+    expect(dataStates[2].id).toBe('different-test');
 
     configureMobx({ enforceActions: 'observed' });
 });

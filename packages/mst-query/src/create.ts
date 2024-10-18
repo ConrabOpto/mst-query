@@ -21,26 +21,45 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
             meta: { [key: string]: any };
             setData: (data: any) => any;
         },
-        query: any
+        mutation: Instance<ReturnType<typeof createMutation<TData, TRequest>>>,
     ) => Promise<any>;
 };
 
-type CreateQueryOptions<
-    TData extends IAnyType,
-    TRequest extends IAnyType,
-    TPagination extends IAnyType
-> = CreateOptions<TData, TRequest> & {
-    pagination?: TPagination;
+type CreateQueryOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateOptions<
+    TData,
+    TRequest
+> & {
     endpoint?: (
         options: {
             request: Instance<TRequest>;
-            pagination: Instance<TPagination>;
             meta: { [key: string]: any };
             signal: AbortSignal;
             setData: (data: any) => any;
         },
-        query: any
+        query: Instance<ReturnType<typeof createQuery<TData, TRequest>>>,
     ) => Promise<any>;
+};
+
+type CreateInfiniteQueryOptions<
+    TData extends IAnyType,
+    TRequest extends IAnyType,
+    TPagination extends IAnyType,
+> = CreateOptions<TData, TRequest> & {
+    pagination?: TPagination;
+    endpoint?: (options: {
+        request: Instance<TRequest>;
+        pagination: Instance<TPagination>;
+        meta: { [key: string]: any };
+        signal: AbortSignal;
+        setData: (data: any) => any;
+        query: Instance<ReturnType<typeof createInfiniteQuery<TData, TRequest, TPagination>>>;
+    }) => Promise<any>;
+    onQueryMore?: (options: {
+        data: Instance<TData>;
+        request: Instance<TRequest>;
+        pagination: Instance<TPagination>;
+        query: Instance<ReturnType<typeof createInfiniteQuery<TData, TRequest, TPagination>>>;
+    }) => void;
 };
 
 type QueryOptions<TRequest, TPagination> = {
@@ -56,19 +75,89 @@ type ReturnData<TData, TResult> = {
 };
 
 type QueryReturn<TData = any, TRequest = any, TPagination = any> = <TResult = any>(
-    options?: QueryOptions<TRequest, TPagination>
+    options?: QueryOptions<TRequest, TPagination>,
 ) => Promise<ReturnData<Instance<TData>, TResult>>;
 
-export function createQuery<
+export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
+    name: string,
+    options: CreateQueryOptions<TData, TRequest>,
+) {
+    const {
+        data = types.frozen() as TypeOrFrozen<TData>,
+        request = types.frozen() as TypeOrFrozen<TRequest>,
+        endpoint,
+    } = options;
+    return types
+        .model(name, {
+            data: types.maybeNull(data),
+            variables: types.optional(
+                types.model({
+                    request: types.maybe(request),
+                }),
+                { request: undefined },
+            ),
+        })
+        .volatile((self) => ({
+            __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            isQuery: true,
+            isMutation: false,
+        }))
+        .views((self) => ({
+            get isLoading() {
+                return self.__MstQueryHandler.isLoading;
+            },
+            get error() {
+                return self.__MstQueryHandler.error;
+            },
+            get isRefetching() {
+                return self.__MstQueryHandler.isRefetching;
+            },
+            get isFetched() {
+                return self.__MstQueryHandler.isFetched;
+            },
+            get cachedAt() {
+                return self.__MstQueryHandler.cachedAt;
+            },
+        }))
+        .actions((self) => ({
+            __MstQueryHandlerAction(action: any) {
+                return action();
+            },
+            query: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.query(options);
+                return next();
+            }) as QueryReturn<
+                (typeof self)['data'],
+                SnapshotIn<(typeof self)['variables']['request']>
+            >,
+            refetch: flow(function* (options: any) {
+                const next = yield self.__MstQueryHandler.refetch(options);
+                return next();
+            }) as QueryReturn<
+                (typeof self)['data'],
+                SnapshotIn<(typeof self)['variables']['request']>
+            >,
+            invalidate() {
+                self.__MstQueryHandler.invalidate();
+            },
+            setData(data: any) {
+                return self.__MstQueryHandler.setData(data);
+            },
+            abort: self.__MstQueryHandler.abort,
+        }));
+}
+
+export function createInfiniteQuery<
     TData extends IAnyType,
     TRequest extends IAnyType,
-    TPagination extends IAnyType
->(name: string, options: CreateQueryOptions<TData, TRequest, TPagination>) {
+    TPagination extends IAnyType = any,
+>(name: string, options: CreateInfiniteQueryOptions<TData, TRequest, TPagination>) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
         pagination = types.frozen() as TypeOrFrozen<TPagination>,
         endpoint,
+        onQueryMore,
     } = options;
     return types
         .model(name, {
@@ -78,11 +167,11 @@ export function createQuery<
                     request: types.maybe(request),
                     pagination: types.maybe(pagination),
                 }),
-                { request: undefined, pagination: undefined }
+                { request: undefined, pagination: undefined },
             ),
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            __MstQueryHandler: new MstQueryHandler(self, { endpoint, onQueryMore }),
             isQuery: true,
             isMutation: false,
         }))
@@ -102,9 +191,6 @@ export function createQuery<
             get isFetched() {
                 return self.__MstQueryHandler.isFetched;
             },
-            get result() {
-                return self.__MstQueryHandler.result;
-            },
             get cachedAt() {
                 return self.__MstQueryHandler.cachedAt;
             },
@@ -117,25 +203,25 @@ export function createQuery<
                 const next = yield self.__MstQueryHandler.query(options);
                 return next();
             }) as QueryReturn<
-                typeof self['data'],
-                SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['pagination']>
+                (typeof self)['data'],
+                SnapshotIn<(typeof self)['variables']['request']>,
+                SnapshotIn<(typeof self)['variables']['pagination']>
             >,
             queryMore: flow(function* (options: any) {
                 const next = yield self.__MstQueryHandler.queryMore(options);
                 return next();
             }) as QueryReturn<
-                typeof self['data'],
-                SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['pagination']>
+                (typeof self)['data'],
+                SnapshotIn<(typeof self)['variables']['request']>,
+                SnapshotIn<(typeof self)['variables']['pagination']>
             >,
             refetch: flow(function* (options: any) {
                 const next = yield self.__MstQueryHandler.refetch(options);
                 return next();
             }) as QueryReturn<
-                typeof self['data'],
-                SnapshotIn<typeof self['variables']['request']>,
-                SnapshotIn<typeof self['variables']['pagination']>
+                (typeof self)['data'],
+                SnapshotIn<(typeof self)['variables']['request']>,
+                SnapshotIn<(typeof self)['variables']['pagination']>
             >,
             invalidate() {
                 self.__MstQueryHandler.invalidate();
@@ -149,7 +235,7 @@ export function createQuery<
 
 export function createMutation<TData extends IAnyType, TRequest extends IAnyType>(
     name: string,
-    options: CreateMutationOptions<TData, TRequest> = {}
+    options: CreateMutationOptions<TData, TRequest> = {},
 ) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
@@ -163,7 +249,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 types.model({
                     request: types.maybe(request),
                 }),
-                { request: undefined }
+                { request: undefined },
             ),
         })
         .volatile((self) => ({
@@ -177,9 +263,6 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             },
             get error() {
                 return self.__MstQueryHandler.error;
-            },
-            get result() {
-                return self.__MstQueryHandler.result;
             },
         }))
         .actions((self) => ({
@@ -203,5 +286,7 @@ export const VolatileQuery = createQuery('VolatileQuery', {});
 export interface VolatileQueryType extends Instance<typeof VolatileQuery> {}
 
 export type QueryReturnType = ReturnType<typeof createQuery>;
+
+export type InfiniteQueryReturnType = ReturnType<typeof createInfiniteQuery>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;

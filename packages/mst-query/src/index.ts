@@ -1,4 +1,4 @@
-export { onMutate, onQueryMore } from './MstQueryHandler';
+export { onMutate } from './MstQueryHandler';
 export { useQuery, useMutation, useVolatileQuery } from './hooks';
 export { createQuery, createMutation } from './create';
 export { createRootStore, createModelStore } from './stores';

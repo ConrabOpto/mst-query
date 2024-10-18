@@ -8,8 +8,8 @@ export type EndpointType = (
         meta: { [key: string]: any };
         signal: AbortSignal;
         setData: (data: any) => any;
+        query: any
     },
-    model: any
 ) => Promise<any>;
 
 type QueryClientConfig<T extends IAnyModelType> = {
