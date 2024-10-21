@@ -100,6 +100,7 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
             isQuery: true,
+            isInfinte: false,
             isMutation: false,
         }))
         .views((self) => ({
@@ -173,6 +174,7 @@ export function createInfiniteQuery<
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint, onQueryMore }),
             isQuery: true,
+            isInfinite: true,
             isMutation: false,
         }))
         .views((self) => ({
@@ -255,6 +257,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
             isQuery: false,
+            isInfinte: false,
             isMutation: true,
         }))
         .views((self) => ({

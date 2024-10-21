@@ -1,44 +1,28 @@
-import { flow, types, Instance } from 'mobx-state-tree';
+import { types, Instance } from 'mobx-state-tree';
 import { createModelStore, createRootStore } from 'mst-query';
-import { InvoiceApiStore, InvoiceApiStoreType } from './api';
+import { InvoiceService } from './services';
 import { InvoiceFilterModel, InvoiceModel, CompanyModel, UserModel } from './models';
-import { AppQuery, AppQueryType } from './queries';
+import { AppQuery } from './queries';
 
-export const InvoiceModelStore = createModelStore(InvoiceModel);
-type InvoiceModelStoreType = Instance<typeof InvoiceModelStore>;
+export const InvoiceModelStore = createModelStore('InvoiceModelStore', InvoiceModel);
 
-export const InvoiceFilterModelStore = createModelStore(InvoiceFilterModel);
-type InvoiceFilterModelStoreType = Instance<typeof InvoiceFilterModelStore>;
+export const InvoiceFilterModelStore = createModelStore(
+    'InvoiceFilterModelStore',
+    InvoiceFilterModel
+);
 
-export const CompanyModelStore = createModelStore(CompanyModel);
-type CompanyModelStoreType = Instance<typeof CompanyModelStore>;
+export const CompanyModelStore = createModelStore('CompanyModelStore', CompanyModel);
 
-export const UserModelStore = createModelStore(UserModel);
-type UserModelStoreType = Instance<typeof InvoiceModelStore>;
+export const UserModelStore = createModelStore('UserModelStore', UserModel);
 
 export const RootStore = createRootStore({
     invoiceStore: types.optional(InvoiceModelStore, {}),
     invoiceFilterStore: types.optional(InvoiceFilterModelStore, {}),
     companyStore: types.optional(CompanyModelStore, {}),
     userStore: types.optional(UserModelStore, {}),
-})
-    .props({
-        invoiceApiStore: types.optional(InvoiceApiStore, {}),
-        baseQuery: types.optional(AppQuery, {}),
-    })
-    .actions((self) => ({
-        getBase: flow(function* () {
-            const next = yield* self.baseQuery.query();
-            next();
-        })
-    }));
+}).props({
+    invoiceService: types.optional(InvoiceService, {}),
+    baseQuery: types.optional(AppQuery, {}),
+});
 
-export type RootStoreType = {
-    invoiceStore: InvoiceModelStoreType;
-    invoiceFilterStore: InvoiceFilterModelStoreType;
-    companyStore: CompanyModelStoreType;
-    userStore: UserModelStoreType;
-    invoiceApiStore: InvoiceApiStoreType;
-    baseQuery: AppQueryType;
-    getBase: () => Promise<void>;
-};
+export type RootStoreType = Instance<typeof RootStore>;

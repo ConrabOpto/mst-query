@@ -35,7 +35,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 
     (options as any).request = options.request ?? EmptyRequest;
 
-    if ((query as any).variables.pagination) {
+    if ((query as any).isInfinite) {
         throw new Error('useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.');
     }
 
@@ -91,7 +91,7 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
     (options as any).request = options.request ?? EmptyRequest;
     (options as any).pagination = options.pagination ?? EmptyPagination;
     
-    if (!(query as any).variables.pagination) {
+    if (!(query as any).isInfinite) {
         throw new Error('useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.');
     }
 
