@@ -1,7 +1,6 @@
 {
   "name": "document-viewer",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,19 +8,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "mobx": "6.6.1",
-    "mobx-react": "7.5.2",
-    "mobx-state-tree": "5.1.5",
-    "mst-query": "file:../../packages/mst-query",
+    "mobx": "6.13.5",
+    "mobx-react": "9.1.1",
+    "mobx-state-tree": "6.0.1",
+    "mst-query": "4.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.4.2"
   },
   "devDependencies": {
-    "@types/react": "^18.0.15",
-    "@types/react-dom": "^18.0.6",
-    "@vitejs/plugin-react": "^2.0.0",
-    "typescript": "^4.6.4",
-    "vite": "^3.0.0"
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "5.3.3",
+    "vite": "5.4.9"
   }
 }

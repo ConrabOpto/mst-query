@@ -9,17 +9,17 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react-dom": "18.2.0",
     "mobx": "6.13.5",
     "mobx-react": "9.1.1",
     "mobx-state-tree": "6.0.1",
-    "mst-query": "4.0.0"
+    "mst-query": "4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.79",
     "@types/react-dom": "^18.2.25",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "5.3.3",
-    "vite": "5.3.5"
+    "vite": "5.4.9"
   }
 }

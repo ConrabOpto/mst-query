@@ -1,60 +1,75 @@
-import { getRoot, IAnyModelType, Instance, types } from 'mobx-state-tree';
-import { MstQueryModel, MstQueryRef } from 'mst-query';
+import { IAnyModelType, Instance, types } from 'mobx-state-tree';
 
-export const UserModel = MstQueryModel.named('UserModel').props({
+export const UserModel = types.model('UserModel', {
     id: types.identifier,
     name: types.maybe(types.string),
     shortName: types.maybe(types.string),
-    approver: types.maybe(MstQueryRef(types.late((): IAnyModelType => UserModel))),
+    approver: types.maybe(types.reference(types.late((): IAnyModelType => UserModel))),
 });
 
 export type UserModelType = Instance<typeof UserModel>;
 
-export const InvoiceModel = MstQueryModel.named('InvoiceModel').props({
+export const InvoiceModel = types.model('InvoiceModel', {
     id: types.identifier,
     company: types.maybe(types.string),
     amount: types.number,
     dueDate: types.maybe(types.Date),
-    createdBy: MstQueryRef(UserModel),
+    createdBy: types.reference(UserModel),
 });
 
 export type InvoiceModelType = Instance<typeof InvoiceModel>;
 
-export const InvoiceFilterModel = MstQueryModel.named('InvoiceFilterModel')
-    .props({
+export const InvoiceFilterModel = types
+    .model('InvoiceFilterModel', {
         id: types.identifier,
         name: types.string,
         filter: types.maybe(types.string),
     })
-    .views(self => ({
+    .volatile((self) => ({
+        hasChanged: false,
+    }))
+    .views((self) => ({
         get filterMinAmount() {
             if (!self.filter) {
                 return 0;
             }
             const parsed = parseFloat(self.filter);
             return Number.isNaN(parsed) ? 0 : parsed;
-        }
+        },
     }))
-    .actions(self => ({
+    .actions((self) => ({
         setFilter(filter: string) {
             self.filter = filter;
+
+            if (!self.hasChanged) {
+                self.hasChanged = true;
+            }
         },
-        async save() {
-            const root = getRoot<any>(self);
-            return root.invoiceApiStore.saveFilter(self);
-        }
-    }));    
+    }))
+    .actions((self) => ({
+        setHasChanged(hasChanged: boolean) {
+            self.hasChanged = hasChanged;
+        },
+    }));
 
 export type InvoiceFilterModelType = Instance<typeof InvoiceFilterModel>;
 
-export const InvoiceListModel = MstQueryModel.named('InvoiceListModel').props({
-    filters: types.array(MstQueryRef(InvoiceFilterModel)),
-    invoices: types.array(MstQueryRef(InvoiceModel)),
+export const InvoiceListModel = types.model('InvoiceListModel', {
+    filters: types.array(
+        types.safeReference(InvoiceFilterModel, {
+            acceptsUndefined: false,
+        })
+    ),
+    invoices: types.array(
+        types.safeReference(InvoiceModel, {
+            acceptsUndefined: false,
+        })
+    ),
 });
 
 export type InvoiceListModelType = Instance<typeof InvoiceListModel>;
 
-export const CompanyModel = MstQueryModel.named('CompanyModel').props({
+export const CompanyModel = types.model('CompanyModel', {
     id: types.identifier,
     name: types.string,
     invoiceList: types.maybe(InvoiceListModel),
