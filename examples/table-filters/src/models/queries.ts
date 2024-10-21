@@ -34,6 +34,9 @@ export const InvoiceListQuery = createInfiniteQuery('InvoiceListQuery', {
     data: InvoiceListModel,
     request: types.model({ id: types.string }),
     pagination: types.model({ offset: 0 }),
+    onQueryMore({ query, data }) {
+        query.data?.invoices.push(...data.invoices);
+    },
     async endpoint({ request, pagination }) {
         return api.getInvoiceList(pagination.offset);
     },
