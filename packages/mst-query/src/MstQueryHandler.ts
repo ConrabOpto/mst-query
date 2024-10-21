@@ -80,6 +80,21 @@ export class QueryObserver {
         if (this.isQuery) {
             options.isMounted = this.isMounted;
 
+            const refetchRequestOnChanged =
+                options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
+            options.isRequestEqual = true;
+            if (options.enabled && refetchRequestOnChanged) {
+                if (isStateTreeNode(this.query.variables.request)) {
+                    const requestType = getType(this.query.variables.request);
+                    options.isRequestEqual = equal(
+                        getSnapshot(requestType.create(options.request)),
+                        getSnapshot(this.query.variables.request),
+                    );
+                } else {
+                    options.isRequestEqual = equal(options.request, this.query.variables.request);
+                }
+            }
+
             if (options.initialData) {
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
                 if (!isStale) {

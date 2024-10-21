@@ -1,10 +1,9 @@
-import { getSnapshot, getType, Instance, isStateTreeNode, SnapshotIn } from 'mobx-state-tree';
+import { Instance, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { VolatileQuery, MutationReturnType, QueryReturnType, InfiniteQueryReturnType } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 import { EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
-import { equal } from '@wry/equality';
 import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -40,21 +39,6 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         throw new Error('useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.');
     }
 
-    let isRequestEqual: boolean = true;
-    const refetchRequestOnChanged =
-        options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
-    if (options.enabled && refetchRequestOnChanged) {
-        if (isStateTreeNode(query.variables.request)) {
-            const requestType = getType(query.variables.request);
-            isRequestEqual = equal(
-                getSnapshot(requestType.create(options.request)),
-                getSnapshot(query.variables.request)
-            );
-        } else {
-            isRequestEqual = equal(options.request, query.variables.request);
-        }
-    }
-
     useEffect(() => {
         if (observer.query !== query) {
             setObserver(new QueryObserver(query, true));
@@ -62,17 +46,15 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     }, [query]);
 
     useEffect(() => {
-        observer.setOptions({ ...options, isRequestEqual });
+        observer.setOptions(options);
 
         return () => {
             observer.unsubscribe();
         };
     }, [options]);
 
-    const data = isRequestEqual ? query.data : null;
-
     return {
-        data: data as typeof query['data'],
+        data: query.data as typeof query['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,
@@ -113,21 +95,6 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
         throw new Error('useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.');
     }
 
-    let isRequestEqual: boolean = true;
-    const refetchRequestOnChanged =
-        options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
-    if (options.enabled && refetchRequestOnChanged) {
-        if (isStateTreeNode(query.variables.request)) {
-            const requestType = getType(query.variables.request);
-            isRequestEqual = equal(
-                getSnapshot(requestType.create(options.request)),
-                getSnapshot(query.variables.request)
-            );
-        } else {
-            isRequestEqual = equal(options.request, query.variables.request);
-        }
-    }
-
     useEffect(() => {
         if (observer.query !== query) {
             setObserver(new QueryObserver(query, true));
@@ -135,17 +102,15 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
     }, [query]);
 
     useEffect(() => {
-        observer.setOptions({ ...options, isRequestEqual });
+        observer.setOptions(options);
 
         return () => {
             observer.unsubscribe();
         };
     }, [options]);
 
-    const data = isRequestEqual ? query.data : null;
-
     return {
-        data: data as typeof query['data'],
+        data: query.data as typeof query['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,

@@ -1,11 +1,11 @@
 import * as React from 'react';
-import { test, vi, expect, afterAll } from 'vitest';
-import { types, unprotect, applySnapshot, getSnapshot, getRoot, destroy } from 'mobx-state-tree';
+import { test, vi, expect } from 'vitest';
+import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { useQuery, useMutation } from '../src';
 import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
-import { fireEvent, render as r } from '@testing-library/react';
+import { fireEvent, render as r, configure } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { itemData, listData } from './api/data';
@@ -16,11 +16,16 @@ import { createContext } from '../src/QueryClientProvider';
 import { DateModel, DeepModelA, Root } from './models/RootStore';
 import { useInfiniteQuery, useVolatileQuery } from '../src/hooks';
 
-const setup = () => {
+const setup = ({ strictMode = false } = {}) => {
     const queryClient = new QueryClient({ RootStore: Root });
-    const { QueryClientProvider } = createContext(queryClient);
     queryClient.init();
+
+    const { QueryClientProvider } = createContext(queryClient);
+
     const Wrapper = ({ children }: any) => <QueryClientProvider>{children}</QueryClientProvider>;
+
+    configure({ reactStrictMode: strictMode });
+
     return {
         queryClient,
         rootStore: queryClient.rootStore,
@@ -134,7 +139,7 @@ test('useQuery', async () => {
 
     await wait(0);
 
-    expect(q.itemQuery.result).not.toBe(null);
+    expect(q.itemQuery.data).not.toBe(null);
     expect(loadingStates).toStrictEqual([false, true, false]);
 
     sub();
@@ -520,34 +525,6 @@ test('caching - stale time', async () => {
 
     configureMobx({ enforceActions: 'observed' });
 });
-
-// TODO: How should this work?
-// test('hook - two useQuery on the same query', async () => {
-//     const { render, q } = setup();
-
-//     const getItem = vi.fn(() => Promise.resolve(itemData));
-//     const testApi = {
-//         ...api,
-//         getItem: () => getItem(),
-//     };
-
-//     const Comp1 = observer(() => {
-//         useQuery(q.listQuery, {
-//             request: {},
-//             endpoint: testApi.getItem
-//         });
-//         useQuery(q.listQuery, {
-//             request: {},
-//             endpoint: testApi.getItem
-//         });
-//         return <div></div>;
-//     });
-//     render(<Comp1 />);
-
-//     await wait(0);
-
-//     expect(getItem).toBeCalledTimes(1);
-// });
 
 test('hook - handle async return values in different order', async () => {
     const { render, q } = setup();
@@ -1122,4 +1099,27 @@ test('render null when request changes', async () => {
     expect(dataStates[2].id).toBe('different-test');
 
     configureMobx({ enforceActions: 'observed' });
+});
+
+test('only fetch once in strict mode', async () => {
+    const { q, render } = setup({ strictMode: true });
+
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem: () => getItem(),
+    };
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            request: { id: 'test' },
+            meta: { getItem: testApi.getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(1);
 });
