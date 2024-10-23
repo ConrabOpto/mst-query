@@ -867,10 +867,10 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     id.set('different-test');
     await wait(0);
 
-    expect(q.itemQuery.data?.id).toBe('test');
+    expect(q.itemQuery.data?.id).toBe('different-test');
     expect(q.itemQuery.variables.request?.id).toBe('different-test');
-    expect(loadingStates).toEqual([]);
-    expect(dataStates).toEqual(['test']);
+    expect(loadingStates).toEqual([true, false]);
+    expect(dataStates).toEqual(['test', null, "different-test"]);
 
     isLoadingReaction();
     dataReaction();
@@ -1122,4 +1122,41 @@ test('only fetch once in strict mode', async () => {
     await wait(0);
 
     expect(getItem).toHaveBeenCalledTimes(1);
+});
+
+test('initial data should only be set on mount', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let trigger = observable.box(1);
+    const initialDataResult = await api.getItems();
+    const initialData = { ...initialDataResult, id: 'list-initial' };
+
+    let renderCount = 0;
+    const Comp = observer(() => {
+        const { query } = useInfiniteQuery(q.listQuery, {
+            initialData,
+            staleTime: 10,
+        });
+        renderCount++;
+        return (
+            <div>
+                <div>
+                    {query.data?.items.map((item, index) => (
+                        <div key={index}>{item.data?.name}</div>
+                    ))}
+                </div>
+                <div>{trigger.get()}</div>
+            </div>
+        );
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    // This value is not stable but anything less than 4 is a good indication that the initial data is not set on every render
+    expect(renderCount).toBeLessThan(4);
+
+    configureMobx({ enforceActions: 'observed' });
 });

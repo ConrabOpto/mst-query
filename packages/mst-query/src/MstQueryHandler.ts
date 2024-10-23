@@ -95,7 +95,7 @@ export class QueryObserver {
                 }
             }
 
-            if (options.initialData) {
+            if (options.initialData && !options.isMounted) {
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
                 if (!isStale) {
                     this.query.__MstQueryHandler.hydrate(options);
