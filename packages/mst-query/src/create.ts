@@ -277,7 +277,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 return next();
             }) as <TResult = any>(options: {
                 request: SnapshotIn<TRequest>;
-                optimisticUpdate?: () => void;
+                optimisticUpdate?: () => any;
                 meta?: { [key: string]: any };
             }) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,

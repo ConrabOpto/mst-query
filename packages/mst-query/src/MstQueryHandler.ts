@@ -292,10 +292,15 @@ export class MstQueryHandler {
     mutate(options: any = {}): Promise<() => any> {
         const { optimisticUpdate } = options;
         let updateRecorder: IPatchRecorder;
+        let result: any;
         if (optimisticUpdate) {
             updateRecorder = recordPatches(getRoot(this.model));
-            optimisticUpdate();
+            result = optimisticUpdate();
             updateRecorder.stop();
+        }
+        if (result) {
+            const data = this.prepareData(result);
+            this.notify({ onMutate: true }, data, this.model);
         }
         return this.run(options).then(
             (result) => this.onSuccess(result, { updateRecorder }),

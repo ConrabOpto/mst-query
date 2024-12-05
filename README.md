@@ -156,10 +156,10 @@ const MesssageView = observer((props) => {
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createQuery, RequestModel } from 'mst-query';
+import { createInfiniteQuery, RequestModel } from 'mst-query';
 import { MessageModel } from './models';
 
-const MessagesQuery = createQuery('MessagesQuery', {
+const MessagesQuery = createInfiniteQuery('MessagesQuery', {
     data: types.model({ items: types.array(types.reference(MessageModel)) }),
     pagination: types.model({ offset: types.number, limit: types.number }),
     endpoint({ request }) {
@@ -175,13 +175,13 @@ const MessageStore = createModelStore('MessageStore', MessageModel).props({
 ```
 
 ```tsx
-import { useQuery } from 'mst-query';
+import { useInfiniteQuery } from 'mst-query';
 import { observer } from 'mobx-react';
 import { MessageListQuery } from './MessageListQuery';
 
 const MesssageListView = observer((props) => {
     const [offset, setOffset] = useState(0);
-    const { data, isFetchingMore, query } = useQuery(messageStore.messagesQuery, {
+    const { data, isFetchingMore, query } = useInfiniteQuery(messageStore.messagesQuery, {
         request: { filter: '' },
         pagination: { offset, limit: 20 },
     });
@@ -246,9 +246,11 @@ const AddMessage = observer((props) => {
                 onClick={() => {
                     addMessage({
                         request: { message },
-                        optimisticResponse: {
-                            id: 'temp' + Math.random(),
-                            message,
+                        optimisticUpdate() {
+                            return {
+                                id: 'temp' + Math.random(),
+                                message,
+                            };
                         },
                     });
                     setMessage('');
