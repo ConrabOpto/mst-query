@@ -60,15 +60,19 @@ export class QueryObserver {
         });
     }
 
+    get handler() {
+        return this.query.__MstQueryHandler;
+    }
+
     subscribe() {
         if (this.query) {
-            this.query.__MstQueryHandler.addQueryObserver(this);
+            this.handler.addQueryObserver(this);
         }
     }
 
     unsubscribe() {
         if (this.query) {
-            this.query.__MstQueryHandler.removeQueryObserver(this);
+            this.handler.removeQueryObserver(this);
         }
     }
 
@@ -98,16 +102,16 @@ export class QueryObserver {
             if (options.initialData && !options.isMounted) {
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
                 if (!isStale) {
-                    this.query.__MstQueryHandler.hydrate(options);
+                    this.handler.hydrate(options);
                 } else {
-                    this.query.__MstQueryHandler.queryWhenChanged(options);
+                    this.handler.queryWhenChanged(options);
                 }
             } else {
                 if (!options.isRequestEqual) {
                     this.query.setData(null);
                 }
 
-                this.query.__MstQueryHandler.queryWhenChanged(options);
+                this.handler.queryWhenChanged(options);
             }
         }
 
@@ -196,6 +200,10 @@ export class MstQueryHandler {
         });
     }
 
+    get notInitialized() {
+        return !this.isFetched && !this.isLoading && !this.cachedAt;
+    }
+
     run(options: any = {}) {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
@@ -243,8 +251,8 @@ export class MstQueryHandler {
             return;
         }
 
+        const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
         if (!options.isMounted) {
-            const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
             if (notInitialized) {
                 return this.model.query(options);
             }
@@ -265,6 +273,10 @@ export class MstQueryHandler {
         }
 
         if (!options.isRequestEqual) {
+            return this.model.query(options);
+        }
+
+        if (notInitialized && options.refetchOnChanged === 'none') {
             return this.model.query(options);
         }
 
