@@ -29,6 +29,7 @@ type QueryHookOptions = {
     enabled?: boolean;
     isMounted?: any;
     isRequestEqual?: boolean;
+    isReenabled?: boolean;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
     refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
 };
@@ -46,7 +47,7 @@ export class DisposedError extends Error {}
 
 export class QueryObserver {
     query: any;
-    options: any;
+    options: any = {};
     isQuery: boolean;
     isMounted = false;
     isFetchedAfterMount = false;
@@ -77,12 +78,14 @@ export class QueryObserver {
     }
 
     setOptions(options: any) {
-        this.options = options;
-
         this.subscribe();
 
         if (this.isQuery) {
             options.isMounted = this.isMounted;
+
+            if (!this.options.enabled && options.enabled) {
+                options.isReenabled = true;
+            }
 
             const refetchRequestOnChanged =
                 options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
@@ -96,6 +99,19 @@ export class QueryObserver {
                     );
                 } else {
                     options.isRequestEqual = equal(options.request, this.query.variables.request);
+                }
+            }
+
+            if (options.enabled && typeof options.refetchOnChanged === 'function') {
+                if (this.query.variables.request && this.query.variables.pagination) {
+                    options.isRequestEqual = !options.refetchOnChanged({
+                        prevRequest: this.query.variables.request,
+                        prevPagination: this.query.variables.pagination,
+                    });
+                } else if (this.query.variables.request) {
+                    options.isRequestEqual = !options.refetchOnChanged({
+                        prevRequest: this.query.variables.request,
+                    });
                 }
             }
 
@@ -118,6 +134,8 @@ export class QueryObserver {
         if (!this.isMounted) {
             this.isMounted = true;
         }
+
+        this.options = options;
     }
 }
 
@@ -276,7 +294,7 @@ export class MstQueryHandler {
             return this.model.query(options);
         }
 
-        if (notInitialized && options.refetchOnChanged === 'none') {
+        if (notInitialized && options.isReenabled) {
             return this.model.query(options);
         }
 

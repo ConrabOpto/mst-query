@@ -1,6 +1,11 @@
 import { Instance, SnapshotIn } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { VolatileQuery, MutationReturnType, QueryReturnType, InfiniteQueryReturnType } from './create';
+import {
+    VolatileQuery,
+    MutationReturnType,
+    QueryReturnType,
+    InfiniteQueryReturnType,
+} from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
 import { EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
@@ -16,7 +21,12 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
 type QueryOptions<T extends Instance<QueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
-    refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
+    refetchOnChanged?:
+        | 'all'
+        | 'request'
+        | 'pagination'
+        | 'none'
+        | ((options: { prevRequest: Exclude<T['variables']['request'], undefined> }) => boolean);
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
@@ -26,7 +36,7 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
 
 export function useQuery<T extends Instance<QueryReturnType>>(
     query: T,
-    options: QueryOptions<T> = {}
+    options: QueryOptions<T> = {},
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(query, true));
 
@@ -36,7 +46,9 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     (options as any).request = options.request ?? EmptyRequest;
 
     if ((query as any).isInfinite) {
-        throw new Error('useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.');
+        throw new Error(
+            'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
+        );
     }
 
     useEffect(() => {
@@ -54,7 +66,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     }, [options]);
 
     return {
-        data: query.data as typeof query['data'],
+        data: query.data as (typeof query)['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,
@@ -71,7 +83,15 @@ type InfiniteQueryOptions<T extends Instance<InfiniteQueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
     pagination?: SnapshotIn<T['variables']['pagination']>;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
-    refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
+    refetchOnChanged?:
+        | 'all'
+        | 'request'
+        | 'pagination'
+        | 'none'
+        | ((options: {
+              prevRequest: Exclude<T['variables']['request'], undefined>;
+              prevPagination: Exclude<T['variables']['pagination'], undefined>;
+          }) => boolean);
     staleTime?: number;
     enabled?: boolean;
     initialData?: any;
@@ -81,7 +101,7 @@ type InfiniteQueryOptions<T extends Instance<InfiniteQueryReturnType>> = {
 
 export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
     query: T,
-    options: InfiniteQueryOptions<T> = {}
+    options: InfiniteQueryOptions<T> = {},
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(query, true));
 
@@ -90,9 +110,11 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
 
     (options as any).request = options.request ?? EmptyRequest;
     (options as any).pagination = options.pagination ?? EmptyPagination;
-    
+
     if (!(query as any).isInfinite) {
-        throw new Error('useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.');
+        throw new Error(
+            'useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.',
+        );
     }
 
     useEffect(() => {
@@ -110,7 +132,7 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
     }, [options]);
 
     return {
-        data: query.data as typeof query['data'],
+        data: query.data as (typeof query)['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,
@@ -131,7 +153,7 @@ type MutationOptions<T extends Instance<MutationReturnType>> = {
 
 export function useMutation<T extends Instance<MutationReturnType>>(
     mutation: T,
-    options: MutationOptions<T> = {}
+    options: MutationOptions<T> = {},
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(mutation, false));
 
@@ -149,7 +171,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     }, [options]);
 
     const result = {
-        data: mutation.data as typeof mutation['data'],
+        data: mutation.data as (typeof mutation)['data'],
         error: mutation.error,
         isLoading: mutation.isLoading,
         mutation,
@@ -162,7 +184,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
         }) => {
             const result = mutation.mutate({ ...params, ...options } as any);
             return result as Promise<{ data: T['data']; error: any; result: TResult }>;
-        }
+        },
     );
 
     return [mutate, result] as [typeof mutate, typeof result];
@@ -181,7 +203,7 @@ type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions
 };
 
 export function useVolatileQuery(
-    options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {}
+    options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {},
 ) {
     const queryClient = useContext(Context)! as QueryClient<any>;
     const query = useRefQuery(VolatileQuery, queryClient);
