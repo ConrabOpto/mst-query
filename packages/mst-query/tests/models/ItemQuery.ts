@@ -4,7 +4,7 @@ import { api } from '../api/api';
 import { ItemModel } from './ItemModel';
 
 export const ItemQuery = createQuery('ItemQuery', {
-    request: types.model({ id: types.string }),
+    request: types.model({ id: types.string, id2: types.maybe(types.string) }),
     data: types.reference(ItemModel),
     async endpoint(args) {
         return args.meta.getItem ? args.meta.getItem(args) : api.getItem(args);

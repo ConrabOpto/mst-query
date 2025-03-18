@@ -978,6 +978,50 @@ test('useQuery should run when initialData is given and invalidate is called', a
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('refetchOnRequestChanged function', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    let id2 = observable.box('test2');
+
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+    const testApi = {
+        ...api,
+        getItem: () => getItem(),
+    };
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            request: { id: id.get(), id2: id2.get() },
+            refetchOnChanged({ prevRequest }) {            
+                return prevRequest.id !== id.get();
+            },            
+            staleTime: 5000,
+            meta: { getItem: testApi.getItem },
+        });
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(1);
+
+    id.set('different-test');
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(2);
+
+    id2.set('different-test2');
+    await wait(0);
+
+    expect(getItem).toHaveBeenCalledTimes(2);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('refetchOnMount & refetchOnRequestChanged', async () => {
     const { render, q } = setup();
 
