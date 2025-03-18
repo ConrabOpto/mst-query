@@ -599,6 +599,36 @@ test('hook - enabled prop', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('hook - enabled & refetchOnChanged none', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const enabled = observable.box(false);
+
+    const Comp = observer(() => {
+        const { query } = useInfiniteQuery(q.listQuery, {
+            pagination: { offset: 0 },
+            enabled: enabled.get(),
+            refetchOnChanged: 'none',
+        });
+        return <div></div>;
+    });
+
+    render(<Comp />);
+
+    expect(q.listQuery.isFetched).toBe(false);
+
+    enabled.set(true);
+
+    await when(() => q.listQuery.isLoading);
+    await when(() => !q.listQuery.isLoading);
+
+    expect(q.listQuery.isFetched).toBe(true);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('base array type', async () => {
     const { render, q } = setup();
 
