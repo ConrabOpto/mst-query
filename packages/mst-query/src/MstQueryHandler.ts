@@ -116,10 +116,10 @@ export class QueryObserver {
             }
 
             if (options.initialData && !options.isMounted) {
+                this.handler.hydrate(options);
+                
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
-                if (!isStale) {
-                    this.handler.hydrate(options);
-                } else {
+                if (isStale) {
                     this.handler.queryWhenChanged(options);
                 }
             } else {
@@ -269,7 +269,7 @@ export class MstQueryHandler {
             return;
         }
 
-        const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
+        const notInitialized = !this.isFetched && !this.isLoading;
         if (!options.isMounted) {
             if (notInitialized) {
                 return this.model.query(options);
@@ -548,9 +548,11 @@ export class MstQueryHandler {
     }
 
     hydrate(options: any) {
-        const { initialData, request, pagination } = options;
+        const { enabled, initialData, request, pagination } = options;
 
-        this.setVariables({ request, pagination });
+        if (enabled) {
+            this.setVariables({ request, pagination });
+        }
         this.options.meta = options.meta;
 
         this.isLoading = false;

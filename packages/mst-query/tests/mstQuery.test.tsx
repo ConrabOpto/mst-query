@@ -978,6 +978,30 @@ test('useQuery should run when initialData is given and invalidate is called', a
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery should set initialData when enabled is false', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    const initialData = await api.getItem({ request: { id: id.get() } });
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            initialData,
+            enabled: false,
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    expect(q.itemQuery.data?.id).toBe('test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('refetchOnRequestChanged function', async () => {
     const { render, q } = setup();
 
