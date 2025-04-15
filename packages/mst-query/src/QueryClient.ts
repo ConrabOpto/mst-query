@@ -25,6 +25,7 @@ const defaultConfig = {
     env: {},
     queryOptions: {
         staleTime: 0,
+        cacheTime: 0,
         refetchOnMount: 'if-stale',
         refetchOnChanged: 'all',
     },

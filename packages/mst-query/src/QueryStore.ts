@@ -8,15 +8,22 @@ import {
     getIdentifier,
     IAnyComplexType,
 } from 'mobx-state-tree';
-import { observable, action, makeObservable} from 'mobx';
+import { observable, action, makeObservable } from 'mobx';
 
 export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
 };
 
+type QueryCacheEntry = {
+    cachedAt: number;
+    data: any;
+    timeout: number;
+};
+
 export class QueryStore {
     #scheduledGc = null as null | number;
     #queryClient: any;
+    #queryData = new Map() as Map<string, QueryCacheEntry>;
     #cache = new Map() as Map<string, any>;
 
     models = new Map() as Map<string, any>;
@@ -31,9 +38,38 @@ export class QueryStore {
         this.#queryClient = queryClient;
     }
 
+    getQueryData(type: IAnyComplexType, key: string) {
+        return this.#queryData.get(getKey(type, key));
+    }
+
+    setQueryData(
+        type: IAnyComplexType,
+        key: string,
+        model: Instance<IAnyModelType>,
+        cacheTime: number = 0,
+    ) {
+        const existingEntry = this.#queryData.get(getKey(type, key));
+        if (existingEntry) {
+            window.clearTimeout(existingEntry.timeout);
+        }
+
+        const cacheEntry = {
+            cachedAt: Date.now(),
+            data: model.data,
+            timeout: window.setTimeout(() => {
+                this.removeQueryData(type, key);
+            }, cacheTime),
+        };
+        this.#queryData.set(getKey(type, key), cacheEntry);
+    }
+
+    removeQueryData(type: IAnyComplexType, key: string) {
+        this.#queryData.delete(getKey(type, key));
+    }
+
     getQueries<T extends IAnyModelType>(
         queryDef: T,
-        matcherFn: (query: Instance<T>) => boolean = () => true
+        matcherFn: (query: Instance<T>) => boolean = () => true,
     ): Instance<T>[] {
         let results = [];
         const arr = this.#cache.get(queryDef.name) ?? [];
@@ -66,7 +102,7 @@ export class QueryStore {
                 'delete',
                 getType(obj),
                 getIdentifier(obj),
-                obj
+                obj,
             );
         }
 
@@ -93,6 +129,10 @@ export class QueryStore {
 
                 collectSeenIdentifiers(query.data, seenIdentifiers);
                 collectSeenIdentifiers(query.request, seenIdentifiers);
+
+                for (let [_, queryData] of this.#queryData) {
+                    collectSeenIdentifiers(queryData.data, seenIdentifiers);
+                }
             }
         }
 

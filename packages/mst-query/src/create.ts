@@ -1,5 +1,5 @@
 import { types, IAnyType, flow, SnapshotIn, Instance } from 'mobx-state-tree';
-import { MstQueryHandler } from './MstQueryHandler';
+import { type CacheOptions, MstQueryHandler } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -141,8 +141,8 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
             invalidate() {
                 self.__MstQueryHandler.invalidate();
             },
-            setData(data: any) {
-                return self.__MstQueryHandler.setData(data);
+            setData(data: any, options?: CacheOptions) {
+                return self.__MstQueryHandler.setData(data, options);
             },
             abort: self.__MstQueryHandler.abort,
         }));

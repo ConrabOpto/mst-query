@@ -38,10 +38,15 @@ type NotifyOptions = {
     onMutate?: boolean;
 };
 
+export type CacheOptions = {
+    cacheTime?: number;
+    cacheKey?: string;
+};
+
 type OnResponseOptions = {
     shouldUpdate?: boolean;
     updateRecorder?: IPatchRecorder;
-};
+} & CacheOptions;
 
 export class DisposedError extends Error {}
 
@@ -63,6 +68,10 @@ export class QueryObserver {
 
     get handler() {
         return this.query.__MstQueryHandler;
+    }
+
+    get queryStore() {
+        return this.handler.queryClient.queryStore;
     }
 
     subscribe() {
@@ -116,11 +125,26 @@ export class QueryObserver {
             }
 
             if (options.initialData && !options.isMounted) {
-                this.handler.hydrate(options);
-                
+                this.handler.hydrate(options.initialData, options);
+
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
                 if (isStale) {
                     this.handler.queryWhenChanged(options);
+                }
+            } else if (options.cacheKey) {
+                const cacheEntry = this.queryStore.getQueryData(
+                    this.handler.type,
+                    options.cacheKey,
+                );
+                const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.cacheTime);
+                if (isStale) {
+                    this.handler.queryWhenChanged(options);
+                } else {
+                    try {
+                        this.handler.hydrate(cacheEntry.data, options);
+                    } catch {
+                        this.handler.queryWhenChanged(options);
+                    }
                 }
             } else {
                 if (!options.isRequestEqual) {
@@ -314,7 +338,7 @@ export class MstQueryHandler {
 
     query(options: any = {}): Promise<() => any> {
         return this.run(options).then(
-            (result) => this.onSuccess(result),
+            (result) => this.onSuccess(result, options),
             (err) => this.onError(err),
         );
     }
@@ -389,7 +413,7 @@ export class MstQueryHandler {
 
             let data;
             if (shouldUpdate) {
-                data = this.setData(result);
+                data = this.setData(result, options);
             } else {
                 data = this.prepareData(result);
             }
@@ -527,7 +551,9 @@ export class MstQueryHandler {
         return merge(data, this.type.properties.data, this.queryClient.config.env, true);
     }
 
-    setData(data: any) {
+    setData(data: any, options: CacheOptions = {}) {
+        const opts = options ?? this.options;
+
         this.model.__MstQueryHandlerAction(() => {
             if (isStateTreeNode(data)) {
                 if (isReferenceType(this.type.properties.data)) {
@@ -542,13 +568,22 @@ export class MstQueryHandler {
                     this.queryClient.config.env,
                 );
             }
+
+            if (opts.cacheKey && this.model.data) {
+                this.queryClient.queryStore.setQueryData(
+                    this.type,
+                    opts.cacheKey,
+                    this.model,
+                    opts.cacheTime,
+                );
+            }
         });
 
         return this.model.data;
     }
 
-    hydrate(options: any) {
-        const { enabled, initialData, request, pagination } = options;
+    hydrate(data: any, options: any) {
+        const { enabled, request, pagination } = options;
 
         if (enabled) {
             this.setVariables({ request, pagination });
@@ -557,7 +592,7 @@ export class MstQueryHandler {
 
         this.isLoading = false;
 
-        this.setData(initialData);
+        this.setData(data, options);
         this.cachedAt = new Date();
     }
 
