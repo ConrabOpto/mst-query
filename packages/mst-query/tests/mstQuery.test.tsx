@@ -225,6 +225,55 @@ test('useQuery - reactive request', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery - cacheKey and cacheTime', async () => {
+    const { render, q, queryClient } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    const getItem = vi.fn(({ request }) => api.getItem({ request }));
+    const testApi = {
+        ...api,
+        getItem,
+    };
+
+    let id = observable.box('test');
+    const Comp = observer(() => {
+        const { query } = useQuery(q.itemQuery, {
+            request: { id: id.get() },
+            cacheKey: id.get(),
+            cacheTime: 25,
+            staleTime: 25,
+            meta: { getItem: testApi.getItem },
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('test');
+
+    id.set('different-test');
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('different-test');
+    expect(q.itemQuery.variables.request?.id).toBe('different-test');
+
+    id.set('test');
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('test');
+    expect(getItem).toHaveBeenCalledTimes(2);
+
+    await wait(50);
+    queryClient.queryStore.runGc();
+    await wait(0);
+
+    id.set('different-test');
+    await wait(0);
+    expect(q.itemQuery.data?.id).toBe('different-test');
+    expect(getItem).toHaveBeenCalledTimes(3);
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('onQueryMore', async () => {
     const { render, q } = setup();
 
@@ -900,7 +949,7 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     expect(q.itemQuery.data?.id).toBe('different-test');
     expect(q.itemQuery.variables.request?.id).toBe('different-test');
     expect(loadingStates).toEqual([true, false]);
-    expect(dataStates).toEqual(['test', null, "different-test"]);
+    expect(dataStates).toEqual(['test', null, 'different-test']);
 
     isLoadingReaction();
     dataReaction();
@@ -978,6 +1027,30 @@ test('useQuery should run when initialData is given and invalidate is called', a
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery should set initialData when enabled is false', async () => {
+    const { render, q } = setup();
+
+    configureMobx({ enforceActions: 'never' });
+
+    let id = observable.box('test');
+    const initialData = await api.getItem({ request: { id: id.get() } });
+
+    const Comp = observer(() => {
+        useQuery(q.itemQuery, {
+            initialData,
+            enabled: false,
+        });
+        return <div></div>;
+    });
+    render(<Comp />);
+
+    await wait(0);
+
+    expect(q.itemQuery.data?.id).toBe('test');
+
+    configureMobx({ enforceActions: 'observed' });
+});
+
 test('refetchOnRequestChanged function', async () => {
     const { render, q } = setup();
 
@@ -995,9 +1068,9 @@ test('refetchOnRequestChanged function', async () => {
     const Comp = observer(() => {
         useQuery(q.itemQuery, {
             request: { id: id.get(), id2: id2.get() },
-            refetchOnChanged({ prevRequest }) {            
+            refetchOnChanged({ prevRequest }) {
                 return prevRequest.id !== id.get();
-            },            
+            },
             staleTime: 5000,
             meta: { getItem: testApi.getItem },
         });
