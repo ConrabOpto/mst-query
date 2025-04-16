@@ -136,16 +136,14 @@ export class QueryObserver {
                     this.handler.type,
                     options.cacheKey,
                 );
-                const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.cacheTime);
+                if (cacheEntry) {
+                    this.handler.hydrate(cacheEntry.data, options);
+                }                
+                
+                const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.staleTime);
                 if (isStale) {
                     this.handler.queryWhenChanged(options);
-                } else {
-                    try {
-                        this.handler.hydrate(cacheEntry.data, options);
-                    } catch {
-                        this.handler.queryWhenChanged(options);
-                    }
-                }
+                }                
             } else {
                 if (!options.isRequestEqual) {
                     this.query.setData(null);

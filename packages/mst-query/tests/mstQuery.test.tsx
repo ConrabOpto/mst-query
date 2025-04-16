@@ -242,6 +242,7 @@ test('useQuery - cacheKey and cacheTime', async () => {
             request: { id: id.get() },
             cacheKey: id.get(),
             cacheTime: 25,
+            staleTime: 25,
             meta: { getItem: testApi.getItem },
         });
         return <div></div>;
