@@ -1307,3 +1307,35 @@ test('initial data should only be set on mount', async () => {
 
     configureMobx({ enforceActions: 'observed' });
 });
+
+test('union of array models', () => {
+    const data = {
+        rules: [
+            {
+                kind: 'FIXED',
+                fixedValue: 'Fixed value',
+            },
+            {
+                kind: 'FORMAT',
+                formatValue: 'Formatted value',
+            },            
+        ],
+    };
+    const Model = types.model('UnionArrayTestModel', {
+        rules: types.array(
+            types.union(
+                types.late(() => types.model('FixedModel', {
+                    kind: types.literal('FIXED'),
+                    fixedValue: types.string,
+                })),
+                types.model('FormatModel', {
+                    kind: types.literal('FORMAT'),
+                    formatValue: types.string,
+                }),
+            ),
+        ),
+    });
+    const result = merge(data, Model, {});
+    expect(result.rules[0].fixedValue).toBe('Fixed value');
+    expect(result.rules[1].formatValue).toBe('Formatted value');
+});

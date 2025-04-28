@@ -32,7 +32,14 @@ export function getSubType(t: any, data?: any): any {
             return getSubType(t._subtype);
         }
         const subTypes = t._types.map((t: any) => getSubType(t, data));
-        const modelWithProperties = subTypes.find((x: any) => isModelType(x) || isReferenceType(x));
+        // Every subtype is a model type or reference type - return the union type and let mst
+        // handle reconciling the types.
+        if (subTypes.every((x: any) => isModelType(x) || isReferenceType(x))) {
+            return t;
+        }
+        // If we have a union of models and primitives (null/undefined), we need to find the first model or reference type
+        // to enumerate the properties of the object.
+        const modelWithProperties = subTypes.find((x: any) => isModelType(x) || isReferenceType(x));        
         if (modelWithProperties) {
             return getSubType(modelWithProperties, data);
         }
