@@ -14,6 +14,7 @@ import { ArrayQuery } from './ArrayQuery';
 import { SafeReferenceQuery } from './SafeReferenceQuery';
 import { RemoveItemMutation } from './RemoveItemMutation';
 import { ErrorMutation } from './ErrorMutation';
+import { FixedModel, FormatModel } from './UnionModel';
 
 export const DateModel = types.model('DateModel', {
     id: types.identifier,
@@ -48,8 +49,8 @@ const AmountLimitModel = types.model('AmountLimit').props({
             types.model({
                 tag: types.enumeration(Object.values(AmountTag)),
                 content: types.maybeNull(types.string),
-            })
-        )
+            }),
+        ),
     ),
 });
 
@@ -59,7 +60,7 @@ const TestModel = types.model({
     prop: types.maybeNull(
         types.model({
             ids: types.array(types.model({ baha: types.string })),
-        })
+        }),
     ),
     folderPath: types.maybe(types.string),
     origin: types.union(types.string, types.undefined),
@@ -105,6 +106,8 @@ export const Root = createRootStore({
     listStore: optional(createModelStore('ListStore', ListModel)),
     dateStore: optional(createModelStore('DateStore', DateModel)),
     deepModelCStore: optional(createModelStore('DeepModelCStore', DeepModelC)),
+    fixedModelStore: optional(createModelStore('FixedModelStore', FixedModel)),
+    formatModelStore: optional(createModelStore('FixedModelStore', FormatModel)),
     serviceStore: optional(ServiceStore),
 });
 

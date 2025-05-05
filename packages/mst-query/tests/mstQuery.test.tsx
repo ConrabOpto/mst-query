@@ -15,6 +15,7 @@ import { QueryClient } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { DateModel, DeepModelA, Root } from './models/RootStore';
 import { useInfiniteQuery, useVolatileQuery } from '../src/hooks';
+import { UnionModel } from './models/UnionModel';
 
 const setup = ({ strictMode = false } = {}) => {
     const queryClient = new QueryClient({ RootStore: Root });
@@ -1309,33 +1310,26 @@ test('initial data should only be set on mount', async () => {
 });
 
 test('union of array models', () => {
+    const { queryClient } = setup();
+
     const data = {
         rules: [
             {
+                id: '1',
                 kind: 'FIXED',
                 fixedValue: 'Fixed value',
             },
             {
+                id: '2',
                 kind: 'FORMAT',
                 formatValue: 'Formatted value',
-            },            
+            },
         ],
     };
     const Model = types.model('UnionArrayTestModel', {
-        rules: types.array(
-            types.union(
-                types.late(() => types.model('FixedModel', {
-                    kind: types.literal('FIXED'),
-                    fixedValue: types.string,
-                })),
-                types.model('FormatModel', {
-                    kind: types.literal('FORMAT'),
-                    formatValue: types.string,
-                }),
-            ),
-        ),
+        rules: types.array(types.reference(UnionModel)),
     });
-    const result = merge(data, Model, {});
+    const result = merge(data, Model, queryClient.config.env);
     expect(result.rules[0].fixedValue).toBe('Fixed value');
     expect(result.rules[1].formatValue).toBe('Formatted value');
 });
