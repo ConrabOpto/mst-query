@@ -1,4 +1,4 @@
-import { types } from "mobx-state-tree";
+import { types } from 'mobx-state-tree';
 
 export const FixedModel = types.model('FixedModel', {
     id: types.identifier,
@@ -11,6 +11,5 @@ export const FormatModel = types.model('FormatModel', {
     kind: types.literal('FORMAT'),
     formatValue: types.string,
 });
-
 
 export const UnionModel = types.union(FixedModel, FormatModel);
