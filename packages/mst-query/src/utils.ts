@@ -24,14 +24,15 @@ export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
 
 export function getSubType(t: any, data?: any): any {
     if (isUnionType(t)) {
-        const actualType = t.determineType && data !== undefined && t.determineType(data);
+        const type = t as any;
+        const actualType = type.determineType && data !== undefined && type.determineType(data);
         if (actualType) {
             return actualType;
         }
-        if (!t.determineType) {
-            return getSubType(t._subtype);
+        if (!type.determineType) {
+            return getSubType(type._subtype);
         }
-        const subTypes = t._types.map((t: any) => getSubType(t, data));
+        const subTypes = type._types.map((t: any) => getSubType(t, data));
         // Every subtype is a model type or reference type - return the union type and let mst
         // handle reconciling the types.
         if (subTypes.every((x: any) => isModelType(x) || isReferenceType(x))) {

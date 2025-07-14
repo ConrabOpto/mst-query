@@ -799,7 +799,7 @@ test('request with optional values', async () => {
     });
     render(<Comp />);
 
-    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
+    expect(((getItem.mock.calls[0] as any)[0]).request.filter).toBe(null);
 });
 
 test('request with optional values', async () => {
@@ -816,7 +816,7 @@ test('request with optional values', async () => {
     });
     render(<Comp />);
 
-    expect((getItem.mock.calls[0][0] as any).request.filter).toBe(null);
+    expect(((getItem.mock.calls[0] as any)[0]).request.filter).toBe(null);
 });
 
 test('set data to null when request changes', async () => {
