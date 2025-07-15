@@ -191,7 +191,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
 }
 
 function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
-    const q = useRef<Instance<T>>();
+    const q = useRef<Instance<T>>(undefined);
     if (!q.current) {
         (q.current as any) = query.create(undefined, queryClient.config.env);
     }
