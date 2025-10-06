@@ -99,6 +99,7 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            meta: {} as { [key: string]: any },
             isQuery: true,
             isInfinte: false,
             isMutation: false,
@@ -144,6 +145,9 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
             setData(data: any, options?: CacheOptions) {
                 return self.__MstQueryHandler.setData(data, options);
             },
+            setMeta(key: string, value: any) {
+                self.meta[key] = value;
+            },
             abort: self.__MstQueryHandler.abort,
         }));
 }
@@ -173,6 +177,7 @@ export function createInfiniteQuery<
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint, onQueryMore }),
+            meta: {} as { [key: string]: any },
             isQuery: true,
             isInfinite: true,
             isMutation: false,
@@ -231,6 +236,9 @@ export function createInfiniteQuery<
             setData(data: any) {
                 return self.__MstQueryHandler.setData(data);
             },
+            setMeta(key: string, value: any) {
+                self.meta[key] = value;
+            },
             abort: self.__MstQueryHandler.abort,
         }));
 }
@@ -256,6 +264,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         })
         .volatile((self) => ({
             __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            meta: {} as { [key: string]: any },
             isQuery: false,
             isInfinte: false,
             isMutation: true,
@@ -281,6 +290,9 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 meta?: { [key: string]: any };
             }) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,
+            setMeta(key: string, value: any) {
+                self.meta[key] = value;
+            },
         }));
 }
 
