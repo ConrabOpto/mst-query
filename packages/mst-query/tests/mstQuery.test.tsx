@@ -799,7 +799,7 @@ test('request with optional values', async () => {
     });
     render(<Comp />);
 
-    expect(((getItem.mock.calls[0] as any)[0]).request.filter).toBe(null);
+    expect((getItem.mock.calls[0] as any)[0].request.filter).toBe(null);
 });
 
 test('request with optional values', async () => {
@@ -816,7 +816,7 @@ test('request with optional values', async () => {
     });
     render(<Comp />);
 
-    expect(((getItem.mock.calls[0] as any)[0]).request.filter).toBe(null);
+    expect((getItem.mock.calls[0] as any)[0].request.filter).toBe(null);
 });
 
 test('set data to null when request changes', async () => {
@@ -1332,4 +1332,107 @@ test('union of array models', () => {
     const result = merge(data, Model, queryClient.config.env);
     expect(result.rules[0].fixedValue).toBe('Fixed value');
     expect(result.rules[1].formatValue).toBe('Formatted value');
+});
+
+test('mutations with same scope run sequentially', async () => {
+    const { q } = setup();
+
+    const executionOrder: string[] = [];
+    let callCount = 0;
+
+    const trackedEndpoint = async () => {
+        const currentCall = ++callCount;
+        executionOrder.push(`start-${currentCall}`);
+
+        // First call takes longer
+        const delay = currentCall === 1 ? 50 : 5;
+        await wait(delay);
+
+        executionOrder.push(`end-${currentCall}`);
+        return {
+            ...itemData,
+            id: `item-${currentCall}`,
+            description: `call ${currentCall}`,
+        };
+    };
+
+    const testApi = {
+        ...api,
+        addItem: trackedEndpoint,
+        removeItem: trackedEndpoint,
+    };
+
+    const promise1 = q.addItemMutation.mutate({
+        request: { path: 'test1', message: 'first' },
+        scope: { id: 'sequential-updates' },
+        meta: { addItem: testApi.addItem },
+    });
+
+    // Wait a bit to ensure first mutation has started
+    await wait(10);
+
+    // Start second mutation with same scope - should wait for first to complete
+    const promise2 = q.removeItemMutation.mutate({
+        request: { id: 'test2' },
+        // scope defined on definition
+        meta: { removeItem: testApi.removeItem },
+    });
+
+    await Promise.all([promise1, promise2]);
+
+    // If scopes work correctly, execution order should be: [start-1, end-1, start-2, end-2]
+    // Without scopes, it would be: [start-1, start-2, end-2, end-1] (second starts and finishes before first ends)
+    expect(executionOrder).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
+});
+
+test('mutations with different scopes run in parallel', async () => {
+    const { q } = setup();
+
+    const executionOrder: string[] = [];
+    let callCount = 0;
+
+    // Create a custom endpoint that tracks execution timing
+    const trackedEndpoint = async () => {
+        const currentCall = ++callCount;
+        executionOrder.push(`start-${currentCall}`);
+
+        // First call takes longer
+        const delay = currentCall === 1 ? 50 : 5;
+        await wait(delay);
+
+        executionOrder.push(`end-${currentCall}`);
+        return {
+            ...itemData,
+            id: `item-${currentCall}`,
+            description: `call ${currentCall}`,
+        };
+    };
+
+    const testApi = {
+        ...api,
+        addItem: trackedEndpoint,
+    };
+
+    // Start first mutation with scope A
+    const promise1 = q.addItemMutation.mutate({
+        request: { path: 'test1', message: 'first' },
+        scope: { id: 'scope-a' },
+        meta: { addItem: testApi.addItem },
+    });
+
+    // Wait a bit to ensure first mutation has started
+    await wait(10);
+
+    // Start second mutation with different scope B - should run in parallel
+    const promise2 = q.addItemMutation.mutate({
+        request: { path: 'test2', message: 'second' },
+        scope: { id: 'scope-b' },
+        meta: { addItem: testApi.addItem },
+    });
+
+    await Promise.all([promise1, promise2]);
+
+    // With different scopes, mutations run in parallel: [start-1, start-2, end-2, end-1]
+    // The fast mutation (2) finishes before the slow one (1)
+    expect(executionOrder).toEqual(['start-1', 'start-2', 'end-2', 'end-1']);
 });

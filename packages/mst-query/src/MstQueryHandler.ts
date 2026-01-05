@@ -15,7 +15,7 @@ import {
     recordPatches,
     unprotect,
 } from 'mobx-state-tree';
-import { MutationReturnType } from './create';
+import { MutationReturnType, MutationScope } from './create';
 import { merge } from './merge';
 import { QueryClient, EndpointType } from './QueryClient';
 
@@ -196,6 +196,7 @@ export class MstQueryHandler {
         endpoint: EndpointType;
         onQueryMore?: (options: any) => void;
         meta?: { [key: string]: any };
+        scope?: MutationScope;
     };
 
     previousVariables: any;
@@ -342,7 +343,7 @@ export class MstQueryHandler {
     }
 
     mutate(options: any = {}): Promise<() => any> {
-        const { optimisticUpdate } = options;
+        const { optimisticUpdate, scope } = options;
         let updateRecorder: IPatchRecorder;
         let result: any;
         if (optimisticUpdate) {
@@ -354,10 +355,41 @@ export class MstQueryHandler {
             const data = this.prepareData(result);
             this.notify({ onMutate: true }, data, this.model);
         }
-        return this.run(options).then(
-            (result) => this.onSuccess(result, { updateRecorder }),
-            (err) => this.onError(err, { updateRecorder }),
-        );
+
+        const executeMutation = () => {
+            return this.run(options).then(
+                (result) => this.onSuccess(result, { updateRecorder }),
+                (err) => this.onError(err, { updateRecorder }),
+            );
+        };
+
+        // Scope precedence: mutate options > handler options (from useMutation or createMutation)
+        const effectiveScope = scope ?? this.options.scope;
+
+        if (effectiveScope?.id) {
+            const scopeId = effectiveScope.id;
+            const mutationScopes = this.queryClient.getMutationScopes();
+            
+            const previousMutation = mutationScopes.get(scopeId) ?? Promise.resolve();
+            
+            const currentMutation = previousMutation.then(
+                () => executeMutation(),
+                () => executeMutation() // Execute even if previous mutation failed
+            );
+            
+            mutationScopes.set(scopeId, currentMutation);
+            
+            currentMutation.finally(() => {
+                // Only delete if this is still the current mutation for this scope
+                if (mutationScopes.get(scopeId) === currentMutation) {
+                    mutationScopes.delete(scopeId);
+                }
+            });
+            
+            return currentMutation;
+        }
+
+        return executeMutation();
     }
 
     queryMore(options: any = {}): Promise<() => any> {

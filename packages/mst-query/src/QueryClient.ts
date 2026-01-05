@@ -1,5 +1,6 @@
 import { destroy, IAnyModelType, Instance } from 'mobx-state-tree';
 import { QueryStore } from './QueryStore';
+import type { MutationScope } from './create';
 
 export type EndpointType = (
     options: {
@@ -37,6 +38,7 @@ export class QueryClient<T extends IAnyModelType> {
     queryStore!: QueryStore;
     #initialized = false;
     #initialData = {} as any;
+    #mutationScopes = new Map<string, Promise<any>>();
 
     constructor(config: QueryClientConfig<T>) {
         this.config = {
@@ -71,5 +73,7 @@ export class QueryClient<T extends IAnyModelType> {
         this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
     }
 
-    
+    getMutationScopes() {
+        return this.#mutationScopes;
+    }
 }

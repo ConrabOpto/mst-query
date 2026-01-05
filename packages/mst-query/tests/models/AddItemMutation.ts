@@ -6,5 +6,7 @@ import { api } from '../api/api';
 export const AddItemMutation = createMutation('AddMutation', {
     data: types.reference(ItemModel),
     request: types.model({ path: types.string, message: types.string }),
-    endpoint: api.addItem
+    async endpoint(args) {
+        return args.meta.addItem ? args.meta.addItem(args) : api.addItem();
+    }
 });

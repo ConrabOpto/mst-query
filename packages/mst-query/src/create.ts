@@ -23,6 +23,11 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
         },
         mutation: Instance<ReturnType<typeof createMutation<TData, TRequest>>>,
     ) => Promise<any>;
+    scope?: MutationScope;
+};
+
+export type MutationScope = {
+    id: string;
 };
 
 type CreateQueryOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateOptions<
@@ -243,6 +248,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
         endpoint,
+        scope,
     } = options;
     return types
         .model(name, {
@@ -255,7 +261,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             ),
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            __MstQueryHandler: new MstQueryHandler(self, { endpoint, scope }),
             isQuery: false,
             isInfinte: false,
             isMutation: true,
@@ -279,6 +285,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 request: SnapshotIn<TRequest>;
                 optimisticUpdate?: () => any;
                 meta?: { [key: string]: any };
+                scope?: MutationScope;
             }) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,
         }));
