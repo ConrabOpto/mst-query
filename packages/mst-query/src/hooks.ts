@@ -169,12 +169,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     }, [mutation]);
 
     useEffect(() => {
-        observer.setOptions(options);
-        
-        // Set scope on the handler options if provided (acts as default for mutate calls)
-        if (options.scope) {
-            mutation.__MstQueryHandler.options.scope = options.scope;
-        }
+        observer.setOptions(options);        
     }, [options]);
 
     const result = {

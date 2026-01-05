@@ -6,5 +6,8 @@ import { api } from '../api/api';
 export const RemoveItemMutation = createMutation('RemoveMutation', {
     data: types.reference(ItemModel),
     request: types.model({ id: types.string }),
-    endpoint: api.removeItem
+    scope: { id: 'sequential-updates' },
+    async endpoint(args) {
+        return args.meta.removeItem ? args.meta.removeItem(args) : api.removeItem(args);
+    },
 });

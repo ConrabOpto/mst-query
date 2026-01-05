@@ -1359,6 +1359,7 @@ test('mutations with same scope run sequentially', async () => {
     const testApi = {
         ...api,
         addItem: trackedEndpoint,
+        removeItem: trackedEndpoint,
     };
 
     const promise1 = q.addItemMutation.mutate({
@@ -1371,10 +1372,10 @@ test('mutations with same scope run sequentially', async () => {
     await wait(10);
 
     // Start second mutation with same scope - should wait for first to complete
-    const promise2 = q.addItemMutation.mutate({
-        request: { path: 'test2', message: 'second' },
-        scope: { id: 'sequential-updates' },
-        meta: { addItem: testApi.addItem },
+    const promise2 = q.removeItemMutation.mutate({
+        request: { id: 'test2' },
+        // scope defined on definition
+        meta: { removeItem: testApi.removeItem },
     });
 
     await Promise.all([promise1, promise2]);
