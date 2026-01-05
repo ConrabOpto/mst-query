@@ -1,9 +1,6 @@
 import { destroy, IAnyModelType, Instance } from 'mobx-state-tree';
 import { QueryStore } from './QueryStore';
-
-export type MutationScope = {
-    id: string;
-};
+import type { MutationScope } from './create';
 
 export type EndpointType = (
     options: {

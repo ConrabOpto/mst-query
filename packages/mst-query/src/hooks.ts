@@ -5,6 +5,7 @@ import {
     MutationReturnType,
     QueryReturnType,
     InfiniteQueryReturnType,
+    MutationScope,
 } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
@@ -149,6 +150,7 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
 type MutationOptions<T extends Instance<MutationReturnType>> = {
     onMutate?: (data: T['data'], self: T) => void;
     meta?: { [key: string]: any };
+    scope?: MutationScope;
 };
 
 export function useMutation<T extends Instance<MutationReturnType>>(
@@ -168,6 +170,11 @@ export function useMutation<T extends Instance<MutationReturnType>>(
 
     useEffect(() => {
         observer.setOptions(options);
+        
+        // Set scope on the handler options if provided (acts as default for mutate calls)
+        if (options.scope) {
+            mutation.__MstQueryHandler.options.scope = options.scope;
+        }
     }, [options]);
 
     const result = {
@@ -181,8 +188,10 @@ export function useMutation<T extends Instance<MutationReturnType>>(
         <TResult = any>(params: {
             request: SnapshotIn<T['variables']['request']>;
             optimisticUpdate?: () => void;
+            scope?: MutationScope;
         }) => {
-            const result = mutation.mutate({ ...params, ...options } as any);
+            // Merge options but allow params to override (including scope)
+            const result = mutation.mutate({ ...options, ...params } as any);
             return result as Promise<{ data: T['data']; error: any; result: TResult }>;
         },
     );

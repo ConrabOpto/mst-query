@@ -15,7 +15,7 @@ import {
     recordPatches,
     unprotect,
 } from 'mobx-state-tree';
-import { MutationReturnType } from './create';
+import { MutationReturnType, MutationScope } from './create';
 import { merge } from './merge';
 import { QueryClient, EndpointType } from './QueryClient';
 
@@ -196,6 +196,7 @@ export class MstQueryHandler {
         endpoint: EndpointType;
         onQueryMore?: (options: any) => void;
         meta?: { [key: string]: any };
+        scope?: MutationScope;
     };
 
     previousVariables: any;
@@ -362,8 +363,11 @@ export class MstQueryHandler {
             );
         };
 
-        if (scope?.id) {
-            const scopeId = scope.id;
+        // Scope precedence: mutate options > handler options (from useMutation or createMutation)
+        const effectiveScope = scope ?? this.options.scope;
+
+        if (effectiveScope?.id) {
+            const scopeId = effectiveScope.id;
             const mutationScopes = this.queryClient.getMutationScopes();
             
             const previousMutation = mutationScopes.get(scopeId) ?? Promise.resolve();
