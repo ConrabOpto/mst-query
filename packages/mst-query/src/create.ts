@@ -25,6 +25,10 @@ type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = 
     ) => Promise<any>;
 };
 
+export type MutationScope = {
+    id: string;
+};
+
 type CreateQueryOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateOptions<
     TData,
     TRequest
@@ -279,6 +283,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 request: SnapshotIn<TRequest>;
                 optimisticUpdate?: () => any;
                 meta?: { [key: string]: any };
+                scope?: MutationScope;
             }) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,
         }));

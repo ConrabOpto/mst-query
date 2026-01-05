@@ -342,7 +342,7 @@ export class MstQueryHandler {
     }
 
     mutate(options: any = {}): Promise<() => any> {
-        const { optimisticUpdate } = options;
+        const { optimisticUpdate, scope } = options;
         let updateRecorder: IPatchRecorder;
         let result: any;
         if (optimisticUpdate) {
@@ -354,10 +354,38 @@ export class MstQueryHandler {
             const data = this.prepareData(result);
             this.notify({ onMutate: true }, data, this.model);
         }
-        return this.run(options).then(
-            (result) => this.onSuccess(result, { updateRecorder }),
-            (err) => this.onError(err, { updateRecorder }),
-        );
+
+        const executeMutation = () => {
+            return this.run(options).then(
+                (result) => this.onSuccess(result, { updateRecorder }),
+                (err) => this.onError(err, { updateRecorder }),
+            );
+        };
+
+        if (scope?.id) {
+            const scopeId = scope.id;
+            const mutationScopes = this.queryClient.getMutationScopes();
+            
+            const previousMutation = mutationScopes.get(scopeId) ?? Promise.resolve();
+            
+            const currentMutation = previousMutation.then(
+                () => executeMutation(),
+                () => executeMutation() // Execute even if previous mutation failed
+            );
+            
+            mutationScopes.set(scopeId, currentMutation);
+            
+            currentMutation.finally(() => {
+                // Only delete if this is still the current mutation for this scope
+                if (mutationScopes.get(scopeId) === currentMutation) {
+                    mutationScopes.delete(scopeId);
+                }
+            });
+            
+            return currentMutation;
+        }
+
+        return executeMutation();
     }
 
     queryMore(options: any = {}): Promise<() => any> {
