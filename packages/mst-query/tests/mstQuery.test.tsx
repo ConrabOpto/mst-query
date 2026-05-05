@@ -1436,3 +1436,45 @@ test('mutations with different scopes run in parallel', async () => {
     // The fast mutation (2) finishes before the slow one (1)
     expect(executionOrder).toEqual(['start-1', 'start-2', 'end-2', 'end-1']);
 });
+
+test('createContext with custom context supports multiple nested providers', async () => {
+    const CustomContext = React.createContext<QueryClient<any> | undefined>(undefined);
+
+    const queryClient1 = new QueryClient({ RootStore: Root });
+    queryClient1.init();
+
+    const queryClient2 = new QueryClient({ RootStore: Root });
+    queryClient2.init();
+
+    const {
+        QueryClientProvider: Provider1,
+        useQueryClient: useQueryClient1,
+    } = createContext(queryClient1);
+
+    const {
+        QueryClientProvider: Provider2,
+        useQueryClient: useQueryClient2,
+    } = createContext(queryClient2, { context: CustomContext });
+
+    let client1: any;
+    let client2: any;
+
+    const Inner = observer(() => {
+        client1 = useQueryClient1();
+        client2 = useQueryClient2();
+        return <div>inner</div>;
+    });
+
+    r(
+        <Provider1>
+            <Provider2>
+                <Inner />
+            </Provider2>
+        </Provider1>,
+    );
+
+    await wait(0);
+
+    expect(client1).toBe(queryClient1);
+    expect(client2).toBe(queryClient2);
+});
