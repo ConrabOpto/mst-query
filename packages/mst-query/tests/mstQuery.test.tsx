@@ -1137,6 +1137,33 @@ test('refetchOnMount & refetchOnRequestChanged', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('abort - should not surface AbortError to the user', async () => {
+    const { q } = setup();
+
+    const abortEndpoint = ({ signal }: any) => {
+        return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => {
+                const err = new DOMException('The operation was aborted.', 'AbortError');
+                reject(err);
+            });
+        });
+    };
+
+    const queryPromise = q.itemQuery.query({
+        request: { id: 'test' },
+        meta: { getItem: abortEndpoint },
+    });
+
+    // Abort the in-flight request
+    q.itemQuery.__MstQueryHandler.abort();
+
+    const { data, error } = await queryPromise;
+
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+    expect(q.itemQuery.__MstQueryHandler.error).toBeNull();
+});
+
 test('invalidate', async () => {
     const { render, q } = setup();
 
