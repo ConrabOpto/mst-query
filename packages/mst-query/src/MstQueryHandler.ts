@@ -501,6 +501,10 @@ export class MstQueryHandler {
                 return { data: null, error: null, result: null };
             }
 
+            if (err?.name === 'AbortError') {
+                return { data: null, error: null, result: null };
+            }
+
             if (shouldUpdate) {
                 this.setData(null);
             }
