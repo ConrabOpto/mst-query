@@ -9,7 +9,7 @@ import {
 } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
-import { CacheOptions, EmptyPagination, EmptyRequest, QueryObserver } from './MstQueryHandler';
+import { CacheOptions, EmptyPagination, EmptyRequest, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
 import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -183,6 +183,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
         <TResult = any>(params: {
             request: SnapshotIn<T['variables']['request']>;
             optimisticUpdate?: () => void;
+            revert?: OptimisticRevertMode;
             scope?: MutationScope;
         }) => {
             // Merge options but allow params to override (including scope)

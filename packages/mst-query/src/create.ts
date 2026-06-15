@@ -1,5 +1,5 @@
 import { types, IAnyType, flow, SnapshotIn, Instance } from 'mobx-state-tree';
-import { type CacheOptions, MstQueryHandler } from './MstQueryHandler';
+import { type CacheOptions, MstQueryHandler, type OptimisticRevertMode } from './MstQueryHandler';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -293,6 +293,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             }) as <TResult = any>(options: {
                 request: SnapshotIn<TRequest>;
                 optimisticUpdate?: () => any;
+                revert?: OptimisticRevertMode;
                 meta?: { [key: string]: any };
                 scope?: MutationScope;
             }) => Promise<ReturnData<Instance<TData>, TResult>>,

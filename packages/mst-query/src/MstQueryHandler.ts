@@ -43,9 +43,12 @@ export type CacheOptions = {
     cacheKey?: string;
 };
 
+export type OptimisticRevertMode = 'revert-all' | 'revert-on-error' | 'revert-none';
+
 type OnResponseOptions = {
     shouldUpdate?: boolean;
     updateRecorder?: IPatchRecorder;
+    revert?: OptimisticRevertMode;
 } & CacheOptions;
 
 export class DisposedError extends Error {}
@@ -343,7 +346,7 @@ export class MstQueryHandler {
     }
 
     mutate(options: any = {}): Promise<() => any> {
-        const { optimisticUpdate, scope } = options;
+        const { optimisticUpdate, scope, revert = 'revert-all' } = options;
         let updateRecorder: IPatchRecorder;
         let result: any;
         if (optimisticUpdate) {
@@ -358,8 +361,8 @@ export class MstQueryHandler {
 
         const executeMutation = () => {
             return this.run(options).then(
-                (result) => this.onSuccess(result, { updateRecorder }),
-                (err) => this.onError(err, { updateRecorder }),
+                (result) => this.onSuccess(result, { updateRecorder, revert }),
+                (err) => this.onError(err, { updateRecorder, revert }),
             );
         };
 
@@ -427,9 +430,9 @@ export class MstQueryHandler {
     }
 
     onSuccess(result: any, options: OnResponseOptions = {}) {
-        const { shouldUpdate = true, updateRecorder } = options;
+        const { shouldUpdate = true, updateRecorder, revert = 'revert-all' } = options;
         return (): { data: any; error: any; result: any } => {
-            if (updateRecorder) {
+            if (updateRecorder && revert === 'revert-all') {
                 updateRecorder.undo();
             }
 
@@ -487,9 +490,9 @@ export class MstQueryHandler {
     }
 
     onError(err: any, options: OnResponseOptions = {}) {
-        const { shouldUpdate = true, updateRecorder } = options;
+        const { shouldUpdate = true, updateRecorder, revert = 'revert-all' } = options;
         return (): { data: any; error: any; result: any } => {
-            if (updateRecorder) {
+            if (updateRecorder && (revert === 'revert-all' || revert === 'revert-on-error')) {
                 updateRecorder.undo();
             }
 
