@@ -415,6 +415,66 @@ test('mutation updates query (with optimistic update)', async () => {
     expect(q.listQuery.data?.items.length).toBe(5);
 });
 
+test('optimisticUpdate with revert-none keeps changes on success', async () => {
+    const { q } = setup();
+
+    await q.listQuery.query();
+    expect(q.listQuery.data?.items.length).toBe(4);
+
+    const item = q.listQuery.data?.items[1];
+    await q.removeItemMutation.mutate({
+        request: { id: item!.id },
+        optimisticUpdate() {
+            q.listQuery.data?.removeItem(item);
+        },
+        revert: 'revert-none',
+    });
+
+    expect(q.listQuery.data?.items.length).toBe(3);
+});
+
+test('optimisticUpdate with revert-on-error keeps changes on success', async () => {
+    const { q } = setup();
+
+    await q.listQuery.query();
+    expect(q.listQuery.data?.items.length).toBe(4);
+
+    const item = q.listQuery.data?.items[1];
+    await q.removeItemMutation.mutate({
+        request: { id: item!.id },
+        optimisticUpdate() {
+            q.listQuery.data?.removeItem(item);
+        },
+        revert: 'revert-on-error',
+    });
+
+    expect(q.listQuery.data?.items.length).toBe(3);
+});
+
+test('optimisticUpdate with revert-on-error reverts changes on error', async () => {
+    const { q } = setup();
+
+    await q.listQuery.query();
+    expect(q.listQuery.data?.items.length).toBe(4);
+
+    const item = q.listQuery.data?.items[1];
+    const { error } = await q.removeItemMutation.mutate({
+        request: { id: item!.id },
+        optimisticUpdate() {
+            q.listQuery.data?.removeItem(item);
+        },
+        revert: 'revert-on-error',
+        meta: {
+            removeItem() {
+                throw new Error('failed to remove');
+            },
+        },
+    });
+
+    expect(error).toBeTruthy();
+    expect(q.listQuery.data?.items.length).toBe(4);
+});
+
 test('merge of date objects', () => {
     const { queryClient } = setup();
 

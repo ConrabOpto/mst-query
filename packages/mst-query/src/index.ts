@@ -1,4 +1,5 @@
 export { onMutate } from './MstQueryHandler';
+export type { OptimisticRevertMode } from './MstQueryHandler';
 export { useQuery, useMutation, useInfiniteQuery, useVolatileQuery } from './hooks';
 export { createQuery, createMutation, createInfiniteQuery } from './create';
 export type { MutationScope } from './create';
