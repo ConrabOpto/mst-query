@@ -1565,3 +1565,47 @@ test('createContext with custom context supports multiple nested providers', asy
     expect(client1).toBe(queryClient1);
     expect(client2).toBe(queryClient2);
 });
+
+test('do not cancel queries with different variables', async () => {
+    const { q } = setup();
+
+    const getItem = async (args: any) => {
+        await wait(20);
+        return { ...itemData, id: args.request.id };
+    };
+    const meta = { getItem };
+
+    const [first, second] = await Promise.all([
+        q.itemQuery.query({ request: { id: 'test' }, meta }),
+        q.itemQuery.query({ request: { id: 'different-test' }, meta }),
+    ]);
+
+    expect(first.data).not.toBe(null);
+    expect(second.data).not.toBe(null);
+
+    const [third, fourth] = await Promise.all([
+        q.itemQuery2.query({ request: { id: 'test' }, meta }),
+        q.itemQuery2.query({ request: { id: 'test' }, meta }),
+    ]);
+
+    expect(third.data).toBe(null);
+    expect(fourth.data).not.toBe(null);
+});
+
+test('never cancel mutations', async () => {
+    const { q } = setup();
+
+    const addItem = async (args: any) => {
+        await wait(20);
+        return { ...itemData, id: `add-${args.request.message}` };
+    };
+    const meta = { addItem };
+
+    const [first, second] = await Promise.all([
+        q.addItemMutation.mutate({ request: { path: 'test', message: 'same' }, meta }),
+        q.addItemMutation.mutate({ request: { path: 'test', message: 'same' }, meta }),
+    ]);
+
+    expect(first.data).not.toBe(null);
+    expect(second.data).not.toBe(null);
+});

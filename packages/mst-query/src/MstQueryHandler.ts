@@ -49,6 +49,7 @@ type OnResponseOptions = {
     shouldUpdate?: boolean;
     updateRecorder?: IPatchRecorder;
     revert?: OptimisticRevertMode;
+    abortController?: AbortController;
 } & CacheOptions;
 
 export class DisposedError extends Error {}
@@ -103,15 +104,10 @@ export class QueryObserver {
                 options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
             options.isRequestEqual = true;
             if (options.enabled && refetchRequestOnChanged) {
-                if (isStateTreeNode(this.query.variables.request)) {
-                    const requestType = getType(this.query.variables.request);
-                    options.isRequestEqual = equal(
-                        getSnapshot(requestType.create(options.request)),
-                        getSnapshot(this.query.variables.request),
-                    );
-                } else {
-                    options.isRequestEqual = equal(options.request, this.query.variables.request);
-                }
+                options.isRequestEqual = isVariableEqual(
+                    this.query.variables.request,
+                    options.request,
+                );
             }
 
             if (options.enabled && typeof options.refetchOnChanged === 'function') {
@@ -255,10 +251,15 @@ export class MstQueryHandler {
             throw new Error('No query endpoint or global endpoint configured');
         }
 
+        // A query only replaces an in-flight request with identical variables, mutations always run
+        const isVariablesEqual =
+            isVariableEqual(this.model.variables.request, options.request) &&
+            isVariableEqual(this.model.variables.pagination, options.pagination);
+
         this.setVariables({ request: options.request, pagination: options.pagination });
         this.options.meta = options.meta;
 
-        if (this.isLoading && this.abortController) {
+        if (this.isLoading && this.abortController && !this.model.isMutation && isVariablesEqual) {
             this.abortController.abort();
         }
 
@@ -339,9 +340,21 @@ export class MstQueryHandler {
     }
 
     query(options: any = {}): Promise<() => any> {
-        return this.run(options).then(
-            (result) => this.onSuccess(result, options),
-            (err) => this.onError(err),
+        return this.handleResponse(this.run(options), options);
+    }
+
+    // `run` must be called before this, since it assigns the abort controller of the current run
+    handleResponse(promise: Promise<any>, options: OnResponseOptions = {}) {
+        const abortController = this.abortController;
+        return promise.then(
+            (result) => this.onSuccess(result, { ...options, abortController }),
+            (err) => this.onError(err, { ...options, abortController }),
+        );
+    }
+
+    isSuperseded(abortController?: AbortController) {
+        return (
+            !this.model.isMutation && !!abortController && this.abortController !== abortController
         );
     }
 
@@ -360,10 +373,7 @@ export class MstQueryHandler {
         }
 
         const executeMutation = () => {
-            return this.run(options).then(
-                (result) => this.onSuccess(result, { updateRecorder, revert }),
-                (err) => this.onError(err, { updateRecorder, revert }),
-            );
+            return this.handleResponse(this.run(options), { updateRecorder, revert });
         };
 
         // Scope precedence: mutate options > handler options (from useMutation or createMutation)
@@ -402,10 +412,7 @@ export class MstQueryHandler {
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.run(options).then(
-            (result) => this.onSuccess(result, { shouldUpdate: false }),
-            (err) => this.onError(err, { shouldUpdate: false }),
-        );
+        return this.handleResponse(this.run(options), { shouldUpdate: false });
     }
 
     refetch(options: any = {}): Promise<() => any> {
@@ -415,10 +422,7 @@ export class MstQueryHandler {
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.run(options).then(
-            (result) => this.onSuccess(result),
-            (err) => this.onError(err),
-        );
+        return this.handleResponse(this.run(options));
     }
 
     invalidate() {
@@ -438,6 +442,11 @@ export class MstQueryHandler {
 
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
+            }
+
+            // A newer run has taken over, so only the caller of this run gets the result
+            if (this.isSuperseded(options.abortController)) {
+                return { data: this.prepareData(result), error: null, result };
             }
 
             if (this.markedAsStale) {
@@ -506,6 +515,10 @@ export class MstQueryHandler {
 
             if (err?.name === 'AbortError') {
                 return { data: null, error: null, result: null };
+            }
+
+            if (this.isSuperseded(options.abortController)) {
+                return { data: null, error: err, result: null };
             }
 
             if (shouldUpdate) {
@@ -656,4 +669,20 @@ function isDataStale(cachedAt?: number, staleTime: number = 0) {
     const now = Date.now();
     const cachedTime = cachedAt ?? now;
     return now - cachedTime >= staleTime;
+}
+
+// An undefined variable means "keep the current one", see setVariables
+function isVariableEqual(currentVariable: any, nextVariable: any) {
+    if (nextVariable === undefined || nextVariable === currentVariable) {
+        return true;
+    }
+
+    if (isStateTreeNode(currentVariable)) {
+        const nextSnapshot = isStateTreeNode(nextVariable)
+            ? getSnapshot(nextVariable)
+            : getSnapshot(getType(currentVariable).create(nextVariable));
+        return equal(nextSnapshot, getSnapshot(currentVariable));
+    }
+
+    return equal(nextVariable, currentVariable);
 }
