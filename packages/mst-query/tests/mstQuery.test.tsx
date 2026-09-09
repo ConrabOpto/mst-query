@@ -275,6 +275,40 @@ test('useQuery - cacheKey and cacheTime', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test.each([
+    { name: 'undefined', pagination: undefined },
+    { name: 'explicit', pagination: { offset: 4 } },
+])('useInfiniteQuery - $name hook pagination preserves existing model pagination', async ({ pagination }) => {
+    const { render, q } = setup();
+    const getItems = vi.fn(({ pagination }) => api.getItems({ pagination }));
+
+    await q.listQuery.query({
+        pagination: { offset: 4 },
+        meta: { getItems },
+    });
+    expect(getSnapshot(q.listQuery.variables.pagination!)).toEqual({ offset: 4 });
+    getItems.mockClear();
+
+    const Comp = observer(() => {
+        useInfiniteQuery(q.listQuery, {
+            pagination,
+            refetchOnMount: 'always',
+            meta: { getItems },
+        });
+        return <div></div>;
+    });
+
+    render(<Comp />);
+    await wait(0);
+
+    expect(getItems).toHaveBeenCalledTimes(1);
+    expect(getSnapshot(getItems.mock.calls[0][0].pagination)).toEqual({ offset: 4 });
+    expect(getSnapshot(q.listQuery.variables.pagination!)).toEqual({ offset: 4 });
+    expect(q.listQuery.error).toBe(null);
+    expect(q.listQuery.isLoading).toBe(false);
+    expect(q.listQuery.isRefetching).toBe(false);
+});
+
 test('onQueryMore', async () => {
     const { render, q } = setup();
 
