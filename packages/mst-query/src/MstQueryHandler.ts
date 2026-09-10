@@ -417,12 +417,17 @@ export class MstQueryHandler {
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.handleResponse(this.run(options), {
-            shouldUpdate: false,
-            isQueryMore: true,
-            request: options.request,
-            pagination: options.pagination,
-        });
+        try {
+            return this.handleResponse(this.run(options), {
+                shouldUpdate: false,
+                isQueryMore: true,
+                request: options.request,
+                pagination: options.pagination,
+            });
+        } catch (error) {
+            this.finishQueryMore();
+            throw error;
+        }
     }
 
     refetch(options: any = {}): Promise<() => any> {
