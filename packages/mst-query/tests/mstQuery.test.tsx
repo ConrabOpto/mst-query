@@ -354,6 +354,37 @@ test('onQueryMore', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('onQueryMore is called for every parallel queryMore request', async () => {
+    const { q } = setup();
+
+    let resolveFirst!: (data: typeof listData) => void;
+    let resolveSecond!: (data: typeof listData) => void;
+    const firstResponse = new Promise<typeof listData>((resolve) => {
+        resolveFirst = resolve;
+    });
+    const secondResponse = new Promise<typeof listData>((resolve) => {
+        resolveSecond = resolve;
+    });
+    const getItems = vi.fn(({ pagination }) =>
+        pagination.offset === 4 ? firstResponse : secondResponse,
+    );
+    const onQueryMore = vi.spyOn(q.listQuery.__MstQueryHandler.options, 'onQueryMore');
+
+    const first = q.listQuery.queryMore({ pagination: { offset: 4 }, meta: { getItems } });
+    const second = q.listQuery.queryMore({ pagination: { offset: 8 }, meta: { getItems } });
+
+    resolveSecond(listData);
+    await second;
+    expect(onQueryMore).toHaveBeenCalledTimes(1);
+    expect(q.listQuery.isFetchingMore).toBe(true);
+
+    resolveFirst(listData);
+    await first;
+    expect(onQueryMore).toHaveBeenCalledTimes(2);
+    expect(onQueryMore.mock.calls.map(([options]) => options.pagination.offset)).toEqual([8, 4]);
+    expect(q.listQuery.isFetchingMore).toBe(false);
+});
+
 test('useQuery - with error', async () => {
     const { render, q } = setup();
 

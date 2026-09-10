@@ -50,6 +50,9 @@ type OnResponseOptions = {
     updateRecorder?: IPatchRecorder;
     revert?: OptimisticRevertMode;
     abortController?: AbortController;
+    isQueryMore?: boolean;
+    request?: any;
+    pagination?: any;
 } & CacheOptions;
 
 export class DisposedError extends Error {}
@@ -187,6 +190,7 @@ export class MstQueryHandler {
     isLoading = false;
     isRefetching = false;
     isFetchingMore = false;
+    pendingQueryMoreCount = 0;
     isFetched = false;
     error: any = null;
     queryObservers = [] as any[];
@@ -406,13 +410,19 @@ export class MstQueryHandler {
     }
 
     queryMore(options: any = {}): Promise<() => any> {
+        this.pendingQueryMoreCount += 1;
         this.isFetchingMore = true;
 
         options.request = options.request ?? this.model.variables.request;
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.handleResponse(this.run(options), { shouldUpdate: false });
+        return this.handleResponse(this.run(options), {
+            shouldUpdate: false,
+            isQueryMore: true,
+            request: options.request,
+            pagination: options.pagination,
+        });
     }
 
     refetch(options: any = {}): Promise<() => any> {
@@ -440,12 +450,21 @@ export class MstQueryHandler {
                 updateRecorder.undo();
             }
 
+            if (options.isQueryMore) {
+                this.finishQueryMore();
+            }
+
             if (this.isDisposed) {
                 return { data: null, error: null, result: null };
             }
 
             // A newer run has taken over, so only the caller of this run gets the result
             if (this.isSuperseded(options.abortController)) {
+                if (options.isQueryMore) {
+                    const data = this.prepareData(result);
+                    this.notifyQueryMore(data, options);
+                    return { data, error: null, result };
+                }
                 return { data: this.prepareData(result), error: null, result };
             }
 
@@ -473,14 +492,8 @@ export class MstQueryHandler {
                 this.isRefetching = false;
             }
 
-            if (this.isFetchingMore) {
-                this.isFetchingMore = false;
-                this.options.onQueryMore?.({
-                    data,
-                    pagination: this.model.variables.pagination,
-                    request: this.model.variables.request,
-                    query: this.model,
-                });
+            if (options.isQueryMore) {
+                this.notifyQueryMore(data, options);
             }
 
             if (!this.isFetched) {
@@ -503,6 +516,10 @@ export class MstQueryHandler {
         return (): { data: any; error: any; result: any } => {
             if (updateRecorder && (revert === 'revert-all' || revert === 'revert-on-error')) {
                 updateRecorder.undo();
+            }
+
+            if (options.isQueryMore) {
+                this.finishQueryMore();
             }
 
             if (this.isDisposed) {
@@ -535,12 +552,22 @@ export class MstQueryHandler {
                 this.isRefetching = false;
             }
 
-            if (this.isFetchingMore) {
-                this.isFetchingMore = false;
-            }
-
             return { data: null, error: err, result: null };
         };
+    }
+
+    finishQueryMore() {
+        this.pendingQueryMoreCount = Math.max(0, this.pendingQueryMoreCount - 1);
+        this.isFetchingMore = this.pendingQueryMoreCount > 0;
+    }
+
+    notifyQueryMore(data: any, options: OnResponseOptions) {
+        this.options.onQueryMore?.({
+            data,
+            pagination: options.pagination,
+            request: options.request,
+            query: this.model,
+        });
     }
 
     addQueryObserver(queryObserver: any) {
