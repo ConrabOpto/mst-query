@@ -144,14 +144,14 @@ export class QueryObserver {
                 
                 const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.staleTime);
                 if (isStale) {
-                    this.handler.queryWhenChanged(options);
+                    if (cacheEntry) {
+                        this.handler.queryWhenChanged(options);
+                    } else {
+                        this.queryWithPlaceholder(options, false);
+                    }
                 }                
             } else {
-                if (!options.isRequestEqual) {
-                    this.query.setData(null);
-                }
-
-                this.handler.queryWhenChanged(options);
+                this.queryWithPlaceholder(options, true);
             }
         }
 
@@ -160,6 +160,34 @@ export class QueryObserver {
         }
 
         this.options = options;
+    }
+
+    private queryWithPlaceholder(options: any, clearOnRequestChange: boolean) {
+        if (options.placeholderData === undefined) {
+            if (clearOnRequestChange && !options.isRequestEqual) {
+                this.query.setData(null);
+            }
+            this.handler.queryWhenChanged(options);
+            return;
+        }
+
+        const previousData = this.query.data;
+        this.handler.queryWhenChanged(options);
+
+        if (
+            options.enabled &&
+            this.query.isLoading &&
+            (!options.isRequestEqual || this.query.data == null)
+        ) {
+            const data =
+                typeof options.placeholderData === 'function'
+                    ? options.placeholderData(previousData)
+                    : options.placeholderData;
+            // Use normal model conversion, without caching this as a fetched response.
+            this.query.setData(data ?? null);
+        } else if (clearOnRequestChange && !options.isRequestEqual) {
+            this.query.setData(null);
+        }
     }
 }
 

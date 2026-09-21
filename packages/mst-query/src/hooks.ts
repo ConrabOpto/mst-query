@@ -19,6 +19,8 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
     });
 }
 
+type PlaceholderData<T> = T | SnapshotIn<T> | Record<string, unknown> | readonly unknown[];
+
 type QueryOptions<T extends Instance<QueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
@@ -32,6 +34,9 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
     enabled?: boolean;
     initialData?: any;
     initialDataUpdatedAt?: number;
+    placeholderData?:
+        | PlaceholderData<T['data']>
+        | ((previousData: T['data']) => PlaceholderData<T['data']> | undefined);
     meta?: { [key: string]: any };
 } & CacheOptions;
 
