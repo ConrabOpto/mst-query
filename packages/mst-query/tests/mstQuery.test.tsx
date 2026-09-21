@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '../src';
 import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
-import { fireEvent, render as r, configure } from '@testing-library/react';
+import { act, fireEvent, render as r, configure } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { itemData, listData } from './api/data';
@@ -226,6 +226,169 @@ test('useQuery - reactive request', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('useQuery - placeholderData keeps previous data while a changed request is in flight', async () => {
+    const { render, q } = setup();
+    let resolveNext!: (data: typeof itemData) => void;
+    const nextResponse = new Promise<typeof itemData>((resolve) => {
+        resolveNext = resolve;
+    });
+    const getItem = vi.fn().mockResolvedValueOnce(itemData).mockReturnValueOnce(nextResponse);
+    const placeholderData = vi.fn((previousData: typeof q.itemQuery.data) => previousData);
+
+    const Comp = observer(({ id }: { id: string }) => {
+        const { data, isLoading } = useQuery(q.itemQuery, {
+            request: { id },
+            meta: { getItem },
+            placeholderData: (previousData) => placeholderData(previousData),
+        });
+        return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
+    });
+    const { container, rerender, unmount } = render(<Comp id="test" />);
+
+    await act(async () => {
+        await when(() => !q.itemQuery.isLoading);
+    });
+    expect(container.textContent).toBe('ready:test');
+    const previousData = q.itemQuery.data;
+    placeholderData.mockClear();
+
+    rerender(<Comp id="different-test" />);
+
+    expect(getItem).toHaveBeenCalledTimes(2);
+    expect(q.itemQuery.isLoading).toBe(true);
+    expect.soft(placeholderData).toHaveBeenCalledWith(previousData);
+    expect.soft(container.textContent).toBe('loading:test');
+
+    await act(async () => {
+        resolveNext({ ...itemData, id: 'different-test' });
+        await when(() => !q.itemQuery.isLoading);
+    });
+    expect(container.textContent).toBe('ready:different-test');
+    expect(q.itemQuery.data?.id).toBe('different-test');
+    unmount();
+});
+
+test.each([
+    { kind: 'value', cacheKey: undefined },
+    { kind: 'callback', cacheKey: undefined },
+    { kind: 'value', cacheKey: 'test' },
+    { kind: 'callback', cacheKey: 'test' },
+])(
+    'useQuery - placeholderData accepts a custom $kind with cacheKey=$cacheKey until the response arrives',
+    async ({ kind, cacheKey }) => {
+        const { render, q, queryClient } = setup();
+        const placeholder = { ...itemData, id: 'placeholder' };
+        let resolveResponse!: (data: typeof itemData) => void;
+        const response = new Promise<typeof itemData>((resolve) => {
+            resolveResponse = resolve;
+        });
+        const getItem = vi.fn(() => response);
+
+        const Comp = observer(() => {
+            const { data, isLoading } = useQuery(q.itemQuery, {
+                request: { id: 'test' },
+                meta: { getItem },
+                cacheKey,
+                cacheTime: 1000,
+                placeholderData: kind === 'value' ? placeholder : () => placeholder,
+            });
+            return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
+        });
+        const { container, unmount } = render(<Comp />);
+
+        expect(getItem).toHaveBeenCalledTimes(1);
+        expect(q.itemQuery.isLoading).toBe(true);
+        expect(q.itemQuery.isFetched).toBe(false);
+        expect(q.itemQuery.cachedAt).toBeUndefined();
+        expect(queryClient.queryStore.getQueryData(ItemQuery, 'test')).toBeUndefined();
+        expect.soft(container.textContent).toBe('loading:placeholder');
+        expect(q.itemQuery.data?.id).toBe('placeholder');
+
+        await act(async () => {
+            resolveResponse(itemData);
+            await when(() => !q.itemQuery.isLoading);
+        });
+        expect(container.textContent).toBe('ready:test');
+        expect(q.itemQuery.data?.id).toBe('test');
+        expect(q.itemQuery.isFetched).toBe(true);
+        if (cacheKey) {
+            expect(queryClient.queryStore.getQueryData(ItemQuery, cacheKey)?.data.id).toBe('test');
+            queryClient.queryStore.removeQueryData(ItemQuery, cacheKey);
+        }
+        unmount();
+    },
+);
+
+test('useQuery - placeholderData is only shown while an enabled query is in flight', async () => {
+    const { render, q } = setup();
+    const error = new Error('Request failed');
+    let rejectResponse!: (error: Error) => void;
+    const response = new Promise<typeof itemData>((_, reject) => {
+        rejectResponse = reject;
+    });
+    const getItem = vi.fn(() => response);
+    const placeholderData = vi.fn(() => ({ ...itemData, id: 'placeholder' }));
+    const Comp = observer(({ enabled }: { enabled: boolean }) => {
+        const { data } = useQuery(q.itemQuery, {
+            request: { id: 'test' },
+            meta: { getItem },
+            enabled,
+            placeholderData,
+        });
+        return <div>{data?.id ?? 'empty'}</div>;
+    });
+    const { container, rerender, unmount } = render(<Comp enabled={false} />);
+    expect(container.textContent).toBe('empty');
+    expect(getItem).not.toHaveBeenCalled();
+    expect(placeholderData).not.toHaveBeenCalled();
+
+    rerender(<Comp enabled />);
+    expect(container.textContent).toBe('placeholder');
+    expect(placeholderData).toHaveBeenCalledWith(null);
+
+    await act(async () => {
+        rejectResponse(error);
+        await when(() => !q.itemQuery.isLoading);
+    });
+    expect(container.textContent).toBe('empty');
+    expect(q.itemQuery.error).toBe(error);
+    expect(q.itemQuery.isFetched).toBe(false);
+    unmount();
+});
+
+test('useQuery - cached data takes precedence over placeholderData during a refetch', async () => {
+    const { render, q, queryClient } = setup();
+    q.itemQuery.setData(itemData, { cacheKey: 'test', cacheTime: 1000 });
+    let resolveResponse!: (data: typeof itemData) => void;
+    const response = new Promise<typeof itemData>((resolve) => {
+        resolveResponse = resolve;
+    });
+    const getItem = vi.fn(() => response);
+    const placeholderData = vi.fn(() => ({ ...itemData, id: 'placeholder' }));
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            request: { id: 'test' },
+            meta: { getItem },
+            cacheKey: 'test',
+            staleTime: 0,
+            placeholderData,
+        });
+        return <div>{data?.id ?? 'empty'}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(getItem).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toBe('test');
+    expect(placeholderData).not.toHaveBeenCalled();
+
+    await act(async () => {
+        resolveResponse(itemData);
+        await response;
+    });
+    expect(container.textContent).toBe('test');
+    unmount();
+    queryClient.queryStore.removeQueryData(ItemQuery, 'test');
+});
+
 test('useQuery - cacheKey and cacheTime', async () => {
     const { render, q, queryClient } = setup();
 
@@ -381,7 +544,14 @@ test('onQueryMore is called for every parallel queryMore request', async () => {
     resolveFirst(listData);
     await first;
     expect(onQueryMore).toHaveBeenCalledTimes(2);
-    expect(onQueryMore.mock.calls.map(([options]) => options.pagination.offset)).toEqual([8, 4]);
+    expect(onQueryMore).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ pagination: { offset: 8 } }),
+    );
+    expect(onQueryMore).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ pagination: { offset: 4 } }),
+    );
     expect(q.listQuery.isFetchingMore).toBe(false);
 });
 
