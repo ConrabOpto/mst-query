@@ -1,11 +1,11 @@
 import * as React from 'react';
-import { test, vi, expect } from 'vitest';
+import { test, vi, expect, describe, beforeEach, afterEach } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
 import { useQuery, useMutation } from '../src';
 import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
-import { act, fireEvent, render as r, configure } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as r, configure } from '@testing-library/react';
 import { observer } from 'mobx-react';
 import { ItemQuery } from './models/ItemQuery';
 import { itemData, listData } from './api/data';
@@ -144,6 +144,322 @@ test('useQuery', async () => {
     expect(loadingStates).toStrictEqual([false, true, false]);
 
     sub();
+});
+
+describe('useQuery - refetchInterval', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        // Unmount while fake timers are still active, including when an assertion fails.
+        cleanup();
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+    });
+
+    const advance = async (milliseconds: number) => {
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(milliseconds);
+        });
+    };
+
+    const setupPolling = ({ strictMode = false } = {}) => {
+        const { q, render } = setup({ strictMode });
+        const getItem = vi.fn().mockResolvedValue(itemData);
+
+        // Milliseconds, false, or a callback receiving the MST query model.
+        type Options = {
+            refetchInterval?:
+                | number
+                | false
+                | ((query: typeof q.itemQuery) => number | false | undefined);
+            refetchIntervalInBackground?: boolean;
+            enabled?: boolean;
+            id?: string;
+        };
+
+        const Comp = observer(
+            ({
+                refetchInterval,
+                refetchIntervalInBackground,
+                enabled = true,
+                id = 'test',
+            }: Options) => {
+                const { data, isRefetching } = useQuery(q.itemQuery, {
+                    request: { id },
+                    meta: { getItem },
+                    staleTime: Infinity,
+                    enabled,
+                    refetchInterval,
+                    refetchIntervalInBackground,
+                });
+                return (
+                    <div>
+                        {isRefetching ? 'refetching' : 'ready'}:{data?.description}
+                    </div>
+                );
+            },
+        );
+
+        return { q, render, getItem, Comp };
+    };
+
+    test.each([false, true])(
+        'polls fresh data every interval (strictMode=%s)',
+        async (strictMode) => {
+            const { render, getItem, Comp } = setupPolling({ strictMode });
+            render(<Comp refetchInterval={1000} />);
+            await advance(0);
+            expect(getItem).toHaveBeenCalledTimes(1);
+
+            await advance(999);
+            expect(getItem).toHaveBeenCalledTimes(1);
+            await advance(1);
+            expect(getItem).toHaveBeenCalledTimes(2);
+            await advance(1000);
+            expect(getItem).toHaveBeenCalledTimes(3);
+        },
+    );
+
+    test.each([undefined, false, 0] as const)(
+        'does not poll with refetchInterval=%s',
+        async (refetchInterval) => {
+            const { render, getItem, Comp } = setupPolling();
+            render(<Comp refetchInterval={refetchInterval} />);
+            await advance(5000);
+            expect(getItem).toHaveBeenCalledTimes(1);
+        },
+    );
+
+    test('only polls a hidden tab when refetchIntervalInBackground is true', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { rerender } = render(<Comp refetchInterval={1000} />);
+        await advance(0);
+        expect(getItem).toHaveBeenCalledTimes(1);
+
+        vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+        vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+        act(() => {
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await advance(2000);
+        expect(getItem).toHaveBeenCalledTimes(1);
+
+        rerender(<Comp refetchInterval={1000} refetchIntervalInBackground />);
+        await advance(2000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+
+        rerender(<Comp refetchInterval={1000} refetchIntervalInBackground={false} />);
+        await advance(2000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+    });
+
+    test('updates the interval and can stop and restart polling', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { rerender } = render(<Comp refetchInterval={1000} />);
+        await advance(0);
+        expect(getItem).toHaveBeenCalledTimes(1);
+
+        rerender(<Comp refetchInterval={2000} />);
+        await advance(1999);
+        expect(getItem).toHaveBeenCalledTimes(1);
+        await advance(1);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        rerender(<Comp refetchInterval={false} />);
+        await advance(5000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        rerender(<Comp refetchInterval={500} />);
+        await advance(499);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        await advance(1);
+        expect(getItem).toHaveBeenCalledTimes(3);
+    });
+
+    test('only polls while enabled', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { rerender } = render(<Comp refetchInterval={1000} enabled={false} />);
+        await advance(3000);
+        expect(getItem).not.toHaveBeenCalled();
+
+        rerender(<Comp refetchInterval={1000} />);
+        await advance(0);
+        expect(getItem).toHaveBeenCalledTimes(1);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        rerender(<Comp refetchInterval={1000} enabled={false} />);
+        await advance(3000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        rerender(<Comp refetchInterval={1000} />);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+    });
+
+    test('stops polling after unmount', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { unmount } = render(<Comp refetchInterval={1000} />);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        unmount();
+        await advance(5000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+    });
+
+    test('rerendering with the same interval does not postpone polling', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { rerender } = render(<Comp refetchInterval={1000} />);
+        await advance(500);
+        rerender(<Comp refetchInterval={1000} />);
+        await advance(500);
+        expect(getItem).toHaveBeenCalledTimes(2);
+    });
+
+    test('recomputes the callback without a React observer or component rerender', async () => {
+        const { q, render, getItem } = setupPolling();
+        getItem
+            .mockResolvedValueOnce({ ...itemData, description: 'pending' })
+            .mockResolvedValueOnce({ ...itemData, description: 'done' });
+        const Comp = () => {
+            useQuery(q.itemQuery, {
+                request: { id: 'test' },
+                meta: { getItem },
+                refetchInterval: (query) => (query.data?.description === 'done' ? false : 1000),
+            });
+            return null;
+        };
+        render(<Comp />);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        expect(q.itemQuery.data?.description).toBe('done');
+        await advance(3000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+    });
+
+    test('moves polling to the new query when the query instance changes', async () => {
+        const { q, render, getItem } = setupPolling();
+        const Comp = ({ query }: { query: typeof q.itemQuery }) => {
+            useQuery(query, {
+                request: { id: 'test' },
+                meta: { getItem },
+                staleTime: Infinity,
+                refetchInterval: 1000,
+            });
+            return null;
+        };
+        const { rerender } = render(<Comp query={q.itemQuery} />);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        rerender(<Comp query={q.itemQuery2} />);
+        await advance(0);
+        expect(getItem).toHaveBeenCalledTimes(3);
+        getItem.mockClear();
+        await advance(2000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        for (const [args] of getItem.mock.calls) {
+            expect(args.query).toBe(q.itemQuery2);
+        }
+    });
+
+    test('polls with the latest request and preserves meta', async () => {
+        const { render, getItem, Comp } = setupPolling();
+        const { rerender } = render(<Comp refetchInterval={1000} />);
+        await advance(0);
+
+        rerender(<Comp refetchInterval={1000} id="different-test" />);
+        await advance(0);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+        expect(getItem).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                request: expect.objectContaining({ id: 'different-test' }),
+                meta: expect.objectContaining({ getItem }),
+            }),
+        );
+    });
+
+    test('exposes refetching state and updates data without overlapping a pending request', async () => {
+        const { q, render, getItem, Comp } = setupPolling();
+        let resolveNext!: (data: typeof itemData) => void;
+        getItem.mockResolvedValueOnce(itemData).mockImplementationOnce(
+            () =>
+                new Promise<typeof itemData>((resolve) => {
+                    resolveNext = resolve;
+                }),
+        );
+        const { container } = render(<Comp refetchInterval={1000} />);
+        await advance(0);
+
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        expect(q.itemQuery.isRefetching).toBe(true);
+        expect(container.textContent).toBe(`refetching:${itemData.description}`);
+        await advance(3000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+
+        await act(async () => {
+            resolveNext({ ...itemData, description: 'polled' });
+        });
+        expect(q.itemQuery.isRefetching).toBe(false);
+        expect(container.textContent).toBe('ready:polled');
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+    });
+
+    test('recomputes the callback interval from query data and stops when it returns false', async () => {
+        const { q, render, getItem, Comp } = setupPolling();
+        getItem
+            .mockResolvedValueOnce({ ...itemData, description: 'pending' })
+            .mockResolvedValueOnce({ ...itemData, description: 'processing' })
+            .mockResolvedValueOnce({ ...itemData, description: 'done' });
+        const refetchInterval = vi.fn((query: typeof q.itemQuery) => {
+            if (query.data?.description === 'done') return false;
+            return query.data?.description === 'processing' ? 2000 : 1000;
+        });
+        render(<Comp refetchInterval={refetchInterval} />);
+        await advance(0);
+        expect(refetchInterval).toHaveBeenCalledWith(q.itemQuery);
+
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        expect(q.itemQuery.data?.description).toBe('processing');
+        await advance(1999);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        await advance(1);
+        expect(getItem).toHaveBeenCalledTimes(3);
+        expect(q.itemQuery.data?.description).toBe('done');
+        await advance(5000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+    });
+
+    test('disables polling when the callback returns undefined', async () => {
+        const { q, render, getItem, Comp } = setupPolling();
+        const refetchInterval = vi.fn((query: typeof q.itemQuery) => undefined);
+        render(<Comp refetchInterval={refetchInterval} />);
+        await advance(5000);
+        expect(refetchInterval).toHaveBeenCalledWith(q.itemQuery);
+        expect(getItem).toHaveBeenCalledTimes(1);
+    });
+
+    test('continues polling after an error and clears the error on success', async () => {
+        const { q, render, getItem, Comp } = setupPolling();
+        const error = new Error('Temporarily unavailable');
+        getItem.mockResolvedValueOnce(itemData).mockRejectedValueOnce(error);
+        render(<Comp refetchInterval={1000} />);
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(2);
+        expect(q.itemQuery.error).toBe(error);
+
+        await advance(1000);
+        expect(getItem).toHaveBeenCalledTimes(3);
+        expect(q.itemQuery.error).toBe(null);
+    });
 });
 
 test('useMutation', async () => {

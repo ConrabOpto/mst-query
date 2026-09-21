@@ -31,6 +31,10 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
         | 'none'
         | ((options: { prevRequest: Exclude<T['variables']['request'], undefined> }) => boolean);
     staleTime?: number;
+    /** Poll at this interval in milliseconds, or return false/undefined to stop. */
+    refetchInterval?: number | false | ((query: T) => number | false | undefined);
+    /** Continue polling while the document is hidden. Defaults to false. */
+    refetchIntervalInBackground?: boolean;
     enabled?: boolean;
     initialData?: any;
     initialDataUpdatedAt?: number;
@@ -64,12 +68,16 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     }, [query]);
 
     useEffect(() => {
-        observer.setOptions(options);
+        if (observer.query === query) {
+            observer.setOptions(options);
+        }
+    }, [observer, query, options]);
 
+    useEffect(() => {
         return () => {
             observer.unsubscribe();
         };
-    }, [options]);
+    }, [observer]);
 
     return {
         data: query.data as (typeof query)['data'],

@@ -1,5 +1,5 @@
 import { equal } from '@wry/equality';
-import { makeObservable, observable, action } from 'mobx';
+import { makeObservable, observable, action, autorun } from 'mobx';
 import {
     addDisposer,
     getEnv,
@@ -63,6 +63,9 @@ export class QueryObserver {
     isQuery: boolean;
     isMounted = false;
     isFetchedAfterMount = false;
+    private pollingDisposer?: () => void;
+    private refetchTimer?: ReturnType<typeof setInterval>;
+    private refetchInterval?: number;
 
     constructor(query: any, isQuery: boolean) {
         this.query = query;
@@ -88,6 +91,9 @@ export class QueryObserver {
     }
 
     unsubscribe() {
+        this.pollingDisposer?.();
+        this.pollingDisposer = undefined;
+        this.clearRefetchInterval();
         if (this.query) {
             this.handler.removeQueryObserver(this);
         }
@@ -160,6 +166,70 @@ export class QueryObserver {
         }
 
         this.options = options;
+        this.updatePolling();
+    }
+
+    private clearRefetchInterval() {
+        clearInterval(this.refetchTimer);
+        this.refetchTimer = undefined;
+        this.refetchInterval = undefined;
+    }
+
+    private updatePolling() {
+        this.pollingDisposer?.();
+        this.pollingDisposer = undefined;
+
+        if (
+            !this.isQuery ||
+            this.query.isInfinite ||
+            this.handler.isDisposed ||
+            !this.options.enabled ||
+            this.options.refetchInterval == null ||
+            this.options.refetchInterval === false
+        ) {
+            this.clearRefetchInterval();
+            return;
+        }
+
+        this.pollingDisposer = autorun(() => {
+            const interval =
+                typeof this.options.refetchInterval === 'function'
+                    ? this.options.refetchInterval(this.query)
+                    : this.options.refetchInterval;
+
+            if (
+                this.handler.isLoading ||
+                typeof interval !== 'number' ||
+                !Number.isFinite(interval) ||
+                interval <= 0
+            ) {
+                this.clearRefetchInterval();
+                return;
+            }
+
+            if (interval === this.refetchInterval) {
+                return;
+            }
+
+            this.clearRefetchInterval();
+            this.refetchInterval = interval;
+            this.refetchTimer = setInterval(() => {
+                if (this.handler.isDisposed) {
+                    this.unsubscribe();
+                    return;
+                }
+                if (
+                    this.handler.isLoading ||
+                    (!this.options.refetchIntervalInBackground &&
+                        typeof document !== 'undefined' &&
+                        document.visibilityState === 'hidden')
+                ) {
+                    return;
+                }
+
+                this.query.refetch({ meta: this.options.meta });
+            }, interval);
+        });
     }
 
     private queryWithPlaceholder(options: any, clearOnRequestChange: boolean) {
@@ -721,6 +791,7 @@ export class MstQueryHandler {
     onBeforeDestroy() {
         this.queryClient.queryStore.removeQuery(this.model);
         this.isDisposed = true;
+        this.queryObservers.forEach((observer) => observer.unsubscribe());
         this.abort();
     }
 }
