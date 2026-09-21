@@ -169,6 +169,24 @@ query as fetched or populate the response cache. Existing data is kept during a 
 data takes precedence. The response replaces the placeholder; a failed request clears it. Queries
 with `enabled: false` do not apply placeholders.
 
+Use `refetchInterval` to poll a regular query, independently of `staleTime`:
+
+```tsx
+useQuery(messageStore.messageQuery, {
+    request: { id },
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+});
+```
+
+The interval is in milliseconds. Pass `false` to disable polling, or a callback
+`(query) => number | false | undefined` to choose an interval using the MST query model's
+current data or error. Returning `false` or `undefined` stops polling; zero, negative,
+and non-finite intervals also disable it. Polling waits for pending requests to finish
+and stops when `enabled` is false or the component unmounts. Hidden tabs skip interval
+fetches unless `refetchIntervalInBackground` is true (the default is false).
+These options also work with `useVolatileQuery`; infinite queries do not support polling.
+
 ## Paginated and infinite lists
 
 ```tsx
