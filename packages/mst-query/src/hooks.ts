@@ -9,7 +9,7 @@ import {
 } from './create';
 import { Context } from './QueryClientProvider';
 import { QueryClient } from './QueryClient';
-import { CacheOptions, EmptyPagination, EmptyRequest, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
+import { CacheOptions, EmptyPagination, EmptyRequest, isVariableEqual, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
 import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -55,6 +55,41 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 
     (options as any).request = options.request ?? EmptyRequest;
 
+    let data = query.data;
+    const isRequestChanged = !isVariableEqual(query.variables.request, options.request);
+    const hasCachedData =
+        options.cacheKey &&
+        observer.queryStore.getQueryData(query.__MstQueryHandler.type, options.cacheKey);
+    if (
+        options.enabled &&
+        data == null &&
+        (query.error == null || isRequestChanged) &&
+        !options.initialData &&
+        !hasCachedData &&
+        options.placeholderData !== undefined
+    ) {
+        const placeholderData =
+            typeof options.placeholderData === 'function'
+                ? (
+                      options.placeholderData as (
+                          previousData: T['data'],
+                      ) => PlaceholderData<T['data']> | undefined
+                  )(data)
+                : options.placeholderData;
+
+        data = (placeholderData ?? null) as typeof data;
+
+        // Reuse the value resolved for this render when the observer applies it to the query.
+        // In particular, this avoids returning null first and resolving a reference placeholder
+        // only after the effect has run.
+        if (typeof options.placeholderData === 'function') {
+            options = {
+                ...options,
+                placeholderData: () => placeholderData,
+            };
+        }
+    }
+
     if ((query as any).isInfinite) {
         throw new Error(
             'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
@@ -80,7 +115,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     }, [observer]);
 
     return {
-        data: query.data as (typeof query)['data'],
+        data: data as (typeof query)['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
         error: query.error,
         isFetched: query.isFetched,

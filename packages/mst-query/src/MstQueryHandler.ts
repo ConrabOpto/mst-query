@@ -803,7 +803,7 @@ function isDataStale(cachedAt?: number, staleTime: number = 0) {
 }
 
 // Undefined variables and hook sentinels mean "keep the current one", see setVariables.
-function isVariableEqual(currentVariable: any, nextVariable: any) {
+export function isVariableEqual(currentVariable: any, nextVariable: any) {
     if (
         nextVariable === undefined ||
         nextVariable === EmptyRequest ||

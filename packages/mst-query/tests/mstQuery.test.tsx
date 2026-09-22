@@ -544,6 +544,9 @@ test('useQuery - reactive request', async () => {
 
 test('useQuery - placeholderData keeps previous data while a changed request is in flight', async () => {
     const { render, q } = setup();
+    const renderedData: Array<string | null> = [];
+    const observedData: Array<string | null> = [];
+    const disposeDataObserver = autorun(() => observedData.push(q.itemQuery.data?.id ?? null));
     let resolveNext!: (data: typeof itemData) => void;
     const nextResponse = new Promise<typeof itemData>((resolve) => {
         resolveNext = resolve;
@@ -557,6 +560,7 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
             meta: { getItem },
             placeholderData: (previousData) => placeholderData(previousData),
         });
+        renderedData.push(data?.id ?? null);
         return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
     });
     const { container, rerender, unmount } = render(<Comp id="test" />);
@@ -567,6 +571,8 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     expect(container.textContent).toBe('ready:test');
     const previousData = q.itemQuery.data;
     placeholderData.mockClear();
+    const renderCountBeforeRequestChange = renderedData.length;
+    const observationCountBeforeRequestChange = observedData.length;
 
     rerender(<Comp id="different-test" />);
 
@@ -574,6 +580,8 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     expect(q.itemQuery.isLoading).toBe(true);
     expect.soft(placeholderData).toHaveBeenCalledWith(previousData);
     expect.soft(container.textContent).toBe('loading:test');
+    expect(renderedData.slice(renderCountBeforeRequestChange)).not.toContain(null);
+    expect(observedData.slice(observationCountBeforeRequestChange)).not.toContain(null);
 
     await act(async () => {
         resolveNext({ ...itemData, id: 'different-test' });
@@ -581,6 +589,7 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     });
     expect(container.textContent).toBe('ready:different-test');
     expect(q.itemQuery.data?.id).toBe('different-test');
+    disposeDataObserver();
     unmount();
 });
 
@@ -593,6 +602,7 @@ test.each([
     'useQuery - placeholderData accepts a custom $kind with cacheKey=$cacheKey until the response arrives',
     async ({ kind, cacheKey }) => {
         const { render, q, queryClient } = setup();
+        const renderedData: Array<string | null> = [];
         const placeholder = { ...itemData, id: 'placeholder' };
         let resolveResponse!: (data: typeof itemData) => void;
         const response = new Promise<typeof itemData>((resolve) => {
@@ -608,6 +618,7 @@ test.each([
                 cacheTime: 1000,
                 placeholderData: kind === 'value' ? placeholder : () => placeholder,
             });
+            renderedData.push(data?.id ?? null);
             return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
         });
         const { container, unmount } = render(<Comp />);
@@ -619,6 +630,7 @@ test.each([
         expect(queryClient.queryStore.getQueryData(ItemQuery, 'test')).toBeUndefined();
         expect.soft(container.textContent).toBe('loading:placeholder');
         expect(q.itemQuery.data?.id).toBe('placeholder');
+        expect(renderedData).not.toContain(null);
 
         await act(async () => {
             resolveResponse(itemData);
