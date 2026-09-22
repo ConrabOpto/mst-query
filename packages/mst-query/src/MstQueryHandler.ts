@@ -254,7 +254,9 @@ export class QueryObserver {
                     ? options.placeholderData(previousData)
                     : options.placeholderData;
             // Use normal model conversion, without caching this as a fetched response.
-            this.query.setData(data ?? null);
+            if (data !== previousData) {
+                this.query.setData(data ?? null);
+            }
         } else if (clearOnRequestChange && !options.isRequestEqual) {
             this.query.setData(null);
         }
@@ -401,6 +403,13 @@ export class MstQueryHandler {
         const notInitialized = !this.isFetched && !this.isLoading;
         if (!options.isMounted) {
             if (notInitialized) {
+                return this.model.query(options);
+            }
+
+            // A new observer can mount for an existing query with a different request. The
+            // request change takes precedence over refetchOnMount and staleTime; otherwise fresh
+            // data prevents the new request from starting and is subsequently cleared.
+            if (!options.isRequestEqual) {
                 return this.model.query(options);
             }
 

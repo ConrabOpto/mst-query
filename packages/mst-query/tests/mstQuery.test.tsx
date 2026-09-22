@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { test, vi, expect, describe, beforeEach, afterEach } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { useQuery, useMutation } from '../src';
+import { createModelStore, createQuery, createRootStore, useQuery, useMutation } from '../src';
 import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -591,6 +591,83 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     expect(q.itemQuery.data?.id).toBe('different-test');
     disposeDataObserver();
     unmount();
+});
+
+test('useQuery - placeholderData keeps previous wrapper model containing a reference', async () => {
+    const AttachmentModel = types.model('PlaceholderAttachment', {
+        id: types.identifier,
+    });
+    const AttachmentQuery = createQuery('PlaceholderAttachmentQuery', {
+        data: types.model({
+            attachment: types.reference(AttachmentModel),
+        }),
+        request: types.model({
+            attachmentPath: types.string,
+        }),
+        endpoint: ({ meta, request }) => meta.getAttachment(request.attachmentPath),
+    });
+    const TestRoot = createRootStore({
+        attachmentStore: types.optional(
+            createModelStore('PlaceholderAttachmentStore', AttachmentModel),
+            {},
+        ),
+        attachmentQuery: types.optional(AttachmentQuery, {}),
+    });
+    const queryClient = new QueryClient({
+        RootStore: TestRoot,
+        queryOptions: { staleTime: 60_000 },
+    });
+    queryClient.init();
+    const { QueryClientProvider } = createContext(queryClient);
+    let resolveNext!: (data: { attachment: { id: string } }) => void;
+    const nextResponse = new Promise<{ attachment: { id: string } }>((resolve) => {
+        resolveNext = resolve;
+    });
+    const getAttachment = vi
+        .fn()
+        .mockResolvedValueOnce({ attachment: { id: 'first' } })
+        .mockReturnValueOnce(nextResponse);
+    const placeholderData = vi.fn(
+        (previousData: typeof queryClient.rootStore.attachmentQuery.data) => previousData,
+    );
+    const renderedData: Array<string | null> = [];
+
+    const Comp = observer(({ attachmentPath }: { attachmentPath: string }) => {
+        const { data } = useQuery(queryClient.rootStore.attachmentQuery, {
+            request: { attachmentPath },
+            meta: { getAttachment },
+            placeholderData,
+        });
+        renderedData.push(data?.attachment.id ?? null);
+        return <div>{data?.attachment.id ?? 'empty'}</div>;
+    });
+    const { unmount } = r(<Comp attachmentPath="first" />, {
+        wrapper: QueryClientProvider,
+    });
+
+    await act(async () => {
+        await when(() => !queryClient.rootStore.attachmentQuery.isLoading);
+    });
+    const previousData = queryClient.rootStore.attachmentQuery.data;
+    placeholderData.mockClear();
+    renderedData.length = 0;
+    unmount();
+
+    r(<Comp attachmentPath="second" />, {
+        wrapper: QueryClientProvider,
+    });
+
+    expect(placeholderData).toHaveBeenCalledWith(previousData);
+    expect(placeholderData).not.toHaveBeenCalledWith(null);
+    expect(placeholderData).toHaveBeenCalledTimes(1);
+    expect(getAttachment).toHaveBeenCalledTimes(2);
+    expect(queryClient.rootStore.attachmentQuery.data).toBe(previousData);
+    expect(renderedData).not.toContain(null);
+
+    await act(async () => {
+        resolveNext({ attachment: { id: 'second' } });
+        await when(() => !queryClient.rootStore.attachmentQuery.isLoading);
+    });
 });
 
 test.each([
