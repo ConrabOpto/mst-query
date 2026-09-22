@@ -39,6 +39,46 @@ const setup = ({ strictMode = false } = {}) => {
     };
 };
 
+const PlaceholderAttachmentModel = types.model('PlaceholderAttachment', {
+    id: types.identifier,
+});
+const PlaceholderAttachmentQuery = createQuery('PlaceholderAttachmentQuery', {
+    data: types.model({
+        attachment: types.reference(PlaceholderAttachmentModel),
+    }),
+    request: types.model({
+        attachmentPath: types.string,
+    }),
+    endpoint: ({ meta, request }) => meta.getAttachment(request.attachmentPath),
+});
+const PlaceholderAttachmentRoot = createRootStore({
+    attachmentStore: types.optional(
+        createModelStore('PlaceholderAttachmentStore', PlaceholderAttachmentModel),
+        {},
+    ),
+    attachmentQueries: types.optional(
+        types.model({
+            first: types.optional(PlaceholderAttachmentQuery, {}),
+            second: types.optional(PlaceholderAttachmentQuery, {}),
+        }),
+        {},
+    ),
+});
+
+const setupPlaceholderAttachmentQueries = (staleTime = 0) => {
+    const queryClient = new QueryClient({
+        RootStore: PlaceholderAttachmentRoot,
+        queryOptions: { staleTime },
+    });
+    queryClient.init();
+    const { QueryClientProvider } = createContext(queryClient);
+
+    return {
+        queries: queryClient.rootStore.attachmentQueries,
+        render: (ui: React.ReactElement) => r(ui, { wrapper: QueryClientProvider }),
+    };
+};
+
 test('garbage collection', async () => {
     const { q, queryClient } = setup();
 
@@ -593,32 +633,8 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     unmount();
 });
 
-test('useQuery - placeholderData keeps previous wrapper model containing a reference', async () => {
-    const AttachmentModel = types.model('PlaceholderAttachment', {
-        id: types.identifier,
-    });
-    const AttachmentQuery = createQuery('PlaceholderAttachmentQuery', {
-        data: types.model({
-            attachment: types.reference(AttachmentModel),
-        }),
-        request: types.model({
-            attachmentPath: types.string,
-        }),
-        endpoint: ({ meta, request }) => meta.getAttachment(request.attachmentPath),
-    });
-    const TestRoot = createRootStore({
-        attachmentStore: types.optional(
-            createModelStore('PlaceholderAttachmentStore', AttachmentModel),
-            {},
-        ),
-        attachmentQuery: types.optional(AttachmentQuery, {}),
-    });
-    const queryClient = new QueryClient({
-        RootStore: TestRoot,
-        queryOptions: { staleTime: 60_000 },
-    });
-    queryClient.init();
-    const { QueryClientProvider } = createContext(queryClient);
+test('useQuery - placeholderData keeps previous wrapper model across query instances', async () => {
+    const { queries, render } = setupPlaceholderAttachmentQueries();
     let resolveNext!: (data: { attachment: { id: string } }) => void;
     const nextResponse = new Promise<{ attachment: { id: string } }>((resolve) => {
         resolveNext = resolve;
@@ -628,12 +644,13 @@ test('useQuery - placeholderData keeps previous wrapper model containing a refer
         .mockResolvedValueOnce({ attachment: { id: 'first' } })
         .mockReturnValueOnce(nextResponse);
     const placeholderData = vi.fn(
-        (previousData: typeof queryClient.rootStore.attachmentQuery.data) => previousData,
+        (previousData: typeof queries.first.data) => previousData,
     );
     const renderedData: Array<string | null> = [];
 
     const Comp = observer(({ attachmentPath }: { attachmentPath: string }) => {
-        const { data } = useQuery(queryClient.rootStore.attachmentQuery, {
+        const query = queries[attachmentPath as 'first' | 'second'];
+        const { data } = useQuery(query, {
             request: { attachmentPath },
             meta: { getAttachment },
             placeholderData,
@@ -641,32 +658,73 @@ test('useQuery - placeholderData keeps previous wrapper model containing a refer
         renderedData.push(data?.attachment.id ?? null);
         return <div>{data?.attachment.id ?? 'empty'}</div>;
     });
-    const { unmount } = r(<Comp attachmentPath="first" />, {
-        wrapper: QueryClientProvider,
-    });
+    const { rerender } = render(<Comp attachmentPath="first" />);
 
     await act(async () => {
-        await when(() => !queryClient.rootStore.attachmentQuery.isLoading);
+        await when(() => !queries.first.isLoading);
     });
-    const previousData = queryClient.rootStore.attachmentQuery.data;
+    const previousData = queries.first.data;
     placeholderData.mockClear();
     renderedData.length = 0;
-    unmount();
-
-    r(<Comp attachmentPath="second" />, {
-        wrapper: QueryClientProvider,
-    });
+    rerender(<Comp attachmentPath="second" />);
 
     expect(placeholderData).toHaveBeenCalledWith(previousData);
     expect(placeholderData).not.toHaveBeenCalledWith(null);
     expect(placeholderData).toHaveBeenCalledTimes(1);
     expect(getAttachment).toHaveBeenCalledTimes(2);
-    expect(queryClient.rootStore.attachmentQuery.data).toBe(previousData);
+    expect(queries.second.data?.attachment.id).toBe('first');
     expect(renderedData).not.toContain(null);
 
     await act(async () => {
         resolveNext({ attachment: { id: 'second' } });
-        await when(() => !queryClient.rootStore.attachmentQuery.isLoading);
+        await when(() => !queries.second.isLoading);
+    });
+});
+
+test('useQuery - changed request overrides fresh data when the same query remounts', async () => {
+    const { queries, render } = setupPlaceholderAttachmentQueries(60_000);
+    let resolveNext!: (data: { attachment: { id: string } }) => void;
+    const nextResponse = new Promise<{ attachment: { id: string } }>((resolve) => {
+        resolveNext = resolve;
+    });
+    const getAttachment = vi
+        .fn()
+        .mockResolvedValueOnce({ attachment: { id: 'first' } })
+        .mockReturnValueOnce(nextResponse);
+    const placeholderData = vi.fn((previousData: typeof queries.first.data) => previousData);
+    const renderedData: Array<string | null> = [];
+
+    const Comp = observer(({ attachmentPath }: { attachmentPath: string }) => {
+        const { data } = useQuery(queries.first, {
+            request: { attachmentPath },
+            meta: { getAttachment },
+            placeholderData,
+        });
+        renderedData.push(data?.attachment.id ?? null);
+        return <div>{data?.attachment.id ?? 'empty'}</div>;
+    });
+    const { unmount } = render(<Comp attachmentPath="first" />);
+
+    await act(async () => {
+        await when(() => !queries.first.isLoading);
+    });
+    const previousData = queries.first.data;
+    placeholderData.mockClear();
+    renderedData.length = 0;
+    unmount();
+
+    render(<Comp attachmentPath="second" />);
+
+    expect(placeholderData).toHaveBeenCalledWith(previousData);
+    expect(placeholderData).not.toHaveBeenCalledWith(null);
+    expect(placeholderData).toHaveBeenCalledTimes(1);
+    expect(getAttachment).toHaveBeenCalledTimes(2);
+    expect(queries.first.data).toBe(previousData);
+    expect(renderedData).not.toContain(null);
+
+    await act(async () => {
+        resolveNext({ attachment: { id: 'second' } });
+        await when(() => !queries.first.isLoading);
     });
 });
 

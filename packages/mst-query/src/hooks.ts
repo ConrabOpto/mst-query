@@ -49,6 +49,15 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     options: QueryOptions<T> = {},
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(query, true));
+    const previousDataRef = useRef<{
+        queryType: T['__MstQueryHandler']['type'];
+        data: T['data'];
+    } | undefined>(undefined);
+    const placeholderRef = useRef<{
+        query: T;
+        request: QueryOptions<T>['request'];
+        data: PlaceholderData<T['data']> | undefined;
+    } | undefined>(undefined);
 
     const queryClient = useContext(Context)! as QueryClient<any>;
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
@@ -56,6 +65,14 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     (options as any).request = options.request ?? EmptyRequest;
 
     let data = query.data;
+    const queryType = query.__MstQueryHandler.type;
+    if (data != null) {
+        previousDataRef.current = { queryType, data };
+        placeholderRef.current = undefined;
+    }
+    const lastData = previousDataRef.current;
+    const previousData =
+        data ?? (lastData && lastData.queryType === queryType ? lastData.data : null);
     const isRequestChanged = !isVariableEqual(query.variables.request, options.request);
     const hasCachedData =
         options.cacheKey &&
@@ -68,14 +85,28 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         !hasCachedData &&
         options.placeholderData !== undefined
     ) {
-        const placeholderData =
-            typeof options.placeholderData === 'function'
-                ? (
-                      options.placeholderData as (
-                          previousData: T['data'],
-                      ) => PlaceholderData<T['data']> | undefined
-                  )(data)
-                : options.placeholderData;
+        const cachedPlaceholder = placeholderRef.current;
+        const canReusePlaceholder =
+            typeof options.placeholderData === 'function' &&
+            cachedPlaceholder?.query === query &&
+            isVariableEqual(cachedPlaceholder.request, options.request);
+        const placeholderData = canReusePlaceholder
+            ? cachedPlaceholder.data
+            : typeof options.placeholderData === 'function'
+              ? (
+                    options.placeholderData as (
+                        previousData: T['data'],
+                    ) => PlaceholderData<T['data']> | undefined
+                )(previousData)
+              : options.placeholderData;
+
+        if (typeof options.placeholderData === 'function' && !canReusePlaceholder) {
+            placeholderRef.current = {
+                query,
+                request: options.request,
+                data: placeholderData,
+            };
+        }
 
         data = (placeholderData ?? null) as typeof data;
 
