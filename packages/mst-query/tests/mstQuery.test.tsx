@@ -158,6 +158,32 @@ test('isLoading state', async () => {
     queryClient.queryStore.clear();
 });
 
+test('hasPendingMutations reports pending mutations in a subtree', async () => {
+    const { q, queryClient, rootStore } = setup();
+    let resolveMutation!: (value: typeof itemData) => void;
+    const mutationResult = new Promise<typeof itemData>((resolve) => {
+        resolveMutation = resolve;
+    });
+
+    expect(queryClient.hasPendingMutations(q)).toBe(false);
+
+    const mutation = q.addItemMutation.mutate({
+        request: { path: 'test', message: 'new message' },
+        meta: { addItem: () => mutationResult },
+    });
+
+    expect(queryClient.hasPendingMutations(q.addItemMutation)).toBe(true);
+    expect(queryClient.hasPendingMutations(q)).toBe(true);
+    expect(queryClient.hasPendingMutations(rootStore.serviceStore)).toBe(true);
+    expect(queryClient.hasPendingMutations(rootStore)).toBe(true);
+    expect(queryClient.hasPendingMutations(rootStore.itemStore)).toBe(false);
+
+    resolveMutation(itemData);
+    await mutation;
+
+    expect(queryClient.hasPendingMutations(q)).toBe(false);
+});
+
 test('useQuery', async () => {
     const { q, render } = setup();
 

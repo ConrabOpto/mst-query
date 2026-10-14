@@ -1,4 +1,4 @@
-import { destroy, IAnyModelType, Instance } from 'mobx-state-tree';
+import { destroy, IAnyModelType, IAnyStateTreeNode, Instance } from 'mobx-state-tree';
 import { QueryStore } from './QueryStore';
 import type { MutationScope } from './create';
 
@@ -71,6 +71,10 @@ export class QueryClient<T extends IAnyModelType> {
         destroy(this.rootStore);
         this.queryStore = new QueryStore(this);
         this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
+    }
+
+    hasPendingMutations(node: IAnyStateTreeNode) {
+        return this.queryStore.hasPendingMutations(node);
     }
 
     getMutationScopes() {

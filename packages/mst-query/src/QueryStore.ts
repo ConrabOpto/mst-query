@@ -7,6 +7,9 @@ import {
     isArrayType,
     getIdentifier,
     IAnyComplexType,
+    IAnyStateTreeNode,
+    getParent,
+    hasParent,
 } from 'mobx-state-tree';
 import { observable, action, makeObservable } from 'mobx';
 
@@ -79,6 +82,29 @@ export class QueryStore {
             }
         }
         return results;
+    }
+
+    hasPendingMutations(node: IAnyStateTreeNode) {
+        for (const [, queries] of this.#cache) {
+            for (const query of queries) {
+                if (!query.isMutation || !query.isLoading) {
+                    continue;
+                }
+
+                let currentNode = query;
+                while (true) {
+                    if (currentNode === node) {
+                        return true;
+                    }
+                    if (!hasParent(currentNode)) {
+                        break;
+                    }
+                    currentNode = getParent(currentNode);
+                }
+            }
+        }
+
+        return false;
     }
 
     setQuery(q: any) {
