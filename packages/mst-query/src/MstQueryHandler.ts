@@ -144,7 +144,9 @@ export class QueryObserver {
                     this.handler.type,
                     options.cacheKey,
                 );
-                if (cacheEntry) {
+                // Apply cached data when entering the cache key, not on every render.
+                // Reapplying it after a failed refetch would erase the new error.
+                if (cacheEntry && (!this.isMounted || this.options.cacheKey !== options.cacheKey)) {
                     this.handler.hydrate(cacheEntry.data, options);
                 }                
                 

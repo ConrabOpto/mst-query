@@ -2411,3 +2411,27 @@ test('useQuery - a refetch error remains visible after initialData hydration', a
     expect(q.itemQuery.error).toBe(error);
     unmount();
 });
+
+test('useQuery - a refetch error remains visible after cached data hydration', async () => {
+    const { render, q, queryClient } = setup();
+    q.itemQuery2.setData(itemData, { cacheKey: 'refetch-error', cacheTime: 10000 });
+    const error = new Error('Cached refetch failed');
+    const Comp = observer(() => {
+        const result = useQuery(q.itemQuery, {
+            request: { id: 'test' },
+            cacheKey: 'refetch-error',
+            staleTime: Infinity,
+            meta: { getItem: () => Promise.reject(error) },
+        });
+        return <div>{result.error?.message ?? result.data?.id}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe('test');
+    await act(async () => {
+        await q.itemQuery.refetch();
+    });
+    expect(container.textContent).toBe(error.message);
+    expect(q.itemQuery.error).toBe(error);
+    unmount();
+    queryClient.queryStore.removeQueryData(ItemQuery, 'refetch-error');
+});
