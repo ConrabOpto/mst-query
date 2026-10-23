@@ -2333,3 +2333,81 @@ test('never cancel mutations', async () => {
     expect(first.data).not.toBe(null);
     expect(second.data).not.toBe(null);
 });
+
+test.each([
+    { source: 'initialData', enabled: true },
+    { source: 'initialData', enabled: false },
+    { source: 'cache', enabled: true },
+])(
+    'useQuery - successful $source replaces a previous error before render (enabled=$enabled)',
+    async ({ source, enabled }) => {
+        const { render, q, queryClient } = setup();
+        const oldError = new Error('Previous request failed');
+        await q.itemQuery.query({
+            request: { id: 'test' },
+            meta: { getItem: () => Promise.reject(oldError) },
+        });
+        expect(q.itemQuery.error).toBe(oldError);
+        if (source === 'cache') {
+            q.itemQuery2.setData(itemData, { cacheKey: 'recovery', cacheTime: 10000 });
+        }
+        const errors: unknown[] = [];
+        const Comp = observer(() => {
+            const { data, error } = useQuery(q.itemQuery, {
+                request: { id: 'test' },
+                initialData: source === 'initialData' ? itemData : undefined,
+                cacheKey: source === 'cache' ? 'recovery' : undefined,
+                staleTime: Infinity,
+                enabled,
+            });
+            errors.push(error);
+            if (error) throw error;
+            return <div>{data?.id}</div>;
+        });
+        const { container, unmount } = render(<Comp />);
+        expect(container.textContent).toBe('test');
+        expect(errors.every((error) => error == null)).toBe(true);
+        expect(q.itemQuery.error).toBe(null);
+        unmount();
+        if (source === 'cache') queryClient.queryStore.removeQueryData(ItemQuery, 'recovery');
+    },
+);
+
+test('useQuery - an old error remains visible without successful hydration data', async () => {
+    const { render, q } = setup();
+    const error = new Error('Request failed');
+    await q.itemQuery.query({
+        request: { id: 'test' },
+        meta: { getItem: () => Promise.reject(error) },
+    });
+    const Comp = observer(() => {
+        const result = useQuery(q.itemQuery, { enabled: false, cacheKey: 'missing' });
+        return <div>{result.error?.message}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe(error.message);
+    expect(q.itemQuery.error).toBe(error);
+    unmount();
+});
+
+test('useQuery - a refetch error remains visible after initialData hydration', async () => {
+    const { render, q } = setup();
+    const error = new Error('Refetch failed');
+    const Comp = observer(() => {
+        const result = useQuery(q.itemQuery, {
+            request: { id: 'test' },
+            initialData: itemData,
+            staleTime: Infinity,
+            meta: { getItem: () => Promise.reject(error) },
+        });
+        return <div>{result.error?.message ?? result.data?.id}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe('test');
+    await act(async () => {
+        await q.itemQuery.refetch();
+    });
+    expect(container.textContent).toBe(error.message);
+    expect(q.itemQuery.error).toBe(error);
+    unmount();
+});

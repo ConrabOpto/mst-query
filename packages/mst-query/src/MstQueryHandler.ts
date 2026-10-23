@@ -783,6 +783,7 @@ export class MstQueryHandler {
 
         this.setData(data, options);
         this.cachedAt = new Date();
+        this.error = null;
     }
 
     isStale(options: any) {

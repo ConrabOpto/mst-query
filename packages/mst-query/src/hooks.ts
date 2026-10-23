@@ -77,6 +77,11 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     const hasCachedData =
         options.cacheKey &&
         observer.queryStore.getQueryData(query.__MstQueryHandler.type, options.cacheKey);
+    // Hydration runs in an effect. Do not surface the previous request's error
+    // before that effect can replace it with successful initial or cached data.
+    const isHydrating =
+        (observer.query !== query || !observer.isMounted) &&
+        !!(options.initialData || hasCachedData);
     if (
         options.enabled &&
         data == null &&
@@ -148,7 +153,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     return {
         data: data as (typeof query)['data'],
         dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
-        error: query.error,
+        error: isHydrating ? null : query.error,
         isFetched: query.isFetched,
         isLoading: query.isLoading,
         isRefetching: query.isRefetching,
