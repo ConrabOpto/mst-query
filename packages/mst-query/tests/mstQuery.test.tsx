@@ -1742,6 +1742,118 @@ test('useQuery should not run when initialData is passed and staleTime is larger
     configureMobx({ enforceActions: 'observed' });
 });
 
+test.each(['initialData', 'fetch'])(
+    'useQuery preserves data from %s when remounting with older initialData',
+    async (source) => {
+        const { render, q } = setup();
+        const currentData = { ...itemData, description: 'Updated description' };
+        const getItem = vi.fn(() => Promise.resolve(currentData));
+        const Comp = observer(({ initialData }: { initialData?: typeof itemData }) => {
+            const { data } = useQuery(q.itemQuery, {
+                initialData,
+                request: { id: 'test' },
+                staleTime: Infinity,
+                meta: { getItem },
+            });
+            return <div>{data?.description}</div>;
+        });
+        const first = render(
+            <Comp initialData={source === 'initialData' ? currentData : undefined} />,
+        );
+        await act(async () => {
+            await wait(0);
+        });
+        expect(first.container.textContent).toBe(currentData.description);
+        const cachedAt = q.itemQuery.cachedAt;
+        const fetchCount = getItem.mock.calls.length;
+        first.unmount();
+
+        const second = render(<Comp initialData={itemData} />);
+        await act(async () => {
+            await wait(0);
+        });
+
+        expect(second.container.textContent).toBe(currentData.description);
+        expect(q.itemQuery.cachedAt).toBe(cachedAt);
+        expect(getItem).toHaveBeenCalledTimes(fetchCount);
+        second.unmount();
+    },
+);
+
+test('useQuery prefers an existing cacheKey entry over initialData', () => {
+    const { render, q, queryClient } = setup();
+    const cachedData = { ...itemData, description: 'Cached description' };
+    q.itemQuery2.setData(cachedData, { cacheKey: 'initial-data', cacheTime: 10000 });
+    const getItem = vi.fn(() => Promise.resolve(itemData));
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            initialData: itemData,
+            cacheKey: 'initial-data',
+            request: { id: 'test' },
+            staleTime: Infinity,
+            meta: { getItem },
+        });
+        return <div>{data?.description}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe(cachedData.description);
+    expect(getItem).not.toHaveBeenCalled();
+    unmount();
+    queryClient.queryStore.removeQueryData(ItemQuery, 'initial-data');
+});
+
+test('useQuery refetches stale cached data without replacing it with initialData', async () => {
+    const { render, q } = setup();
+    const cachedData = { ...itemData, description: 'Cached description' };
+    await q.itemQuery.query({
+        request: { id: 'test' },
+        meta: { getItem: () => Promise.resolve(cachedData) },
+    });
+    let resolve!: (data: typeof itemData) => void;
+    const getItem = vi.fn(
+        () => new Promise<typeof itemData>((r) => {
+            resolve = r;
+        }),
+    );
+    const Comp = observer(() => {
+        const { data } = useQuery(q.itemQuery, {
+            initialData: itemData,
+            request: { id: 'test' },
+            staleTime: 0,
+            meta: { getItem },
+        });
+        return <div>{data?.description}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe(cachedData.description);
+    expect(getItem).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+        resolve({ ...itemData, description: 'Refetched description' });
+    });
+    expect(container.textContent).toBe('Refetched description');
+    unmount();
+});
+
+test('useQuery preserves cached refetch errors when initialData is ignored', async () => {
+    const { render, q } = setup();
+    await q.itemQuery.query({ request: { id: 'test' } });
+    const error = new Error('Refetch failed');
+    await q.itemQuery.refetch({ meta: { getItem: () => Promise.reject(error) } });
+    const Comp = observer(() => {
+        const result = useQuery(q.itemQuery, {
+            initialData: itemData,
+            request: { id: 'test' },
+            enabled: false,
+        });
+        return <div>{result.error?.message}</div>;
+    });
+    const { container, unmount } = render(<Comp />);
+    expect(container.textContent).toBe(error.message);
+    expect(q.itemQuery.error).toBe(error);
+    unmount();
+});
+
 test('useQuery should run when initialData is passed and initialDataUpdatedAt is older than staleTime', async () => {
     const { render, q } = setup();
 

@@ -81,7 +81,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
     // before that effect can replace it with successful initial or cached data.
     const isHydrating =
         (observer.query !== query || !observer.isMounted) &&
-        !!(options.initialData || hasCachedData);
+        !!((options.initialData && !query.cachedAt) || hasCachedData);
     if (
         options.enabled &&
         data == null &&
