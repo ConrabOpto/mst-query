@@ -234,6 +234,12 @@ const MesssageListView = observer((props) => {
 });
 ```
 
+Parallel `queryMore` calls can finish out of order and each calls `onQueryMore` while the
+request remains the same. Changing the request (for example, its filter) discards pending
+pages from the previous request before they update models or call `onQueryMore`, even if
+the request later changes back. An obsolete page's promise still returns its raw `result`
+with `data: null`, or its original `error`, without updating the current query state.
+
 ## Mutations
 
 ### `createMutation`
