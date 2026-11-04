@@ -132,7 +132,12 @@ export class QueryObserver {
                 }
             }
 
-            if (options.initialData && !options.isMounted) {
+            const cacheEntry = options.cacheKey
+                ? this.queryStore.getQueryData(this.handler.type, options.cacheKey)
+                : undefined;
+
+            // Initial data seeds an empty query; remounting must not overwrite cached results.
+            if (options.initialData && !options.isMounted && !this.handler.cachedAt && !cacheEntry) {
                 this.handler.hydrate(options.initialData, options);
 
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
@@ -140,10 +145,6 @@ export class QueryObserver {
                     this.handler.queryWhenChanged(options);
                 }
             } else if (options.cacheKey) {
-                const cacheEntry = this.queryStore.getQueryData(
-                    this.handler.type,
-                    options.cacheKey,
-                );
                 // Apply cached data when entering the cache key, not on every render.
                 // Reapplying it after a failed refetch would erase the new error.
                 if (cacheEntry && (!this.isMounted || this.options.cacheKey !== options.cacheKey)) {
@@ -402,7 +403,7 @@ export class MstQueryHandler {
             return;
         }
 
-        const notInitialized = !this.isFetched && !this.isLoading;
+        const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
         if (!options.isMounted) {
             if (notInitialized) {
                 return this.model.query(options);
