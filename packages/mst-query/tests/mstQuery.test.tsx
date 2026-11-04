@@ -1022,8 +1022,16 @@ test('onQueryMore is called for every parallel queryMore request', async () => {
     );
     const onQueryMore = vi.spyOn(q.listQuery.__MstQueryHandler.options, 'onQueryMore');
 
-    const first = q.listQuery.queryMore({ pagination: { offset: 4 }, meta: { getItems } });
-    const second = q.listQuery.queryMore({ pagination: { offset: 8 }, meta: { getItems } });
+    const first = q.listQuery.queryMore({
+        request: { filter: { search: 'A' } },
+        pagination: { offset: 4 },
+        meta: { getItems },
+    });
+    const second = q.listQuery.queryMore({
+        request: { filter: { search: 'A' } },
+        pagination: { offset: 8 },
+        meta: { getItems },
+    });
 
     resolveSecond(listData);
     await second;
@@ -1043,6 +1051,131 @@ test('onQueryMore is called for every parallel queryMore request', async () => {
     );
     expect(q.listQuery.isFetchingMore).toBe(false);
 });
+
+test.each(['pending', 'resolved', 'changed back'])(
+    'queryMore discards an obsolete page when the replacement request is %s',
+    async (replacementState) => {
+        const { q } = setup();
+        const request = { filter: { search: 'A' } };
+        const replacementData = {
+            ...listData,
+            items: [{ ...listData.items[0], description: 'Current item' }],
+        };
+        await q.listQuery.query({ request, meta: { getItems: async () => replacementData } });
+
+        let resolvePage!: (data: typeof listData) => void;
+        const pageResponse = new Promise<typeof listData>((resolve) => {
+            resolvePage = resolve;
+        });
+        const onQueryMore = vi.spyOn(q.listQuery.__MstQueryHandler.options, 'onQueryMore');
+        const page = q.listQuery.queryMore({
+            pagination: { offset: 4 },
+            meta: { getItems: () => pageResponse },
+        });
+
+        let resolveReplacement!: (data: typeof listData) => void;
+        const replacementResponse = new Promise<typeof listData>((resolve) => {
+            resolveReplacement = resolve;
+        });
+        const replacement = q.listQuery.query({
+            request: { filter: { search: 'B' } },
+            pagination: { offset: 0 },
+            meta: { getItems: () => replacementResponse },
+        });
+        if (replacementState !== 'pending') {
+            resolveReplacement(replacementData);
+            await replacement;
+        }
+        if (replacementState === 'changed back') {
+            await q.listQuery.query({
+                request,
+                pagination: { offset: 0 },
+                meta: { getItems: async () => replacementData },
+            });
+        }
+
+        resolvePage(listData);
+        const pageResult = await page;
+
+        expect(onQueryMore).not.toHaveBeenCalled();
+        expect(q.listQuery.data?.items.map((item) => item.description)).toEqual(['Current item']);
+        expect(pageResult.result).toEqual(listData);
+        expect(q.listQuery.isFetchingMore).toBe(false);
+        expect(q.listQuery.isLoading).toBe(replacementState === 'pending');
+        expect(q.listQuery.error).toBeNull();
+
+        if (replacementState === 'pending') {
+            resolveReplacement(replacementData);
+            await replacement;
+        }
+    },
+);
+
+test('an obsolete page does not update normalized models even without an onQueryMore callback', async () => {
+    const { q } = setup();
+    let resolvePage!: (data: typeof listData) => void;
+    const pageResponse = new Promise<typeof listData>((resolve) => {
+        resolvePage = resolve;
+    });
+    const page = q.listQuery.queryMore({
+        request: { filter: 'A' },
+        meta: { getItems: () => pageResponse },
+    });
+    await q.listQuery.query({
+        request: { filter: 'B' },
+        meta: {
+            getItems: async () => ({
+                ...listData,
+                items: [{ ...listData.items[0], description: 'Current item' }],
+            }),
+        },
+    });
+    q.listQuery.__MstQueryHandler.options.onQueryMore = undefined;
+
+    resolvePage(listData);
+    await page;
+
+    expect(q.listQuery.data?.items[0].description).toBe('Current item');
+    expect(q.listQuery.isFetchingMore).toBe(false);
+});
+
+test.each(['success', 'error'])(
+    'queryMore ignores an obsolete %s after hydrating a different request',
+    async (outcome) => {
+        const { q } = setup();
+        let resolvePage!: (data: typeof listData) => void;
+        let rejectPage!: (error: Error) => void;
+        const pageResponse = new Promise<typeof listData>((resolve, reject) => {
+            resolvePage = resolve;
+            rejectPage = reject;
+        });
+        const page = q.listQuery.queryMore({
+            request: { filter: 'A' },
+            meta: { getItems: () => pageResponse },
+        });
+        q.listQuery.__MstQueryHandler.hydrate(listData, {
+            enabled: true,
+            request: { filter: 'B' },
+        });
+        const onQueryMore = vi.spyOn(q.listQuery.__MstQueryHandler.options, 'onQueryMore');
+        const cachedAt = q.listQuery.cachedAt;
+        const error = new Error('Obsolete page failed');
+
+        if (outcome === 'success') {
+            resolvePage(listData);
+        } else {
+            rejectPage(error);
+        }
+        const result = await page;
+
+        expect(onQueryMore).not.toHaveBeenCalled();
+        expect(q.listQuery.error).toBeNull();
+        expect(q.listQuery.cachedAt).toBe(cachedAt);
+        expect(q.listQuery.data?.items.length).toBe(listData.items.length);
+        expect(q.listQuery.isFetchingMore).toBe(false);
+        expect(result.error).toBe(outcome === 'error' ? error : null);
+    },
+);
 
 test('useQuery - with error', async () => {
     const { render, q } = setup();
