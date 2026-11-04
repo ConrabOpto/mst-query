@@ -53,6 +53,7 @@ type OnResponseOptions = {
     isQueryMore?: boolean;
     request?: any;
     pagination?: any;
+    requestVersion?: number;
 } & CacheOptions;
 
 export class DisposedError extends Error {}
@@ -311,6 +312,7 @@ export class MstQueryHandler {
     queryClient!: QueryClient<any>;
 
     abortController?: AbortController;
+    private requestVersion = 0;
 
     cachedAt?: Date;
     markedAsStale = false;
@@ -460,9 +462,10 @@ export class MstQueryHandler {
     // `run` must be called before this, since it assigns the abort controller of the current run
     handleResponse(promise: Promise<any>, options: OnResponseOptions = {}) {
         const abortController = this.abortController;
+        const requestVersion = this.requestVersion;
         return promise.then(
-            (result) => this.onSuccess(result, { ...options, abortController }),
-            (err) => this.onError(err, { ...options, abortController }),
+            (result) => this.onSuccess(result, { ...options, abortController, requestVersion }),
+            (err) => this.onError(err, { ...options, abortController, requestVersion }),
         );
     }
 
@@ -573,6 +576,12 @@ export class MstQueryHandler {
                 return { data: null, error: null, result: null };
             }
 
+            // Pages may finish out of order within one request, but a request change
+            // invalidates old pages before normalization can update shared models.
+            if (options.isQueryMore && options.requestVersion !== this.requestVersion) {
+                return { data: null, error: null, result };
+            }
+
             // A newer run has taken over, so only the caller of this run gets the result
             if (this.isSuperseded(options.abortController)) {
                 if (options.isQueryMore) {
@@ -649,7 +658,10 @@ export class MstQueryHandler {
                 return { data: null, error: null, result: null };
             }
 
-            if (this.isSuperseded(options.abortController)) {
+            if (
+                this.isSuperseded(options.abortController) ||
+                (options.isQueryMore && options.requestVersion !== this.requestVersion)
+            ) {
                 return { data: null, error: err, result: null };
             }
 
@@ -717,6 +729,7 @@ export class MstQueryHandler {
     }
 
     setVariables(variables: any) {
+        const isRequestEqual = isVariableEqual(this.model.variables.request, variables.request);
         let request = variables.request ?? EmptyRequest;
         let pagination = variables.pagination ?? EmptyPagination;
 
@@ -731,6 +744,9 @@ export class MstQueryHandler {
         this.model.__MstQueryHandlerAction(() => {
             this.model.variables = { request, pagination };
         });
+        if (!isRequestEqual) {
+            this.requestVersion += 1;
+        }
     }
 
     revertVariables() {

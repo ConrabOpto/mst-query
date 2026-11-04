@@ -1,7 +1,14 @@
 import * as React from 'react';
 import { test, vi, expect, describe, beforeEach, afterEach } from 'vitest';
 import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
-import { createModelStore, createQuery, createRootStore, useQuery, useMutation } from '../src';
+import {
+    createInfiniteQuery,
+    createModelStore,
+    createQuery,
+    createRootStore,
+    useQuery,
+    useMutation,
+} from '../src';
 import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
@@ -1099,6 +1106,7 @@ test.each(['pending', 'resolved', 'changed back'])(
 
         expect(onQueryMore).not.toHaveBeenCalled();
         expect(q.listQuery.data?.items.map((item) => item.description)).toEqual(['Current item']);
+        expect(pageResult.data).toBeNull();
         expect(pageResult.result).toEqual(listData);
         expect(q.listQuery.isFetchingMore).toBe(false);
         expect(q.listQuery.isLoading).toBe(replacementState === 'pending');
@@ -1176,6 +1184,53 @@ test.each(['success', 'error'])(
         expect(result.error).toBe(outcome === 'error' ? error : null);
     },
 );
+
+test('queryMore distinguishes changed model requests from equivalent snapshots with defaults', async () => {
+    const onQueryMore = vi.fn();
+    const Query = createInfiniteQuery('ModelRequestPages', {
+        request: types.model({ filter: types.string, origin: 'default' }),
+        pagination: types.model({ offset: types.number }),
+        endpoint: ({ meta }) => meta.getPage(),
+        onQueryMore,
+    });
+    const queryClient = new QueryClient({
+        RootStore: createRootStore({ query: types.optional(Query, {}) }),
+    });
+    queryClient.init();
+    const query = queryClient.rootStore.query;
+    let resolvePage!: (data: string[]) => void;
+    const pageResponse = new Promise<string[]>((resolve) => {
+        resolvePage = resolve;
+    });
+    const page = query.queryMore({
+        request: { filter: 'A' },
+        pagination: { offset: 4 },
+        meta: { getPage: () => pageResponse },
+    });
+    await query.queryMore({
+        request: { filter: 'A', origin: 'default' },
+        pagination: { offset: 8 },
+        meta: { getPage: async () => ['page 8'] },
+    });
+    resolvePage(['page 4']);
+    await page;
+    expect(onQueryMore).toHaveBeenCalledTimes(2);
+
+    const obsoletePage = query.queryMore({
+        pagination: { offset: 12 },
+        meta: { getPage: () => Promise.resolve(['obsolete page']) },
+    });
+    await query.query({
+        request: { filter: 'B' },
+        pagination: { offset: 0 },
+        meta: { getPage: async () => ['replacement'] },
+    });
+    await obsoletePage;
+
+    expect(onQueryMore).toHaveBeenCalledTimes(2);
+    expect(query.data).toEqual(['replacement']);
+    expect(query.isFetchingMore).toBe(false);
+});
 
 test('useQuery - with error', async () => {
     const { render, q } = setup();
