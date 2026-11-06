@@ -174,6 +174,13 @@ const MesssageView = observer((props) => {
 });
 ```
 
+Mount only one `useQuery` or `useInfiniteQuery` hook per query instance. A second hook throws,
+even when the requests match, `request` is omitted, or `enabled` is false. The hook coordinates
+the query's fetching and updates; other `observer` components can read `query.data`,
+`query.isLoading`, and `query.error` directly through MobX reactivity. Use separate query
+instances when components need independent control. After the hook unmounts, another hook
+can take over the same instance.
+
 Use `placeholderData` to keep previous data visible while a changed request is loading:
 
 ```tsx

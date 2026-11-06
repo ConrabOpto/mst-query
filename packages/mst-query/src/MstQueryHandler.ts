@@ -765,7 +765,17 @@ export class MstQueryHandler {
         });
     }
 
-    addQueryObserver(queryObserver: any) {
+    addQueryObserver(queryObserver: QueryObserver) {
+        if (
+            queryObserver.isQuery &&
+            this.queryObservers.some((observer) => observer !== queryObserver && observer.isQuery)
+        ) {
+            throw new Error(
+                `Query "${this.type.name}" already has a query hook. ` +
+                    'Mount only one useQuery or useInfiniteQuery per query instance; ' +
+                    'read the query node directly from other observer components.',
+            );
+        }
         if (!this.queryObservers.includes(queryObserver)) {
             this.queryObservers.push(queryObserver);
         }
