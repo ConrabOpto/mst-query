@@ -288,8 +288,14 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 return action();
             },
             mutate: flow(function* (options: any) {
-                const next = yield self.__MstQueryHandler.mutate(options);
-                return next();
+                const handler = self.__MstQueryHandler;
+                handler.startMutation();
+                try {
+                    const next = yield handler.mutate(options);
+                    return next();
+                } finally {
+                    handler.finishMutation();
+                }
             }) as <TResult = any>(options: {
                 request: SnapshotIn<TRequest>;
                 optimisticUpdate?: () => any;

@@ -1,5 +1,5 @@
 import { equal } from '@wry/equality';
-import { makeObservable, observable, action, autorun } from 'mobx';
+import { makeObservable, observable, computed, action, actionBound, autorun } from 'mobx';
 import {
     addDisposer,
     getEnv,
@@ -305,7 +305,8 @@ export function onMutate<T extends Instance<MutationReturnType>>(
 }
 
 export class MstQueryHandler {
-    isLoading = false;
+    private isQueryLoading = false;
+    private pendingMutationCount = 0;
     isRefetching = false;
     isFetchingMore = false;
     pendingQueryMoreCount = 0;
@@ -347,8 +348,10 @@ export class MstQueryHandler {
         this.model.$treenode.registerHook('afterCreate', () => this.onAfterCreate());
         this.model.$treenode.registerHook('beforeDestroy', () => this.onBeforeDestroy());
 
-        makeObservable(this, {
-            isLoading: observable,
+        makeObservable<MstQueryHandler, 'isQueryLoading' | 'pendingMutationCount'>(this, {
+            isQueryLoading: observable,
+            pendingMutationCount: observable,
+            isLoading: computed,
             isRefetching: observable,
             isFetchingMore: observable,
             isFetched: observable,
@@ -361,12 +364,18 @@ export class MstQueryHandler {
             prefetch: action,
             adopt: action,
             mutate: action,
+            startMutation: actionBound,
+            finishMutation: actionBound,
             queryMore: action,
             refetch: action,
             abort: action,
             onAfterCreate: action,
             onBeforeDestroy: action,
         });
+    }
+
+    get isLoading() {
+        return this.model.isMutation ? this.pendingMutationCount > 0 : this.isQueryLoading;
     }
 
     get notInitialized() {
@@ -396,7 +405,9 @@ export class MstQueryHandler {
         const abortController = new AbortController();
         this.abortController = abortController;
 
-        this.isLoading = true;
+        if (!this.model.isMutation) {
+            this.isQueryLoading = true;
+        }
         this.error = null;
 
         const opts = {
@@ -543,6 +554,15 @@ export class MstQueryHandler {
         );
     }
 
+    startMutation() {
+        this.pendingMutationCount += 1;
+    }
+
+    finishMutation() {
+        // A disposed node may still receive completions after its count was cleared.
+        this.pendingMutationCount = Math.max(0, this.pendingMutationCount - 1);
+    }
+
     mutate = (options: any = {}): Promise<() => any> => {
         const { optimisticUpdate, scope, revert = 'revert-all' } = options;
         let updateRecorder: IPatchRecorder;
@@ -677,7 +697,7 @@ export class MstQueryHandler {
             }
 
             if (this.isLoading) {
-                this.isLoading = false;
+                this.isQueryLoading = false;
             }
 
             if (this.isRefetching) {
@@ -740,7 +760,7 @@ export class MstQueryHandler {
             this.error = err;
 
             if (this.isLoading) {
-                this.isLoading = false;
+                this.isQueryLoading = false;
             }
 
             if (this.isRefetching) {
@@ -876,7 +896,7 @@ export class MstQueryHandler {
         }
         this.options.meta = options.meta;
 
-        this.isLoading = false;
+        this.isQueryLoading = false;
 
         this.setData(data, options);
         this.cachedAt = new Date();
@@ -898,6 +918,8 @@ export class MstQueryHandler {
     onBeforeDestroy = () => {
         this.queryClient.queryStore.removeQuery(this.model);
         this.isDisposed = true;
+        this.pendingMutationCount = 0;
+        this.isQueryLoading = false;
         this.queryObservers.forEach((observer) => observer.unsubscribe());
         this.abort();
     };

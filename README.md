@@ -334,6 +334,22 @@ const AddMessage = observer((props) => {
 });
 ```
 
+### Global mutation indicator
+
+Each mutation's `isLoading` stays true until all of its calls finish, including overlapping
+calls and scoped calls waiting in a queue. `queryClient.isMutating` derives a reactive boolean
+from those loading states across the client's registered mutations. It also covers imperative
+`mutation.mutate()` calls; ordinary queries do not affect it. Completed, failed, and aborted
+calls clear their pending state. Destroyed mutation nodes and client resets also clear loading.
+
+```tsx
+const GlobalLoadingIndicator = observer(() => (
+    queryClient.isMutating ? <span>Saving...</span> : null
+));
+```
+
+You can also obtain the client through `useQueryClient`, returned by `createContext`.
+
 ## Server components and streaming
 
 Prefetch queries in a server component and pass them to client components with `HydrationBoundary`.

@@ -27,7 +27,7 @@ export class QueryStore {
     #scheduledGc = null as null | ReturnType<typeof setTimeout>;
     #queryClient: any;
     #queryData = new Map() as Map<string, QueryCacheEntry>;
-    #cache = new Map() as Map<string, any>;
+    #cache = observable.map<string, any>(undefined, { deep: false });
 
     models = new Map() as Map<string, any>;
 
@@ -112,6 +112,15 @@ export class QueryStore {
             }
         }
 
+        return false;
+    }
+
+    get isMutating() {
+        for (const queries of this.#cache.values()) {
+            if (queries.some((query: Instance<IAnyModelType>) => query.isMutation && query.isLoading)) {
+                return true;
+            }
+        }
         return false;
     }
 
