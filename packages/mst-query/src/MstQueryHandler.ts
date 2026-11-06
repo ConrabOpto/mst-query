@@ -18,6 +18,7 @@ import {
 import { MutationReturnType, MutationScope } from './create';
 import { merge } from './merge';
 import { QueryClient, EndpointType } from './QueryClient';
+import { subscribeToWindowFocus } from './focus';
 
 export const EmptyRequest = Symbol('EmptyRequest');
 export const EmptyPagination = Symbol('EmptyPagination');
@@ -75,6 +76,7 @@ export class QueryObserver {
     private pollingDisposer?: () => void;
     private refetchTimer?: ReturnType<typeof setInterval>;
     private refetchInterval?: number;
+    private focusDisposer?: () => void;
 
     constructor(query: any, isQuery: boolean) {
         this.query = query;
@@ -98,6 +100,8 @@ export class QueryObserver {
     }
 
     unsubscribe() {
+        this.focusDisposer?.();
+        this.focusDisposer = undefined;
         this.pollingDisposer?.();
         this.pollingDisposer = undefined;
         this.clearRefetchInterval();
@@ -185,6 +189,60 @@ export class QueryObserver {
 
         this.options = options;
         this.updatePolling();
+        this.updateFocusSubscription();
+    }
+
+    private get focusOption() {
+        return (
+            this.options.refetchOnWindowFocus ??
+            this.handler.queryClient.config.queryOptions?.refetchOnWindowFocus ??
+            true
+        );
+    }
+
+    private updateFocusSubscription() {
+        if (
+            !this.isQuery ||
+            this.handler.isDisposed ||
+            !this.options.enabled ||
+            this.focusOption === false
+        ) {
+            this.focusDisposer?.();
+            this.focusDisposer = undefined;
+        } else if (!this.focusDisposer) {
+            this.focusDisposer = subscribeToWindowFocus(() => this.onWindowFocus());
+        }
+    }
+
+    private onWindowFocus() {
+        if (
+            !this.isMounted ||
+            this.handler.isDisposed ||
+            !this.options.enabled ||
+            this.handler.isLoading ||
+            this.handler.isFetchingMore
+        ) {
+            return;
+        }
+
+        const option = this.focusOption;
+        const policy = typeof option === 'function' ? option(this.query) : option;
+        if (
+            policy === false ||
+            (policy !== 'always' && this.handler.cachedAt && !this.handler.isStale(this.options))
+        ) {
+            return;
+        }
+
+        // Use the current variables and preserve this observer's response cache.
+        // Endpoint failures are surfaced through query.error by normal refetching.
+        void this.query
+            .refetch({
+                meta: this.options.meta,
+                cacheKey: this.options.cacheKey,
+                cacheTime: this.options.cacheTime,
+            })
+            .catch(() => {});
     }
 
     private clearRefetchInterval() {
@@ -638,7 +696,7 @@ export class MstQueryHandler {
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.handleResponse(this.run(options));
+        return this.handleResponse(this.run(options), options);
     };
 
     invalidate() {

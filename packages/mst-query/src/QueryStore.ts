@@ -5,6 +5,7 @@ import {
     isAlive,
     getType,
     isArrayType,
+    isMapType,
     getIdentifier,
     IAnyComplexType,
     IAnyStateTreeNode,
@@ -201,7 +202,7 @@ export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
     }
     const n = node as any;
     const t = getType(node) as any;
-    if (isArrayType(t)) {
+    if (isArrayType(t) || isMapType(t)) {
         n.forEach((n: any) => collectSeenIdentifiers(n, seenIdentifiers));
         return;
     }

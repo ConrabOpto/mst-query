@@ -44,6 +44,11 @@ const noop = () => {};
 // Requestless queries use a symbol sentinel, which can't be serialized
 const serializable = (value: unknown) => (typeof value === 'symbol' ? undefined : value);
 
+export type RefetchOnWindowFocus<TQuery> =
+    | boolean
+    | 'always'
+    | ((query: TQuery) => boolean | 'always');
+
 export type EndpointType = (
     options: {
         request?: any;
@@ -60,6 +65,7 @@ type QueryClientConfig<T extends IAnyModelType> = {
     queryOptions?: {
         staleTime?: number;
         endpoint?: EndpointType;
+        refetchOnWindowFocus?: RefetchOnWindowFocus<Instance<QueryReturnType | InfiniteQueryReturnType>>;
     };
     RootStore: T;
 };
@@ -71,6 +77,7 @@ const defaultConfig = {
         cacheTime: 0,
         refetchOnMount: 'if-stale',
         refetchOnChanged: 'all',
+        refetchOnWindowFocus: true,
     },
 };
 

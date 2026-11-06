@@ -1,12 +1,16 @@
 import {
+    addDisposer,
     getIdentifier,
     getRoot,
     getSnapshot,
     getType,
     isFrozenType,
     isMapType,
+    isAlive,
+    isOptionalType,
     isStateTreeNode,
     protect,
+    types,
     unprotect,
 } from 'mobx-state-tree';
 import { getKey } from './QueryStore';
@@ -47,9 +51,24 @@ export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, 
     // GQL object with known type, instantiate or recycle MST object
     // Try to reuse instance.
     const modelType = getSubType(typeDef, snapshot);
-    const id = data[modelType.identifierAttribute];
+    const identifierAttribute = modelType.identifierAttribute;
+    let id = data[identifierAttribute];
+    // Resolve generated identifiers without creating a detached model whose
+    // safe references would be invalidated before reaching the model store.
+    const identifierType = modelType.properties?.[identifierAttribute];
+    if (id === undefined && isOptionalType(identifierType)) {
+        const Identifier = types.model({ [identifierAttribute]: identifierType });
+        id = Identifier.create({}, ctx)[identifierAttribute];
+        snapshot[identifierAttribute] = id;
+    }
 
-    let instance = id && ctx.queryClient.queryStore.models.get(getKey(modelType, id));
+    const models = ctx.queryClient.queryStore.models;
+    const key = id != null ? getKey(modelType, id) : undefined;
+    let instance = key !== undefined ? models.get(key) : undefined;
+    if (instance && (!isAlive(instance) || getRoot(instance) !== ctx.queryClient.rootStore)) {
+        models.delete(key);
+        instance = undefined;
+    }
 
     if (cloneInstances && instance) {
         // Build the detached result from snapshots so updating reference arrays does not
@@ -65,18 +84,32 @@ export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, 
         // update existing object
         const root = getRoot(instance);
         unprotect(root);
-        Object.assign(instance, mergeObjects(instance, snapshot, typeDef));
-        protect(root);
+        try {
+            Object.assign(instance, mergeObjects(instance, snapshot, typeDef));
+        } finally {
+            protect(root);
+        }
         return instance;
     } else if (!instance) {
-        // create a new one
-        instance = modelType.create(snapshot, ctx);
-        const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : id;
-        if (storedId) {
-            ctx.queryClient.rootStore.__MstQueryAction('put', modelType, storedId, instance);
-            ctx.queryClient.queryStore.models.set(getKey(modelType, storedId), instance);
-            return instance;
+        if (id != null) {
+            // Instantiate inside the store so references can resolve immediately.
+            instance = ctx.queryClient.rootStore.__MstQueryAction('put', modelType, id, snapshot);
+        } else {
+            instance = modelType.create(snapshot, ctx);
+            const storedId = isStateTreeNode(instance) ? getIdentifier(instance) : undefined;
+            if (storedId == null) {
+                return snapshot;
+            }
+            instance = ctx.queryClient.rootStore.__MstQueryAction('put', modelType, storedId, instance);
         }
+        const storedKey = getKey(modelType, getIdentifier(instance) as string);
+        models.set(storedKey, instance);
+        addDisposer(instance, () => {
+            if (models.get(storedKey) === instance) {
+                models.delete(storedKey);
+            }
+        });
+        return instance;
     }
     return snapshot;
 }

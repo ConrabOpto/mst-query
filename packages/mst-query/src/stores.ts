@@ -30,8 +30,7 @@ export const createModelStore = <T extends IAnyModelType>(name: string, type: T)
                         case 'get':
                             return self.models.get(id);
                         case 'put':
-                            self.models.put(instance);
-                            break;
+                            return self.models.put(instance);
                         case 'delete':
                             self.models.delete(id);
                             break;

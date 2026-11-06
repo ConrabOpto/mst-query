@@ -200,6 +200,36 @@ It does not mark the query as fetched or populate the response cache. Existing d
 data takes precedence. The response replaces the placeholder; a failed request clears it. Queries
 with `enabled: false` do not apply placeholders.
 
+Use `refetchOnWindowFocus` to refresh a query when the user returns to the tab:
+
+```tsx
+useQuery(messageStore.messageQuery, {
+    request: { id },
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+});
+```
+
+The default is `true`: returning to a visible tab refetches stale data. Set it to `false`
+to disable this behavior, or `'always'` to refetch even fresh data, including with
+`staleTime: Infinity`. A callback receives the current MST query node and returns `true`,
+`false`, or `'always'`; it is evaluated on each focus event using the latest query state.
+Browser focus detection uses `visibilitychange` when the document becomes visible.
+Disabled, unmounted, and already-loading queries do not start a focus refetch.
+
+Set the default for all queries through the client configuration:
+
+```tsx
+const queryClient = new QueryClient({
+    RootStore,
+    queryOptions: { refetchOnWindowFocus: false },
+});
+```
+
+Per-hook settings override the client default. This option works with `useQuery`,
+`useInfiniteQuery`, and `useVolatileQuery`. Focus refetches use the current request,
+pagination, and latest hook meta; infinite queries use their normal refetch behavior.
+
 Use `refetchInterval` to poll a regular query, independently of `staleTime`:
 
 ```tsx

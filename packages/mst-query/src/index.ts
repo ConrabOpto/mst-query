@@ -11,6 +11,11 @@ export { createQuery, createMutation, createInfiniteQuery } from './create';
 export type { MutationScope } from './create';
 export { createRootStore, createModelStore } from './stores';
 export { QueryClient } from './QueryClient';
-export type { EndpointType, DehydratedState, DehydratedQuery } from './QueryClient';
+export type {
+    EndpointType,
+    DehydratedState,
+    DehydratedQuery,
+    RefetchOnWindowFocus,
+} from './QueryClient';
 export { createContext } from './QueryClientProvider';
 export { HydrationBoundary } from './HydrationBoundary';

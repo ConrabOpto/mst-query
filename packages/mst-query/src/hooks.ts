@@ -10,7 +10,7 @@ import {
     MutationScope,
 } from './create';
 import { Context } from './context';
-import { QueryClient } from './QueryClient';
+import { QueryClient, type RefetchOnWindowFocus } from './QueryClient';
 import { CacheOptions, EmptyPagination, EmptyRequest, isVariableEqual, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
 import { useEvent } from './utils';
 
@@ -39,6 +39,8 @@ type QueryOptions<T extends Instance<QueryReturnType>> = {
         | 'none'
         | ((options: { prevRequest: Exclude<T['variables']['request'], undefined> }) => boolean);
     staleTime?: number;
+    /** Refetch stale data when the tab becomes visible. Defaults to true. */
+    refetchOnWindowFocus?: RefetchOnWindowFocus<T>;
     /** Poll at this interval in milliseconds, or return false/undefined to stop. */
     refetchInterval?: number | false | ((query: T) => number | false | undefined);
     /** Continue polling while the document is hidden. Defaults to false. */
@@ -195,6 +197,8 @@ type InfiniteQueryOptions<T extends Instance<InfiniteQueryReturnType>> = {
               prevPagination: Exclude<T['variables']['pagination'], undefined>;
           }) => boolean);
     staleTime?: number;
+    /** Refetch stale data when the tab becomes visible. Defaults to true. */
+    refetchOnWindowFocus?: RefetchOnWindowFocus<T>;
     enabled?: boolean;
     initialData?: any;
     initialDataUpdatedAt?: number;
