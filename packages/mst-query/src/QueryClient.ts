@@ -62,6 +62,8 @@ export type EndpointType = (
 
 type QueryClientConfig<T extends IAnyModelType> = {
     env?: any;
+    /** Minimum delay between automatic GC batches, in milliseconds. Infinity disables GC. */
+    gcInterval?: number;
     queryOptions?: {
         staleTime?: number;
         endpoint?: EndpointType;
@@ -93,11 +95,16 @@ export class QueryClient<T extends IAnyModelType> {
         this.config = {
             ...defaultConfig,
             ...config,
+            gcInterval: config.gcInterval ?? (typeof window === 'undefined' ? Infinity : 5 * 60_000),
             queryOptions: {
                 ...defaultConfig.queryOptions,
                 ...config.queryOptions,
             },
         };
+        const interval = this.config.gcInterval!;
+        if (interval !== Infinity && (!Number.isFinite(interval) || interval < 0 || interval > 2 ** 31 - 1)) {
+            throw new RangeError('gcInterval must be between 0 and 2147483647 milliseconds, or Infinity.');
+        }
         makeObservable(this, {
             queryStore: observableRef,
             isMutating: computed,
@@ -120,6 +127,7 @@ export class QueryClient<T extends IAnyModelType> {
         this.queryStore = new QueryStore(this);
 
         this.rootStore = this.config.RootStore.create(initialData, this.config.env);        
+        this.queryStore.observeRoot(this.rootStore);
 
         this.#initialized = true;
 
@@ -127,9 +135,11 @@ export class QueryClient<T extends IAnyModelType> {
     }
 
     reset() {
+        this.queryStore.dispose();
         destroy(this.rootStore);
         this.queryStore = new QueryStore(this);
         this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
+        this.queryStore.observeRoot(this.rootStore);
     }
 
     hasPendingMutations(node: IAnyStateTreeNode) {

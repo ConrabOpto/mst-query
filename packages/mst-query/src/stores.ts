@@ -83,9 +83,6 @@ export const createRootStore = <T extends ModelPropertiesDeclaration>(props: T) 
 
                     return result;
                 },
-                runGc() {
-                    return queryClient.queryStore.runGc();
-                },
             },
             views: {
                 __getModelStores() {

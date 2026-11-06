@@ -43,7 +43,7 @@ const Root = createRootStore({
     },
 }));
 const data = ['a', 'b', 'c'].map((id) => ({ id, name: id }));
-const setup = () => new QueryClient({ RootStore: Root }).init();
+const setup = (gcInterval = Infinity) => new QueryClient({ RootStore: Root, gcInterval }).init();
 
 test('normalizing an identified model preserves its safe-reference array', () => {
     const client = setup();
@@ -86,8 +86,9 @@ test('refetching a safe-reference array recreates an invalidated target with the
     }
 });
 
-test('GC retains targets reachable through a live query safe-reference map', () => {
-    const client = setup();
+test('GC retains targets reachable through a live query safe-reference map', async () => {
+    vi.useFakeTimers();
+    const client = setup(0);
     try {
         client.rootStore.items.merge(data[0]);
         client.rootStore.items.merge(data[1]);
@@ -95,11 +96,12 @@ test('GC retains targets reachable through a live query safe-reference map', () 
         query.setData({ items: { a: 'a', b: 'b' } });
         expect([...query.data!.items.values()].map((item) => item.id)).toEqual(['a', 'b']);
 
-        client.rootStore.runGc();
+        await vi.advanceTimersByTimeAsync(0);
         expect([...query.data!.items.keys()]).toEqual(['a', 'b']);
         expect([...client.rootStore.items.models.keys()]).toEqual(['a', 'b']);
     } finally {
         destroy(client.rootStore);
+        vi.useRealTimers();
     }
 });
 
@@ -163,17 +165,19 @@ test('refetching replaces a detached target without deleting the replacement cac
     }
 });
 
-test('GC follows safe references through nested maps and arrays while collecting unused models', () => {
-    const client = setup();
+test('GC follows safe references through nested maps and arrays while collecting unused models', async () => {
+    vi.useFakeTimers();
+    const client = setup(0);
     try {
         data.forEach((item) => client.rootStore.items.merge(item));
         const query = client.rootStore.nestedMapQuery;
         query.setData({ first: ['a'], second: ['b'] });
-        client.rootStore.runGc();
+        await vi.advanceTimersByTimeAsync(0);
         expect(query.data!.get('first')!.map((item) => item.id)).toEqual(['a']);
         expect(query.data!.get('second')!.map((item) => item.id)).toEqual(['b']);
         expect(client.rootStore.items.models.has('c')).toBe(false);
     } finally {
         destroy(client.rootStore);
+        vi.useRealTimers();
     }
 });

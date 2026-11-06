@@ -477,9 +477,38 @@ Showing a component again with React's `<Activity>` counts as a mount: `staleTim
 
 ### Garbage collection
 
+GC is private and automatic. Root-store changes, query destruction, and response-cache expiry
+schedule a collection batch. The default `gcInterval` is five minutes in the browser and
+`Infinity` on the server. Configure it on the query client:
+
 ```tsx
-rootStore.runGc();
+const queryClient = new QueryClient({
+    RootStore,
+    gcInterval: 5 * 60_000,
+});
 ```
+
+Changes share one pending timer without postponing its deadline. There is no periodic sweep
+while idle, and GC's own changes do not schedule another batch. `gcInterval` limits how often
+full entity sweeps run; it is separate from response `cacheTime`, rather than a per-entity
+minimum retention time. An entity released shortly before a scheduled batch can be collected
+in that batch. Use `Infinity` to disable automatic collection or `0` for next-turn collection.
+
+GC retains entities reachable through declared MST properties under the root store, including
+forms, services, and attached queries' data, request, and pagination state. Unexpired cached
+responses are also roots, even after their owning queries are destroyed. References are
+followed transitively through models, arrays, and maps, with node identity guarding cycles.
+Model stores' `models` ownership maps do not pin every entry; custom store properties are scanned.
+
+After a selecting query is destroyed, an attached form keeps its selected entity alive.
+Clearing that reference or destroying the form makes the entity eligible for a later batch.
+Unmounting a hook keeps data on its still-attached query protected. Keep state that needs
+retention in declared MST properties under the root store: detached nodes, volatile fields,
+views, and ordinary JavaScript references are outside GC's ownership contract.
+
+Loading queries and mutations under the root postpone collection with inexpensive one-second
+checks. Collection runs after the current action has completed. Resetting the client or
+destroying its root cancels pending work and disposes the old response cache.
 
 ### Globally interacting with queries
 

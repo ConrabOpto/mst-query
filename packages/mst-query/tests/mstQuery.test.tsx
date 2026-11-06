@@ -35,8 +35,8 @@ import { DateModel, DeepModelA, Root } from './models/RootStore';
 import { useInfiniteQuery, useVolatileQuery } from '../src/hooks';
 import { UnionModel } from './models/UnionModel';
 
-const setup = ({ strictMode = false } = {}) => {
-    const queryClient = new QueryClient({ RootStore: Root });
+const setup = ({ strictMode = false, gcInterval = Infinity } = {}) => {
+    const queryClient = new QueryClient({ RootStore: Root, gcInterval });
     queryClient.init();
 
     const { QueryClientProvider } = createContext(queryClient);
@@ -98,7 +98,7 @@ const setupPlaceholderAttachmentQueries = (staleTime = 0) => {
 };
 
 test('garbage collection', async () => {
-    const { q, queryClient } = setup();
+    const { q, queryClient } = setup({ gcInterval: 0 });
 
     await q.itemQuery.query({ request: { id: 'test ' } });
     await q.itemQuery2.query({ request: { id: 'test2' } });
@@ -119,16 +119,16 @@ test('garbage collection', async () => {
     q.itemQuery2.__MstQueryHandler.setData(itemData);
     q.listQuery.__MstQueryHandler.setData(listData);
     await wait();
-    queryClient.queryStore.removeQuery(q.itemQuery);
-    queryClient.queryStore.runGc();
+    q.itemQuery.setData(null);
+    await wait();
     expect(queryClient.queryStore.models.size).toBe(9);
 
-    queryClient.queryStore.removeQuery(q.listQuery);
-    queryClient.queryStore.runGc();
+    q.listQuery.setData(null);
+    await wait();
     expect(queryClient.queryStore.models.size).toBe(2);
 
-    queryClient.queryStore.removeQuery(q.itemQuery2);
-    queryClient.queryStore.runGc();
+    q.itemQuery2.setData(null);
+    await wait();
     expect(queryClient.queryStore.models.size).toBe(0);
 });
 
@@ -145,7 +145,7 @@ test('gc - only walk model props', () => {
         .volatile(() => ({
             volatileProp: VolatileModel.create({ id: '2' }),
         }));
-    const idents = new Set();
+    const idents = new Set<string>();
     collectSeenIdentifiers(
         ModelA.create({ id: '1', modelProp: 'hey', arr: [{ id: '3' }] }),
         idents,
@@ -971,7 +971,7 @@ test('useQuery - cached data takes precedence over placeholderData during a refe
 });
 
 test('useQuery - cacheKey and cacheTime', async () => {
-    const { render, q, queryClient } = setup();
+    const { render, q, queryClient } = setup({ gcInterval: 0 });
 
     configureMobx({ enforceActions: 'never' });
 
@@ -1008,7 +1008,7 @@ test('useQuery - cacheKey and cacheTime', async () => {
     expect(getItem).toHaveBeenCalledTimes(2);
 
     await wait(50);
-    queryClient.queryStore.runGc();
+    expect(queryClient.rootStore.itemStore.models.has('different-test')).toBe(false);
     await wait(0);
 
     id.set('different-test');
