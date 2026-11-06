@@ -18,18 +18,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Checkout repository
         uses: actions/checkout@v2
 
       - name: Install dependencies for mst-query
         working-directory: ./packages/mst-query
-        run: npm install
+        run: npm ci
       
-      - name: Run mst-query test
+      - name: Check mst-query
         working-directory: ./packages/mst-query
-        run: npm run test
+        run: |
+          npm run typecheck
+          npm test
 
       - name: Build mst-query
         working-directory: ./packages/mst-query
