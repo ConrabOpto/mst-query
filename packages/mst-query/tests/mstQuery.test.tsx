@@ -1099,16 +1099,23 @@ test('onQueryMore', async () => {
 });
 
 test('preparing partial query data preserves nested fields and the stored model', async () => {
+    const Item = types.model('PreparedItem', { id: types.identifier });
     const Model = types.model('PreparedModel', {
         id: types.identifier,
         details: types.model({ first: 'default', second: 'default' }),
+        items: types.array(types.reference(Item)),
     });
     const Query = createQuery('PreparedQuery', {
         data: types.reference(Model),
-        endpoint: async () => ({ id: 'test', details: { first: 'first', second: 'second' } }),
+        endpoint: async () => ({
+            id: 'test',
+            details: { first: 'first', second: 'second' },
+            items: [{ id: 'first' }],
+        }),
     });
     const RootStore = createRootStore({
         models: types.optional(createModelStore('PreparedModelStore', Model), {}),
+        items: types.optional(createModelStore('PreparedItemStore', Item), {}),
         query: types.optional(Query, {}),
     });
     const queryClient = new QueryClient({ RootStore });
@@ -1121,15 +1128,19 @@ test('preparing partial query data preserves nested fields and the stored model'
     const prepared = query.__MstQueryHandler.prepareData({
         id: 'test',
         details: { first: 'updated' },
+        items: [{ id: 'second' }],
     });
 
-    expect(prepared).not.toBe(original);
+    expect(prepared !== original).toBe(true);
     expect(getSnapshot(prepared)).toEqual({
         id: 'test',
         details: { first: 'updated', second: 'second' },
+        items: ['second'],
     });
     expect(query.data).toBe(original);
     expect(getSnapshot(original!)).toEqual(originalSnapshot);
+    expect(original!.items[0].id).toBe('first');
+    expect(queryClient.rootStore.models.models.get('test')).toBe(original);
 });
 
 test('onQueryMore is called for every parallel queryMore request', async () => {

@@ -1,17 +1,29 @@
 'use client';
 import { equal } from '@wry/equality';
-import { Instance, SnapshotIn, isAlive, isStateTreeNode } from 'mobx-state-tree';
+import { Instance, SnapshotIn, getEnv, isAlive, isStateTreeNode } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState, type Context as ReactContext } from 'react';
+import { runInAction } from 'mobx';
 import {
     VolatileQuery,
     MutationReturnType,
     QueryReturnType,
     InfiniteQueryReturnType,
+    QueryMapReturnType,
+    InfiniteQueryMapReturnType,
     MutationScope,
 } from './create';
+import type { EntryOf, QueryResponse } from './QueryCollection';
 import { Context } from './context';
 import { QueryClient, type RefetchOnWindowFocus } from './QueryClient';
-import { CacheOptions, EmptyPagination, EmptyRequest, isVariableEqual, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
+import {
+    CacheOptions,
+    EmptyPagination,
+    EmptyRequest,
+    isVariableEqual,
+    QueryObserver,
+    OptimisticRevertMode,
+} from './MstQueryHandler';
+import { resolvePlaceholder } from './requestKey';
 import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -22,238 +34,225 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
 }
 
 // Queries belong to the client that created them, which may not be the one in the default context
-function useOwningClient(query: any) {
+function useOwningClient(source: any) {
     const contextClient = useContext(Context);
-    return (query.__MstQueryHandler.queryClient ?? contextClient) as QueryClient<any>;
+    const owner = source.isQueryCollection
+        ? getEnv(source).queryClient
+        : source.__MstQueryHandler.queryClient;
+    return (owner ?? contextClient) as QueryClient<any>;
 }
 
+type Collection = Instance<QueryMapReturnType | InfiniteQueryMapReturnType>;
+type QuerySource =
+    Instance<QueryReturnType | InfiniteQueryReturnType> | Collection | EntryOf<Collection>;
+type Entry<T> = EntryOf<T>;
+type ResultQuery<T> = T extends Collection ? Entry<T> | undefined : T;
+type ChangedOptions<T> = {
+    prevRequest: Exclude<
+        Entry<T> extends { variables: { request: infer R } } ? R : never,
+        undefined
+    >;
+} & (Entry<T> extends { variables: { pagination: infer P } }
+    ? { prevPagination: Exclude<P, undefined> }
+    : {});
 type PlaceholderData<T> = T | SnapshotIn<T> | Record<string, unknown> | readonly unknown[];
 
-type QueryOptions<T extends Instance<QueryReturnType>> = {
-    request?: SnapshotIn<T['variables']['request']>;
+type QueryOptions<T extends QuerySource> = {
+    request?: SnapshotIn<Entry<T>['variables']['request']>;
+    /** Separate independent consumers of an otherwise identical request. */
+    scope?: string;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
+    /** Controls singleton updates; query maps always select by request identity. */
     refetchOnChanged?:
-        | 'all'
-        | 'request'
-        | 'pagination'
-        | 'none'
-        | ((options: { prevRequest: Exclude<T['variables']['request'], undefined> }) => boolean);
+        'all' | 'request' | 'pagination' | 'none' | ((options: ChangedOptions<T>) => boolean);
     staleTime?: number;
-    /** Refetch stale data when the tab becomes visible. Defaults to true. */
-    refetchOnWindowFocus?: RefetchOnWindowFocus<T>;
-    /** Poll at this interval in milliseconds, or return false/undefined to stop. */
-    refetchInterval?: number | false | ((query: T) => number | false | undefined);
-    /** Continue polling while the document is hidden. Defaults to false. */
+    refetchOnWindowFocus?: RefetchOnWindowFocus<Entry<T>>;
+    refetchInterval?: number | false | ((query: Entry<T>) => number | false | undefined);
     refetchIntervalInBackground?: boolean;
     enabled?: boolean;
     initialData?: any;
     initialDataUpdatedAt?: number;
     placeholderData?:
-        | PlaceholderData<T['data']>
-        | ((previousData: T['data']) => PlaceholderData<T['data']> | undefined);
-    meta?: { [key: string]: any };
+        | PlaceholderData<Entry<T>['data']>
+        | ((previousData: Entry<T>['data']) => PlaceholderData<Entry<T>['data']> | undefined);
+    meta?: Record<string, any>;
 } & CacheOptions;
 
-export function useQuery<T extends Instance<QueryReturnType>>(
-    query: T,
-    options: QueryOptions<T> = {},
+function useEntry<T extends QuerySource>(
+    source: T,
+    options: QueryOptions<T> & { pagination?: any },
+    infinite: boolean,
 ) {
-    const [observer, setObserver] = useState(() => new QueryObserver(query, true));
-    const previousDataRef = useRef<{
-        queryType: T['__MstQueryHandler']['type'];
-        data: T['data'];
-    } | undefined>(undefined);
-    const placeholderRef = useRef<{
-        query: T;
-        request: QueryOptions<T>['request'];
-        data: PlaceholderData<T['data']> | undefined;
-    } | undefined>(undefined);
-
-    const queryClient = useOwningClient(query);
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-
-    (options as any).request = options.request ?? EmptyRequest;
-
-    let data = query.data;
-    const queryType = query.__MstQueryHandler.type;
-    if (data != null) {
-        previousDataRef.current = { queryType, data };
-        placeholderRef.current = undefined;
-    }
-    // A query-owned wrapper can die while referenced entities remain alive.
-    // Never pass that wrapper to a callback or return it during a query switch.
-    if (
-        isStateTreeNode(previousDataRef.current?.data) &&
-        !isAlive(previousDataRef.current.data)
-    ) {
-        previousDataRef.current = undefined;
-    }
-    const lastData = previousDataRef.current;
-    const previousData =
-        data ?? (lastData && lastData.queryType === queryType ? lastData.data : null);
-    const isRequestChanged = !isVariableEqual(query.variables.request, options.request);
-    const hasCachedData =
-        options.cacheKey &&
-        observer.queryStore.getQueryData(query.__MstQueryHandler.type, options.cacheKey);
-    // Hydration runs in an effect. Do not surface the previous request's error
-    // before that effect can replace it with successful initial or cached data.
-    const isHydrating =
-        (observer.query !== query || !observer.isMounted) &&
-        !!((options.initialData && !query.cachedAt) || hasCachedData);
-    if (
-        options.enabled &&
-        data == null &&
-        (query.error == null || isRequestChanged) &&
-        !options.initialData &&
-        !hasCachedData &&
-        options.placeholderData !== undefined
-    ) {
-        const cachedPlaceholder = placeholderRef.current;
-        const canReusePlaceholder =
-            typeof options.placeholderData === 'function' &&
-            cachedPlaceholder?.query === query &&
-            !(isStateTreeNode(cachedPlaceholder.data) && !isAlive(cachedPlaceholder.data)) &&
-            isVariableEqual(cachedPlaceholder.request, options.request);
-        const placeholderData = canReusePlaceholder
-            ? cachedPlaceholder.data
-            : typeof options.placeholderData === 'function'
-              ? (
-                    options.placeholderData as (
-                        previousData: T['data'],
-                    ) => PlaceholderData<T['data']> | undefined
-                )(previousData)
-              : options.placeholderData;
-
-        if (typeof options.placeholderData === 'function' && !canReusePlaceholder) {
-            placeholderRef.current = {
-                query,
-                request: options.request,
-                data: placeholderData,
-            };
-        }
-
-        data = (placeholderData ?? null) as typeof data;
-
-        // Reuse the value resolved for this render when the observer applies it to the query.
-        // In particular, this avoids returning null first and resolving a reference placeholder
-        // only after the effect has run.
-        if (typeof options.placeholderData === 'function') {
-            options = {
-                ...options,
-                placeholderData: () => placeholderData,
-            };
-        }
-    }
-
-    if ((query as any).isInfinite) {
+    const client = useOwningClient(source);
+    const suppliedCacheTime = options.cacheTime;
+    options = mergeWithDefaultOptions('queryOptions', options, client);
+    const collection = (source as any).isQueryCollection ? (source as Collection) : undefined;
+    const isMap = !!collection || (source as any).__MstQueryHandler?.isQueryMap;
+    if (isMap && suppliedCacheTime === undefined)
+        options.cacheTime = collection?.__cacheTime ?? client.queryMapCacheTime;
+    if (!!source.isInfinite !== infinite) {
         throw new Error(
-            'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
+            infinite
+                ? 'useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.'
+                : 'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
         );
     }
+    const key = collection ? collection.__getKey(options.request, options.scope) : '';
+    const query: any = collection ? collection.get(options.request, options.scope) : source;
+    if (!isMap) {
+        (options as any).request = options.request ?? EmptyRequest;
+        (options as any).pagination = options.pagination ?? EmptyPagination;
+    }
+    const [observer, setObserver] = useState<QueryObserver>();
+    const previousData = useRef<
+        { source: T; data: any; handler: QueryObserver['handler'] } | undefined
+    >(undefined);
+    const placeholder = useRef<{ source: T; key: string; request: any; data: any } | undefined>(
+        undefined,
+    );
+
+    // Creating/attaching MST entries and starting requests happens only after commit.
+    useEffect(() => {
+        const next = runInAction(() => {
+            const entry: any = collection ? collection.getOrCreate(options) : source;
+            const observer = new QueryObserver(entry, true);
+            observer.setOptions({
+                ...options,
+                request: isMap ? (entry.variables.request ?? EmptyRequest) : options.request,
+                pagination: isMap
+                    ? (entry.variables.pagination ?? EmptyPagination)
+                    : options.pagination,
+            });
+            setObserver(observer);
+            return observer;
+        });
+        return () => next.unmount();
+    }, [source, key]);
 
     useEffect(() => {
-        if (observer.query !== query) {
-            setObserver(new QueryObserver(query, true));
-        }
-    }, [query]);
-
-    useEffect(() => {
-        if (observer.query === query) {
-            observer.setOptions(options);
+        // An observer unmounted by <Activity> is replaced on resume and must not resubscribe.
+        if (observer?.isMounted && observer.query === query) {
+            observer.setOptions({
+                ...options,
+                request: isMap ? (query.variables.request ?? EmptyRequest) : options.request,
+                pagination: isMap
+                    ? (query.variables.pagination ?? EmptyPagination)
+                    : options.pagination,
+            });
         }
     }, [observer, query, options]);
 
-    useEffect(() => {
-        return () => {
-            observer.unmount();
-        };
-    }, [observer]);
+    // Query-owned wrappers may die even when their referenced entities survive.
+    if (isStateTreeNode(previousData.current?.data) && !isAlive(previousData.current.data)) {
+        previousData.current = undefined;
+    }
+    if (isStateTreeNode(placeholder.current?.data) && !isAlive(placeholder.current.data)) {
+        placeholder.current = undefined;
+    }
 
+    let data = query?.data ?? null;
+    let placeholderOwner: QueryObserver['handler'] | undefined;
+    const cached = options.cacheKey
+        ? client.queryStore.getQueryData(
+              collection?.__entryType ?? query.__MstQueryHandler.type,
+              options.cacheKey,
+          )
+        : undefined;
+    const isHydrating = !query?.cachedAt && !!cached;
+    const hasInitialData = data == null && !query?.cachedAt && options.initialData != null;
+    if (data != null) {
+        previousData.current = { source, data, handler: query.__MstQueryHandler };
+        placeholder.current = undefined;
+    } else if (isHydrating || hasInitialData) {
+        const type = collection ? collection.__entryType : query?.__MstQueryHandler.type;
+        data = resolvePlaceholder(
+            type!.properties.data,
+            cached?.data ?? options.initialData,
+            client.rootStore,
+        );
+    } else if (
+        options.enabled &&
+        (!query?.error || (!isMap && !isVariableEqual(query.variables.request, options.request))) &&
+        options.placeholderData !== undefined
+    ) {
+        if (isMap) placeholderOwner = previousData.current?.handler;
+        if (
+            placeholder.current?.source !== source ||
+            placeholder.current?.key !== key ||
+            (!isMap && !isVariableEqual(placeholder.current?.request, options.request))
+        ) {
+            const previous =
+                previousData.current?.source === source ||
+                previousData.current?.handler.type ===
+                    (collection?.__entryType ?? query.__MstQueryHandler.type)
+                    ? previousData.current?.data
+                    : null;
+            const value =
+                typeof options.placeholderData === 'function'
+                    ? (options.placeholderData as any)(previous)
+                    : options.placeholderData;
+            const type = collection ? collection.__entryType : query?.__MstQueryHandler.type;
+            placeholder.current = {
+                source,
+                key,
+                request: options.request,
+                data: resolvePlaceholder(type!.properties.data, value, client.rootStore),
+            };
+        }
+        data = placeholder.current.data ?? null;
+        if (!isMap && typeof options.placeholderData === 'function') {
+            options = { ...options, placeholderData: () => data };
+        }
+    }
+
+    useEffect(() => placeholderOwner?.retainPlaceholder(), [placeholderOwner]);
+
+    const refetch = useEvent((params: Parameters<T['refetch']>[0] = {}) =>
+        source.refetch((isMap ? { ...options, ...params } : params) as any),
+    );
     return {
-        data: data as (typeof query)['data'],
-        dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
-        error: isHydrating ? null : query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        query: query,
-        refetch: query.refetch,
-        isStale: query.__MstQueryHandler.isStale(options),
-        isFetchedAfterMount: observer.isFetchedAfterMount,
+        data: data as Entry<T>['data'],
+        dataUpdatedAt: query?.__MstQueryHandler.cachedAt?.getTime(),
+        error: isHydrating || hasInitialData ? null : (query?.error ?? null),
+        isFetched: query?.isFetched ?? false,
+        isLoading: query?.isLoading ?? (!!options.enabled && !hasInitialData && !isHydrating),
+        isRefetching: query?.isRefetching ?? false,
+        query: query as ResultQuery<T>,
+        refetch: isMap ? refetch : (query.refetch as T['refetch']),
+        isStale: query?.__MstQueryHandler.isStale(options) ?? false,
+        isFetchedAfterMount: (observer?.query === query && observer?.isFetchedAfterMount) || false,
     };
 }
 
-type InfiniteQueryOptions<T extends Instance<InfiniteQueryReturnType>> = {
-    request?: SnapshotIn<T['variables']['request']>;
-    pagination?: SnapshotIn<T['variables']['pagination']>;
-    refetchOnMount?: 'always' | 'never' | 'if-stale';
-    refetchOnChanged?:
-        | 'all'
-        | 'request'
-        | 'pagination'
-        | 'none'
-        | ((options: {
-              prevRequest: Exclude<T['variables']['request'], undefined>;
-              prevPagination: Exclude<T['variables']['pagination'], undefined>;
-          }) => boolean);
-    staleTime?: number;
-    /** Refetch stale data when the tab becomes visible. Defaults to true. */
-    refetchOnWindowFocus?: RefetchOnWindowFocus<T>;
-    enabled?: boolean;
-    initialData?: any;
-    initialDataUpdatedAt?: number;
-    meta?: { [key: string]: any };
+export function useQuery<T extends QuerySource>(source: T, options: QueryOptions<T> = {}) {
+    return useEntry(source, options, false);
+}
+
+type InfiniteQueryOptions<T extends QuerySource> = QueryOptions<T> & {
+    /** Initializes maps once; singleton queries also react to pagination changes. */
+    pagination?: Entry<T> extends { variables: { pagination: infer P } } ? SnapshotIn<P> : never;
 };
 
-export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
-    query: T,
+export function useInfiniteQuery<T extends QuerySource>(
+    source: T,
     options: InfiniteQueryOptions<T> = {},
 ) {
-    const [observer, setObserver] = useState(() => new QueryObserver(query, true));
-
-    const queryClient = useOwningClient(query);
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-
-    (options as any).request = options.request ?? EmptyRequest;
-    (options as any).pagination = options.pagination ?? EmptyPagination;
-
-    if (!(query as any).isInfinite) {
-        throw new Error(
-            'useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.',
-        );
-    }
-
-    useEffect(() => {
-        if (observer.query !== query) {
-            setObserver(new QueryObserver(query, true));
-        }
-    }, [query]);
-
-    useEffect(() => {
-        if (observer.query === query) {
-            observer.setOptions(options);
-        }
-    }, [observer, query, options]);
-
-    useEffect(() => {
-        return () => {
-            observer.unmount();
-        };
-    }, [observer]);
-
-    return {
-        data: query.data as (typeof query)['data'],
-        dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
-        error: query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        isFetchingMore: query.isFetchingMore,
-        query: query,
-        refetch: query.refetch,
-        isStale: query.__MstQueryHandler.isStale(options),
-        isFetchedAfterMount: observer.isFetchedAfterMount,
-    };
+    const result = useEntry(source, options, true);
+    const queryMore = useEvent(
+        (
+            params: {
+                pagination?: InfiniteQueryOptions<T>['pagination'];
+                meta?: Record<string, any>;
+            } = {},
+        ) =>
+            (source as any).queryMore({
+                request: options.request,
+                scope: options.scope,
+                meta: options.meta,
+                ...params,
+            }) as Promise<QueryResponse<Entry<T>>>,
+    );
+    return { ...result, isFetchingMore: (result.query as any)?.isFetchingMore ?? false, queryMore };
 }
 
 // Avoids refetching right after a suspended component mounts
@@ -400,9 +399,9 @@ export function createUseVolatileQuery(context: ReactContext<QueryClient<any> | 
         const queryClient = useContext(context)! as QueryClient<any>;
         const query = useRefQuery(VolatileQuery, queryClient);
 
-        if (!query.__MstQueryHandler.options.endpoint) {
+        useEffect(() => {
             query.__MstQueryHandler.options.endpoint = options.endpoint as any;
-        }
+        }, [query, options.endpoint]);
 
         return useQuery(query, options);
     };

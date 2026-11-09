@@ -98,7 +98,7 @@ export const InvoiceList = observer(() => {
 
     const reset = () => {
         setOffset(0);
-        refetch({ request: { id: companyId }, pagination: { offset: 0 } });
+        if (companyId) void refetch({ request: { id: companyId }, pagination: { offset: 0 } });
     };
 
     if (!data || !selectedFilter) {
@@ -136,10 +136,7 @@ export const InvoiceList = observer(() => {
                 </button>
                 <button onClick={() => reset()}>Refetch</button>
                 <button onClick={() => loadMore()}>Load more</button>
-                <button
-                    onClick={() =>
-                        rootStore.runGc()
-                    }>{`GC: ${invoiceStore.models.size} invoices in store`}</button>
+                <span>{`${invoiceStore.models.size} invoices in store`}</span>
             </div>
             <div>
                 <div>isLoading:{`${isLoading}`}</div>

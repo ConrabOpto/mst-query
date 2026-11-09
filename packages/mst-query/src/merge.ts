@@ -47,7 +47,13 @@ export function mergeInner(data: any, typeDef: any, ctx: any, cloneInstances = f
     return mergeInstance(snapshot, data, typeDef, ctx, cloneInstances);
 }
 
-export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, cloneInstances: boolean) {
+export function mergeInstance(
+    snapshot: any,
+    data: any,
+    typeDef: any,
+    ctx: any,
+    cloneInstances: boolean,
+) {
     // GQL object with known type, instantiate or recycle MST object
     // Try to reuse instance.
     const modelType = getSubType(typeDef, snapshot);
@@ -100,7 +106,12 @@ export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, 
             if (storedId == null) {
                 return snapshot;
             }
-            instance = ctx.queryClient.rootStore.__MstQueryAction('put', modelType, storedId, instance);
+            instance = ctx.queryClient.rootStore.__MstQueryAction(
+                'put',
+                modelType,
+                storedId,
+                instance,
+            );
         }
         const storedKey = getKey(modelType, getIdentifier(instance) as string);
         models.set(storedKey, instance);

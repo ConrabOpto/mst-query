@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, renderHook } from '@testing-library/react';
 import { observer } from 'mobx-react';
-import { destroy, getType, isAlive, types } from 'mobx-state-tree';
+import { destroy, detach, getType, isAlive, types } from 'mobx-state-tree';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
     createContext,
@@ -59,7 +59,8 @@ const Root = createRootStore({
     second: types.optional(Query, {}),
 }).actions((self) => ({
     removeFirst() {
-        destroy(self.first);
+        // Optional reconciliation can recycle a singleton; destroy the detached node.
+        destroy(detach(self.first));
     },
 }));
 type Options = NonNullable<Parameters<typeof useQuery<ReturnType<typeof Query.create>>>[1]>;

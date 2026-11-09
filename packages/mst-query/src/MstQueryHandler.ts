@@ -1,5 +1,13 @@
 import { equal } from '@wry/equality';
-import { makeObservable, observable, computed, action, actionBound, autorun } from 'mobx';
+import {
+    makeObservable,
+    observable,
+    observableRef,
+    computed,
+    action,
+    actionBound,
+    autorun,
+} from 'mobx';
 import {
     addDisposer,
     getEnv,
@@ -15,10 +23,11 @@ import {
     recordPatches,
     unprotect,
 } from 'mobx-state-tree';
-import { MutationReturnType, MutationScope } from './create';
+import type { MutationReturnType, MutationScope } from './create';
 import { merge } from './merge';
 import { QueryClient, EndpointType } from './QueryClient';
 import { subscribeToWindowFocus } from './focus';
+import { hashRequest, normalizeRequest, validateCacheTime } from './requestKey';
 
 export const EmptyRequest = Symbol('EmptyRequest');
 export const EmptyPagination = Symbol('EmptyPagination');
@@ -55,6 +64,7 @@ type OnResponseOptions = {
     request?: any;
     pagination?: any;
     requestVersion?: number;
+    invalidationVersion?: number;
 } & CacheOptions;
 
 export class DisposedError extends Error {}
@@ -121,32 +131,37 @@ export class QueryObserver {
     setOptions(options: any) {
         this.subscribe();
 
+        const previousOptions = this.options;
+        this.options = options;
+        this.handler.extendCacheTime(options.cacheTime);
+
         if (this.isQuery) {
             options.isMounted = this.isMounted;
 
-            if (!this.options.enabled && options.enabled) {
+            if (!previousOptions.enabled && options.enabled) {
                 options.isReenabled = true;
             }
 
-            const refetchRequestOnChanged =
-                options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
             options.isRequestEqual = true;
-            if (options.enabled && refetchRequestOnChanged) {
-                options.isRequestEqual = isVariableEqual(
-                    this.query.variables.request,
-                    options.request,
-                );
-            }
-
-            if (options.enabled && typeof options.refetchOnChanged === 'function') {
-                if (this.query.variables.request && this.query.variables.pagination) {
+            if (!this.handler.isQueryMap) {
+                const refetchRequest =
+                    options.refetchOnChanged === 'all' || options.refetchOnChanged === 'request';
+                if (options.enabled && refetchRequest) {
+                    options.isRequestEqual = isVariableEqual(
+                        this.query.variables.request,
+                        options.request,
+                    );
+                }
+                if (
+                    options.enabled &&
+                    typeof options.refetchOnChanged === 'function' &&
+                    this.query.variables.request
+                ) {
                     options.isRequestEqual = !options.refetchOnChanged({
                         prevRequest: this.query.variables.request,
-                        prevPagination: this.query.variables.pagination,
-                    });
-                } else if (this.query.variables.request) {
-                    options.isRequestEqual = !options.refetchOnChanged({
-                        prevRequest: this.query.variables.request,
+                        ...(this.query.variables.pagination
+                            ? { prevPagination: this.query.variables.pagination }
+                            : {}),
                     });
                 }
             }
@@ -156,7 +171,13 @@ export class QueryObserver {
                 : undefined;
 
             // Initial data seeds an empty query; remounting must not overwrite cached results.
-            if (options.initialData && !options.isMounted && !this.handler.cachedAt && !cacheEntry) {
+            if (
+                options.initialData &&
+                !options.isMounted &&
+                !this.handler.cachedAt &&
+                !this.handler.isLoading &&
+                !cacheEntry
+            ) {
                 this.handler.hydrate(options.initialData, options);
 
                 const isStale = isDataStale(options.initialDataUpdatedAt, options.staleTime);
@@ -166,10 +187,18 @@ export class QueryObserver {
             } else if (options.cacheKey) {
                 // Apply cached data when entering the cache key, not on every render.
                 // Reapplying it after a failed refetch would erase the new error.
-                if (cacheEntry && (!this.isMounted || this.options.cacheKey !== options.cacheKey)) {
-                    this.handler.hydrate(cacheEntry.data, options);
-                }                
-                
+                if (
+                    cacheEntry &&
+                    (this.handler.isQueryMap
+                        ? !this.handler.cachedAt && !this.handler.isLoading
+                        : !this.isMounted || previousOptions.cacheKey !== options.cacheKey)
+                ) {
+                    this.handler.hydrate(cacheEntry.data, {
+                        ...options,
+                        initialDataUpdatedAt: cacheEntry.cachedAt,
+                    });
+                }
+
                 const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.staleTime);
                 if (isStale) {
                     if (cacheEntry) {
@@ -177,7 +206,7 @@ export class QueryObserver {
                     } else {
                         this.queryWithPlaceholder(options, false);
                     }
-                }                
+                }
             } else {
                 this.queryWithPlaceholder(options, true);
             }
@@ -190,6 +219,33 @@ export class QueryObserver {
         this.options = options;
         this.updatePolling();
         this.updateFocusSubscription();
+    }
+
+    private queryWithPlaceholder(options: any, clearOnRequestChange: boolean) {
+        if (this.handler.isQueryMap) {
+            void this.handler.queryWhenChanged(options).catch(() => {});
+            return;
+        }
+        const previousData = this.query.data;
+        if (options.placeholderData === undefined) {
+            if (clearOnRequestChange && !options.isRequestEqual) this.query.setData(null);
+            void this.handler.queryWhenChanged(options).catch(() => {});
+            return;
+        }
+        void this.handler.queryWhenChanged(options).catch(() => {});
+        if (
+            options.enabled &&
+            this.query.isLoading &&
+            (!options.isRequestEqual || this.query.data == null)
+        ) {
+            const data =
+                typeof options.placeholderData === 'function'
+                    ? options.placeholderData(previousData)
+                    : options.placeholderData;
+            if (data !== previousData) this.query.setData(data ?? null);
+        } else if (clearOnRequestChange && !options.isRequestEqual) {
+            this.query.setData(null);
+        }
     }
 
     private get focusOption() {
@@ -307,36 +363,6 @@ export class QueryObserver {
             }, interval);
         });
     }
-
-    private queryWithPlaceholder(options: any, clearOnRequestChange: boolean) {
-        if (options.placeholderData === undefined) {
-            if (clearOnRequestChange && !options.isRequestEqual) {
-                this.query.setData(null);
-            }
-            this.handler.queryWhenChanged(options);
-            return;
-        }
-
-        const previousData = this.query.data;
-        this.handler.queryWhenChanged(options);
-
-        if (
-            options.enabled &&
-            this.query.isLoading &&
-            (!options.isRequestEqual || this.query.data == null)
-        ) {
-            const data =
-                typeof options.placeholderData === 'function'
-                    ? options.placeholderData(previousData)
-                    : options.placeholderData;
-            // Use normal model conversion, without caching this as a fetched response.
-            if (data !== previousData) {
-                this.query.setData(data ?? null);
-            }
-        } else if (clearOnRequestChange && !options.isRequestEqual) {
-            this.query.setData(null);
-        }
-    }
 }
 
 function subscribe(target: any, options: any) {
@@ -377,6 +403,7 @@ export class MstQueryHandler {
         onQueryMore?: (options: any) => void;
         meta?: { [key: string]: any };
         scope?: MutationScope;
+        isMapEntry?: boolean;
     };
 
     previousVariables: any;
@@ -386,8 +413,10 @@ export class MstQueryHandler {
 
     abortController?: AbortController;
     private requestVersion = 0;
+    private invalidationVersion = 0;
+    private refetchAfterInvalidation = false;
 
-    cachedAt?: Date;
+    cachedAt: Date | undefined = undefined;
     markedAsStale = false;
 
     // Settles after the latest query run has applied its result
@@ -395,6 +424,14 @@ export class MstQueryHandler {
     prefetchedResponse?: PrefetchedResponse;
 
     isDisposed = false;
+    private collection?: any;
+    private collectionKey?: string;
+    private collectionScope?: string;
+    private cacheTime?: number;
+    private evictionTimer?: ReturnType<typeof setTimeout>;
+    private executions = new Map<string, Promise<any>>();
+    private controllers = new Set<AbortController>();
+    private placeholderRetainers = 0;
 
     constructor(model: any, options?: any) {
         this.model = model;
@@ -414,6 +451,8 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
+            cachedAt: observableRef,
+            markedAsStale: observable,
             hydrate: action,
             setData: action,
             setError: action,
@@ -429,6 +468,7 @@ export class MstQueryHandler {
             abort: action,
             onAfterCreate: action,
             onBeforeDestroy: action,
+            invalidate: actionBound,
         });
     }
 
@@ -440,6 +480,142 @@ export class MstQueryHandler {
         return !this.isFetched && !this.isLoading && !this.cachedAt;
     }
 
+    get isQueryMap() {
+        return this.options.isMapEntry === true;
+    }
+
+    configureCollection(collection: any, key: string, cacheTime?: number) {
+        this.collection = collection;
+        this.collectionKey = key;
+        this.collectionScope = JSON.parse(key).scope ?? undefined;
+        this.extendCacheTime(cacheTime ?? this.queryClient.queryMapCacheTime);
+        this.scheduleEviction();
+    }
+
+    extendCacheTime(value?: number) {
+        if (!this.isQueryMap) return;
+        const duration = value ?? this.cacheTime ?? this.queryClient.queryMapCacheTime;
+        validateCacheTime(duration);
+        this.cacheTime =
+            this.cacheTime === undefined ? duration : Math.max(this.cacheTime, duration);
+    }
+
+    private cancelEviction() {
+        if (this.evictionTimer !== undefined) clearTimeout(this.evictionTimer);
+        this.evictionTimer = undefined;
+    }
+
+    /** @internal Keep previous entry data alive while a hook displays its placeholder. */
+    retainPlaceholder() {
+        if (this.isDisposed) return () => {};
+        this.placeholderRetainers += 1;
+        this.cancelEviction();
+        let retained = true;
+        return () => {
+            if (!retained) return;
+            retained = false;
+            this.placeholderRetainers -= 1;
+            this.scheduleEviction();
+        };
+    }
+
+    private scheduleEviction() {
+        this.cancelEviction();
+        if (
+            !this.collection ||
+            this.isDisposed ||
+            this.queryObservers.length ||
+            this.placeholderRetainers ||
+            this.executions.size ||
+            this.cacheTime === Infinity
+        )
+            return;
+        this.evictionTimer = setTimeout(() => {
+            this.evictionTimer = undefined;
+            this.collection.__removeEntry(this.collectionKey, this.model);
+        }, this.cacheTime);
+    }
+
+    /** Execute and apply a response once, even when several callers await it. */
+    executeQuery(method: 'query' | 'refetch' | 'queryMore', options: any = {}): Promise<any> {
+        options = { ...options };
+        if (
+            this.collection &&
+            options.request !== undefined &&
+            options.request !== EmptyRequest &&
+            this.collection.__getKey(options.request, this.collectionScope) !== this.collectionKey
+        ) {
+            throw new Error(
+                'A query entry has a fixed request. Select a different entry through its collection.',
+            );
+        }
+        if (this.collection) options.request = this.model.variables.request;
+        this.extendCacheTime(options.cacheTime);
+        this.cancelEviction();
+        const paginationType = (getType(this.model.variables) as any).properties.pagination;
+        const pagination = options.pagination ?? this.model.variables.pagination;
+        const pageKey = hashRequest({
+            pagination: paginationType ? normalizeRequest(paginationType, pagination) : null,
+        });
+        const key = `${method === 'queryMore' ? 'page' : 'query'}:${pageKey}`;
+        const existing = this.executions.get(key);
+        if (existing) return existing;
+        const version = this.requestVersion;
+        const start = () => {
+            if (this.isDisposed || version !== this.requestVersion)
+                return Promise.resolve({
+                    data: null,
+                    error: null,
+                    result: null,
+                    query: this.model,
+                });
+            const response = this[method](options);
+            const controller = this.abortController;
+            if (controller) this.controllers.add(controller);
+            return response
+                .then((next) =>
+                    this.isDisposed
+                        ? { data: null, error: null, result: null, query: this.model }
+                        : this.model.__MstQueryHandlerAction(() => ({
+                              ...next(),
+                              query: this.model,
+                          })),
+                )
+                .finally(() => {
+                    if (controller) this.controllers.delete(controller);
+                });
+        };
+        let execution: Promise<any>;
+        try {
+            const pending = [...this.executions].filter(
+                ([key]) => method !== 'queryMore' || key.startsWith('query:'),
+            );
+            const preceding = pending.length
+                ? Promise.allSettled(pending.map(([, promise]) => promise))
+                : undefined;
+            execution = preceding ? preceding.then(start, start) : start();
+        } catch (error) {
+            this.isQueryLoading = false;
+            this.isRefetching = false;
+            this.scheduleEviction();
+            return Promise.reject(error);
+        }
+        const tracked = execution.finally(() => {
+            if (this.executions.get(key) === tracked) this.executions.delete(key);
+            if (this.refetchAfterInvalidation && !this.executions.size && !this.isDisposed) {
+                this.refetchAfterInvalidation = false;
+                const observer = this.queryObservers.find(
+                    (observer) => observer.isQuery && observer.options.enabled,
+                );
+                if (observer)
+                    void this.model.refetch({ meta: observer.options.meta }).catch(() => {});
+            }
+            this.scheduleEviction();
+        });
+        this.executions.set(key, tracked);
+        return tracked;
+    }
+
     run = (options: any = {}, fetch?: (options: any) => Promise<any>) => {
         const endpoint =
             fetch ?? this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
@@ -448,17 +624,15 @@ export class MstQueryHandler {
             throw new Error('No query endpoint or global endpoint configured');
         }
 
-        // A query only replaces an in-flight request with identical variables, mutations always run
-        const isVariablesEqual =
+        this.previousVariables = getSnapshot(this.model.variables);
+        const identical =
             isVariableEqual(this.model.variables.request, options.request) &&
             isVariableEqual(this.model.variables.pagination, options.pagination);
-
+        if (!this.isQueryMap && !this.model.isMutation && this.isLoading && identical) {
+            this.abortController?.abort();
+        }
         this.setVariables({ request: options.request, pagination: options.pagination });
         this.options.meta = options.meta;
-
-        if (this.isLoading && this.abortController && !this.model.isMutation && isVariablesEqual) {
-            this.abortController.abort();
-        }
 
         const abortController = new AbortController();
         this.abortController = abortController;
@@ -478,7 +652,14 @@ export class MstQueryHandler {
             query: this.model,
         };
 
-        return endpoint(opts).then((result: any) => {
+        let response;
+        try {
+            response = endpoint(opts);
+        } catch (error) {
+            if (this.model.isMutation) throw error;
+            response = Promise.reject(error);
+        }
+        return Promise.resolve(response).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
@@ -487,7 +668,7 @@ export class MstQueryHandler {
     };
 
     async queryWhenChanged(options: QueryHookOptions) {
-        if (this.isDisposed) {
+        if (this.isDisposed || (this.isQueryMap && this.isLoading)) {
             return;
         }
 
@@ -501,12 +682,7 @@ export class MstQueryHandler {
                 return this.model.query(options);
             }
 
-            // A new observer can mount for an existing query with a different request. The
-            // request change takes precedence over refetchOnMount and staleTime; otherwise fresh
-            // data prevents the new request from starting and is subsequently cleared.
-            if (!options.isRequestEqual) {
-                return this.model.query(options);
-            }
+            if (!options.isRequestEqual) return this.model.query(options);
 
             // A fetch for this request is already in flight, e.g. when StrictMode or <Activity>
             // remounts right after the first mount started it. Restarting it would only abort it.
@@ -529,25 +705,20 @@ export class MstQueryHandler {
             return this.model.refetch(options);
         }
 
-        if (!options.isRequestEqual) {
+        if (!options.isRequestEqual) return this.model.query(options);
+
+        if (options.isReenabled && (notInitialized || (this.isQueryMap && this.isStale(options)))) {
             return this.model.query(options);
         }
 
-        if (notInitialized && options.isReenabled) {
-            return this.model.query(options);
-        }
-
-        const refetchPaginationOnChanged =
-            options.refetchOnChanged === 'all' || options.refetchOnChanged === 'pagination';
         if (
-            refetchPaginationOnChanged &&
+            !this.isQueryMap &&
+            this.isFetched &&
             options.pagination !== EmptyPagination &&
-            this.isFetched
+            (options.refetchOnChanged === 'all' || options.refetchOnChanged === 'pagination') &&
+            !equal(options.pagination, this.model.variables.pagination)
         ) {
-            const isPaginationEqual = equal(options.pagination, this.model.variables.pagination);
-            if (!isPaginationEqual) {
-                return this.model.queryMore(options);
-            }
+            return this.model.queryMore(options);
         }
     }
 
@@ -588,6 +759,7 @@ export class MstQueryHandler {
     handleResponse(promise: Promise<any>, options: OnResponseOptions = {}) {
         const abortController = this.abortController;
         const requestVersion = this.requestVersion;
+        const invalidationVersion = this.invalidationVersion;
         let settle: (() => void) | undefined;
         if (!this.model.isMutation && !options.isQueryMore) {
             this.promise = new Promise<void>((resolve) => (settle = resolve));
@@ -599,10 +771,10 @@ export class MstQueryHandler {
                 settle?.();
             }
         };
+        const responseOptions = { ...options, abortController, requestVersion, invalidationVersion };
         return promise.then(
-            (result) =>
-                settleAfter(this.onSuccess(result, { ...options, abortController, requestVersion })),
-            (err) => settleAfter(this.onError(err, { ...options, abortController, requestVersion })),
+            (result) => settleAfter(this.onSuccess(result, responseOptions)),
+            (err) => settleAfter(this.onError(err, responseOptions)),
         );
     }
 
@@ -645,23 +817,23 @@ export class MstQueryHandler {
         if (effectiveScope?.id) {
             const scopeId = effectiveScope.id;
             const mutationScopes = this.queryClient.getMutationScopes();
-            
+
             const previousMutation = mutationScopes.get(scopeId) ?? Promise.resolve();
-            
+
             const currentMutation = previousMutation.then(
                 () => executeMutation(),
-                () => executeMutation() // Execute even if previous mutation failed
+                () => executeMutation(), // Execute even if previous mutation failed
             );
-            
+
             mutationScopes.set(scopeId, currentMutation);
-            
+
             currentMutation.finally(() => {
                 // Only delete if this is still the current mutation for this scope
                 if (mutationScopes.get(scopeId) === currentMutation) {
                     mutationScopes.delete(scopeId);
                 }
             });
-            
+
             return currentMutation;
         }
 
@@ -701,9 +873,13 @@ export class MstQueryHandler {
 
     invalidate() {
         this.markedAsStale = true;
-
-        if (this.queryObservers.length > 0) {
-            this.model.refetch();
+        this.invalidationVersion += 1;
+        const observer = this.queryObservers.find(
+            (observer) => observer.isQuery && observer.options.enabled,
+        );
+        if (observer) {
+            if (this.executions.size) this.refetchAfterInvalidation = true;
+            else void this.model.refetch({ meta: observer.options.meta }).catch(() => {});
         }
     }
 
@@ -714,7 +890,10 @@ export class MstQueryHandler {
                 updateRecorder.undo();
             }
 
-            if (options.isQueryMore) {
+            if (
+                options.isQueryMore &&
+                (!this.isQueryMap || options.requestVersion === this.requestVersion)
+            ) {
                 this.finishQueryMore();
             }
 
@@ -738,7 +917,7 @@ export class MstQueryHandler {
                 return { data: this.prepareData(result), error: null, result };
             }
 
-            if (this.markedAsStale) {
+            if (this.markedAsStale && options.invalidationVersion === this.invalidationVersion) {
                 this.markedAsStale = false;
             }
 
@@ -788,7 +967,10 @@ export class MstQueryHandler {
                 updateRecorder.undo();
             }
 
-            if (options.isQueryMore) {
+            if (
+                options.isQueryMore &&
+                (!this.isQueryMap || options.requestVersion === this.requestVersion)
+            ) {
                 this.finishQueryMore();
             }
 
@@ -845,15 +1027,16 @@ export class MstQueryHandler {
 
     addQueryObserver(queryObserver: QueryObserver) {
         if (
+            !this.isQueryMap &&
             queryObserver.isQuery &&
             this.queryObservers.some((observer) => observer !== queryObserver && observer.isQuery)
         ) {
             throw new Error(
                 `Query "${this.type.name}" already has a query hook. ` +
-                    'Mount only one useQuery or useInfiniteQuery per query instance; ' +
-                    'read the query node directly from other observer components.',
+                    'Mount only one useQuery or useInfiniteQuery per singleton; use createQueryMap or createInfiniteQueryMap for shared query hooks.',
             );
         }
+        this.cancelEviction();
         if (!this.queryObservers.includes(queryObserver)) {
             this.queryObservers.push(queryObserver);
         }
@@ -861,6 +1044,7 @@ export class MstQueryHandler {
 
     removeQueryObserver(queryObserver: any) {
         this.queryObservers = this.queryObservers.filter((observer) => observer !== queryObserver);
+        this.scheduleEviction();
     }
 
     notify(notifyOptions: NotifyOptions, ...args: any[]) {
@@ -872,12 +1056,22 @@ export class MstQueryHandler {
     }
 
     abort = () => {
+        for (const controller of this.controllers) controller.abort();
+        this.controllers.clear();
+        this.executions.clear();
+        this.requestVersion += 1;
+        this.refetchAfterInvalidation = false;
         this.abortController?.abort();
         this.abortController = undefined;
+        this.isQueryLoading = false;
+        this.isRefetching = false;
+        this.pendingQueryMoreCount = 0;
+        this.isFetchingMore = false;
 
-        if (!this.isDisposed) {
+        if (!this.isDisposed && this.previousVariables) {
             this.revertVariables();
         }
+        this.scheduleEviction();
     };
 
     setError = (error: any) => {
@@ -886,14 +1080,14 @@ export class MstQueryHandler {
 
     setVariables(variables: any) {
         const isRequestEqual = isVariableEqual(this.model.variables.request, variables.request);
-        let request = variables.request ?? EmptyRequest;
-        let pagination = variables.pagination ?? EmptyPagination;
+        let request = variables.request;
+        let pagination = variables.pagination;
 
         // Handle request and pagination being optional models
-        if (request === EmptyRequest && this.model.variables.request) {
+        if (request === undefined || request === EmptyRequest) {
             request = this.model.variables.request;
         }
-        if (pagination === EmptyPagination && this.model.variables.pagination) {
+        if (pagination === undefined || pagination === EmptyPagination) {
             pagination = this.model.variables.pagination;
         }
 
@@ -957,7 +1151,7 @@ export class MstQueryHandler {
         this.isQueryLoading = false;
 
         this.setData(data, options);
-        this.cachedAt = new Date();
+        this.cachedAt = new Date(options.initialDataUpdatedAt ?? Date.now());
         this.error = null;
     };
 
@@ -976,6 +1170,7 @@ export class MstQueryHandler {
     onBeforeDestroy = () => {
         this.queryClient.queryStore.removeQuery(this.model);
         this.isDisposed = true;
+        this.cancelEviction();
         this.pendingMutationCount = 0;
         this.isQueryLoading = false;
         this.queryObservers.forEach((observer) => observer.unsubscribe());

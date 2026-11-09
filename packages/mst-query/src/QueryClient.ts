@@ -12,11 +12,9 @@ import {
 } from 'mobx-state-tree';
 import { action, computed, makeObservable, observableRef } from 'mobx';
 import { QueryStore } from './QueryStore';
-import type {
-    InfiniteQueryReturnType,
-    MutationScope,
-    QueryReturnType,
-} from './create';
+import type { InfiniteQueryReturnType, MutationScope, QueryReturnType } from './create';
+import type { EntryOf } from './QueryCollection';
+import { validateCacheTime } from './requestKey';
 
 export type DehydratedQuery = {
     path: string;
@@ -45,20 +43,16 @@ const noop = () => {};
 const serializable = (value: unknown) => (typeof value === 'symbol' ? undefined : value);
 
 export type RefetchOnWindowFocus<TQuery> =
-    | boolean
-    | 'always'
-    | ((query: TQuery) => boolean | 'always');
+    boolean | 'always' | ((query: TQuery) => boolean | 'always');
 
-export type EndpointType = (
-    options: {
-        request?: any;
-        pagination?: any;
-        meta: { [key: string]: any };
-        signal: AbortSignal;
-        setData: (data: any) => any;
-        query: any
-    },
-) => Promise<any>;
+export type EndpointType = (options: {
+    request?: any;
+    pagination?: any;
+    meta: { [key: string]: any };
+    signal: AbortSignal;
+    setData: (data: any) => any;
+    query: any;
+}) => Promise<any>;
 
 type QueryClientConfig<T extends IAnyModelType> = {
     env?: any;
@@ -66,8 +60,12 @@ type QueryClientConfig<T extends IAnyModelType> = {
     gcInterval?: number;
     queryOptions?: {
         staleTime?: number;
+        /** Singleton response caching (default 0), or unused map entry retention (default five minutes). */
+        cacheTime?: number;
         endpoint?: EndpointType;
-        refetchOnWindowFocus?: RefetchOnWindowFocus<Instance<QueryReturnType | InfiniteQueryReturnType>>;
+        refetchOnWindowFocus?: RefetchOnWindowFocus<
+            EntryOf<Instance<QueryReturnType | InfiniteQueryReturnType>>
+        >;
     };
     RootStore: T;
 };
@@ -87,23 +85,35 @@ export class QueryClient<T extends IAnyModelType> {
     config: QueryClientConfig<T>;
     rootStore!: Instance<T>;
     queryStore!: QueryStore;
+    /** @internal Default retention for map entries; singleton response caches default to zero. */
+    readonly queryMapCacheTime: number;
     #initialized = false;
     #initialData = {} as any;
     #mutationScopes = new Map<string, Promise<any>>();
 
     constructor(config: QueryClientConfig<T>) {
+        this.queryMapCacheTime =
+            config.queryOptions?.cacheTime ??
+            (typeof window === 'undefined' ? Infinity : 5 * 60_000);
         this.config = {
             ...defaultConfig,
             ...config,
-            gcInterval: config.gcInterval ?? (typeof window === 'undefined' ? Infinity : 5 * 60_000),
+            gcInterval:
+                config.gcInterval ?? (typeof window === 'undefined' ? Infinity : 5 * 60_000),
             queryOptions: {
                 ...defaultConfig.queryOptions,
                 ...config.queryOptions,
             },
         };
         const interval = this.config.gcInterval!;
-        if (interval !== Infinity && (!Number.isFinite(interval) || interval < 0 || interval > 2 ** 31 - 1)) {
-            throw new RangeError('gcInterval must be between 0 and 2147483647 milliseconds, or Infinity.');
+        validateCacheTime(this.config.queryOptions?.cacheTime ?? Infinity);
+        if (
+            interval !== Infinity &&
+            (!Number.isFinite(interval) || interval < 0 || interval > 2 ** 31 - 1)
+        ) {
+            throw new RangeError(
+                'gcInterval must be between 0 and 2147483647 milliseconds, or Infinity.',
+            );
         }
         makeObservable(this, {
             queryStore: observableRef,
@@ -126,7 +136,7 @@ export class QueryClient<T extends IAnyModelType> {
         this.config.env.queryClient = this;
         this.queryStore = new QueryStore(this);
 
-        this.rootStore = this.config.RootStore.create(initialData, this.config.env);        
+        this.rootStore = this.config.RootStore.create(initialData, this.config.env);
         this.queryStore.observeRoot(this.rootStore);
 
         this.#initialized = true;

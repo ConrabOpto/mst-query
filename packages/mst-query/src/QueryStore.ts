@@ -17,6 +17,11 @@ import {
     getRoot,
 } from 'mobx-state-tree';
 import { observable, action, makeObservable, runInAction } from 'mobx';
+import { type EntryOf, getQueryMapEntryType } from './QueryCollection';
+
+const entryTypeOf = (type: IAnyComplexType): IAnyComplexType => {
+    return getQueryMapEntryType(type as IAnyModelType) ?? type;
+};
 
 export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
@@ -25,7 +30,7 @@ export const getKey = (type: IAnyComplexType, id: string | number) => {
 type QueryCacheEntry = {
     cachedAt: number;
     data: any;
-    timeout: ReturnType<typeof setTimeout>;
+    timeout?: ReturnType<typeof setTimeout>;
     roots: Set<string>;
     dispose?: () => void;
 };
@@ -62,7 +67,7 @@ export class QueryStore {
     }
 
     getQueryData(type: IAnyComplexType, key: string) {
-        return this.#queryData.get(getKey(type, key));
+        return this.#queryData.get(getKey(entryTypeOf(type), key));
     }
 
     setQueryData(
@@ -77,9 +82,12 @@ export class QueryStore {
             cachedAt: Date.now(),
             data: model.data,
             roots: new Set(),
-            timeout: setTimeout(() => {
-                this.removeQueryData(type, key);
-            }, cacheTime),
+            timeout:
+                cacheTime === Infinity
+                    ? undefined
+                    : setTimeout(() => {
+                          this.removeQueryData(type, key);
+                      }, cacheTime),
         };
         const data = cacheEntry.data;
         if (isStateTreeNode(data) && isAlive(data)) {
@@ -105,10 +113,10 @@ export class QueryStore {
     }
 
     removeQueryData(type: IAnyComplexType, key: string) {
-        const cacheKey = getKey(type, key);
+        const cacheKey = getKey(entryTypeOf(type), key);
         const entry = this.#queryData.get(cacheKey);
         if (entry) {
-            clearTimeout(entry.timeout);
+            if (entry.timeout !== undefined) clearTimeout(entry.timeout);
             entry.dispose?.();
             this.#queryData.delete(cacheKey);
             this.#requestGc();
@@ -117,12 +125,13 @@ export class QueryStore {
 
     getQueries<T extends IAnyModelType>(
         queryDef: T,
-        matcherFn: (query: Instance<T>) => boolean = () => true,
-    ): Instance<T>[] {
+        matcherFn: (query: EntryOf<Instance<T>>) => boolean = () => true,
+    ): EntryOf<Instance<T>>[] {
         let results = [];
-        const arr = this.#cache.get(queryDef.name) ?? [];
+        const entryType = entryTypeOf(queryDef);
+        const arr = this.#cache.get(entryType.name) ?? [];
         for (let query of arr) {
-            if (getType(query) === queryDef && matcherFn(query)) {
+            if (getType(query) === entryType && matcherFn(query)) {
                 results.push(query);
             }
         }
@@ -225,7 +234,7 @@ export class QueryStore {
 
     #clearQueryData() {
         for (const entry of this.#queryData.values()) {
-            clearTimeout(entry.timeout);
+            if (entry.timeout !== undefined) clearTimeout(entry.timeout);
             entry.dispose?.();
         }
         this.#queryData.clear();
@@ -238,7 +247,7 @@ export class QueryStore {
                     (query: IAnyStateTreeNode) =>
                         isAlive(query) &&
                         getRoot(query) === this.#queryClient.rootStore &&
-                        query.isLoading,
+                        (query.isLoading || query.isFetchingMore),
                 )
             )
                 return true;

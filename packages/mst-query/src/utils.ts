@@ -133,6 +133,6 @@ export function useEvent<TCallback extends AnyFunction>(callback: TCallback): TC
  */
 function useEvent_shouldNotBeInvokedBeforeMount() {
     throw new Error(
-        'INVALID_USEEVENT_INVOCATION: the callback from useEvent cannot be invoked before the component has mounted.'
+        'INVALID_USEEVENT_INVOCATION: the callback from useEvent cannot be invoked before the component has mounted.',
     );
 }

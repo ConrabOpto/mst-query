@@ -13,6 +13,7 @@ Query library for mobx-state-tree
 -   Infinite Scroll + Pagination Queries
 -   Optimistic Mutations
 -   Request Argument Type Validation
+-   Opt-in Request-keyed Query Maps
 -   Abort Requests
 -   Generate Models From Graphql Schema
 
@@ -153,15 +154,13 @@ const MesssageView = observer((props) => {
         isLoading,
         isFetched,
         isRefetching,
-        isFetchingMore,
         query,
         refetch,
-        cachedAt,
+        dataUpdatedAt,
     } = useQuery(rootStore.messageStore.messageQuery, {
-        data: snapshot,
+        initialData: snapshot,
         request: { id },
         enabled: !!id,
-        onError(data, self) {},
         staleTime: 0,
     });
     if (error) {
@@ -181,6 +180,11 @@ the query's fetching and updates; other `observer` components can read `query.da
 instances when components need independent control. After the hook unmounts, another hook
 can take over the same instance.
 
+`createQuery` and `createInfiniteQuery` remain singleton model factories: direct `query.data`,
+`query.error`, loading flags, mutable requests, and requestless `query.refetch()` are preserved.
+Their snapshots remain `{ data, variables }`. Use `createQueryMap` or `createInfiniteQueryMap`
+when multiple hooks need to coordinate requests through the same store property.
+
 Use `placeholderData` to keep previous data visible while a changed request is loading:
 
 ```tsx
@@ -194,11 +198,15 @@ You can also pass custom data directly (`placeholderData: message`) or return it
 (`placeholderData: (previousData) => previousData ?? message`). The callback receives `null` when
 there is no current or live previous data. When switching query instances, a previous MST data node
 is only reused while it is alive; destroying its query or service may destroy a data wrapper even
-if the entities it references survive. Placeholder data uses the normal model conversion and is
+if the entities it references survive. For singleton queries, placeholder data uses the normal model conversion and is
 available through both `data` and `query.data`, so other consumers of the same query also see it.
 It does not mark the query as fetched or populate the response cache. Existing data is kept during a refetch, and cached
 data takes precedence. The response replaces the placeholder; a failed request clears it. Queries
 with `enabled: false` do not apply placeholders.
+
+For query maps, placeholders belong to each hook and do not overwrite entry data or another
+hook's placeholder. Existing MST values are preserved, and reference identifiers resolve
+against the root store; snapshot placeholders are display values and do not create entities.
 
 Use `refetchOnWindowFocus` to refresh a query when the user returns to the tab:
 
@@ -252,16 +260,19 @@ These options also work with `useVolatileQuery`; infinite queries do not support
 
 ```tsx
 import { types } from 'mobx-state-tree';
-import { createInfiniteQuery, RequestModel } from 'mst-query';
+import { createInfiniteQuery } from 'mst-query';
 import { MessageModel } from './models';
 
 const MessagesQuery = createInfiniteQuery('MessagesQuery', {
     data: types.model({ items: types.array(types.reference(MessageModel)) }),
     pagination: types.model({ offset: types.number, limit: types.number }),
-    endpoint({ request }) {
-        return fetch(`messages?offset=${request.offset}&limit=${request.limit}`).then((res) =>
+    endpoint({ pagination }) {
+        return fetch(`messages?offset=${pagination.offset}&limit=${pagination.limit}`).then((res) =>
             res.json()
         );
+    },
+    onQueryMore({ query, data }) {
+        query.data?.items.push(...data.items);
     },
 });
 
@@ -300,6 +311,133 @@ request remains the same. Changing the request (for example, its filter) discard
 pages from the previous request before they update models or call `onQueryMore`, even if
 the request later changes back. An obsolete page's promise still returns its raw `result`
 with `data: null`, or its original `error`, without updating the current query state.
+
+## Query maps
+
+`createQueryMap` opts into request-keyed entries while keeping the same `useQuery` hook:
+
+```tsx
+const MessageQueryMap = createQueryMap('MessageQueryMap', {
+    data: types.reference(MessageModel),
+    request: types.model({ id: types.string }),
+    endpoint: ({ request }) => fetch(`messages/${request.id}`).then((res) => res.json()),
+});
+
+const Service = types.model({ messages: types.optional(MessageQueryMap, {}) });
+
+// These can be in separate components. Matching requests share an entry and fetch.
+const first = useQuery(service.messages, { request: { id: 'a' } });
+const second = useQuery(service.messages, { request: { id: 'a' } });
+const third = useQuery(service.messages, { request: { id: 'b' } });
+```
+
+Each collection instance owns an `entries` map. Each entry owns its data, error, variables,
+loading state, and fetch lifecycle. Changing one hook's request selects another entry without
+changing other observers' requests. Equivalent concurrent fetches share a promise and apply
+the response once. Disabled hooks can still read results fetched by enabled observers;
+unmounting one observer does not abort another observer's request.
+
+Keys use normalized request snapshots. Object property order and object identity do not matter;
+declared defaults apply, references use identifiers, and array order matters. Values must be
+serializable, with defined array slots. Defaults used in identity must be deterministic; supply
+generated identifiers and timestamps explicitly. An optional `requestKey: (request) => key`
+on the definition customizes identity. Include every response-affecting value in the request
+or a `scope`; `meta` is execution context and does not participate in identity.
+
+The returned `query` is the selected entry and can be undefined before the first committed
+effect creates it. Render with the returned `data` and loading flags, or guard `query?.data`.
+Abandoned React renders never create entries or start requests. `initialData` seeds each entry
+once; existing data takes precedence. Placeholder data is observer-local, and previous entries
+remain alive while a hook displays their data as a placeholder.
+
+### Imperative map operations
+
+Collection methods select entries internally and return `{ data, error, result, query }`:
+
+```ts
+.actions((self) => ({
+    selectMessage: flow(function* (id: string) {
+        self.selectedMessageId = id;
+        const { data, error } = yield self.messages.refetch({ request: { id } });
+        if (error) throw error;
+        self.selectedMessageText = data.message;
+        return data;
+    }),
+}))
+```
+
+Both `map.query({ request })` and `map.refetch({ request })` explicitly fetch, even when hooks
+are disabled. Requestless map calls select the default entry; they never infer a previous
+request. `map.invalidate({ request })` marks one existing entry stale and refreshes it when
+an enabled observer is attached. `map.invalidate()` targets all entries. Invalidation during
+an in-flight fetch schedules one fresh fetch afterwards. Use `refetch` when an action needs
+the result, without invalidating first.
+
+`map.get(request, scope?)` reads an existing entry without extending its lifetime.
+`map.getOrCreate({ request, scope? })` selects/creates an entry from an action.
+`map.setData(data, { request, scope? })` updates one entry. Selected entries expose
+`entry.refetch()`, `entry.invalidate()`, `entry.setData(data)`, and `entry.abort()`.
+An entry's request is fixed; select another entry through the map to change it.
+
+### Infinite query maps
+
+`createInfiniteQueryMap` is the shared counterpart to the singleton `createInfiniteQuery`:
+
+```tsx
+const Messages = createInfiniteQueryMap('Messages', {
+    data: types.model({ items: types.array(types.reference(MessageModel)) }),
+    request: types.model({ filter: '', limit: 20 }),
+    pagination: types.model({ offset: 0 }),
+    endpoint: ({ request, pagination }) => fetch(
+        `messages?filter=${request.filter}&limit=${request.limit}&offset=${pagination.offset}`,
+    ).then((res) => res.json()),
+    onQueryMore({ query, data }) {
+        query.data?.items.push(...data.items);
+    },
+});
+
+const { data, queryMore } = useInfiniteQuery(service.messages, {
+    request: { filter, limit: 20 },
+    pagination: { offset: 0 },
+    scope: 'main-list',
+});
+
+// Advance explicitly. Hook pagination props initialize a map entry only once.
+await queryMore({ pagination: { offset: data?.items.length ?? 0 } });
+```
+
+The cursor/offset is entry state rather than identity, and observers share accumulated pages.
+Include page size, filters, sorting, and different starting windows in the request when they
+distinguish results, or use `scope` for independent lists with the same request. For ordinary
+paginated views that replace one page, put the page number in a regular query map's request.
+
+Equivalent concurrent page calls share one fetch and one `onQueryMore` call. Distinct pages
+may finish in parallel and merge as they arrive. Refetches wait for pages; pages wait for a
+pending refetch. Refetch retains the library's existing behavior of fetching the current
+pagination and replacing entry data, rather than replaying the complete page history.
+Switching requests leaves earlier pages attached to their original entry. Normalized entities
+remain shared reactively across results.
+
+### Map retention and optional migration
+
+Map `cacheTime` defaults to five minutes in browsers and `Infinity` on the server. Configure it
+through `QueryClient({ queryOptions: { cacheTime } })`, the map definition, or an individual
+hook/call. The longest duration applies when observers specify different values. Retention
+begins after the last hook unmounts, placeholder releases its data, or imperative request
+finishes. Mounted hooks and unfinished requests prevent expiry; remounting cancels the timer.
+Use `Infinity` to retain entries until reset/destruction or `0` for next-turn expiry.
+The legacy singleton response-cache default remains zero.
+
+Existing singleton code needs no migration. To opt in, replace `createQuery` with
+`createQueryMap`, or `createInfiniteQuery` with `createInfiniteQueryMap`. Model declarations
+such as `types.optional(Query, {})` and hook calls can stay. Replace direct collection
+data/loading/error reads with hook results or `map.get(request)`. Supply requests to map
+fetches, and replace pagination-prop changes with explicit `queryMore` calls. Singleton
+`refetchOnChanged` remains supported; maps always select by identity and ignore it.
+
+Only opted-in models change snapshots to `{ entries: { ... } }`; migrate their saved snapshots
+before restoring them. Singleton and mutation snapshots remain unchanged. Map extensions
+apply to the collection, and `EntryOf<Instance<typeof MessageQueryMap>>` names its entry type.
 
 ## Mutations
 
@@ -506,6 +644,10 @@ Unmounting a hook keeps data on its still-attached query protected. Keep state t
 retention in declared MST properties under the root store: detached nodes, volatile fields,
 views, and ordinary JavaScript references are outside GC's ownership contract.
 
+For query maps, unused entries remain roots during their retention period. Expiry removes
+the entry first; a later GC batch can collect entities its response no longer retains. Forms
+and other declared root-store references continue to protect their selected entities.
+
 Loading queries and mutations under the root postpone collection with inexpensive one-second
 checks. Collection runs after the current action has completed. Resetting the client or
 destroying its root cancels pending work and disposes the old response cache.
@@ -513,9 +655,12 @@ destroying its root cancels pending work and disposes the old response cache.
 ### Globally interacting with queries
 
 ```tsx
-const queriesWithId = rootStore.getQueries(MessageQuery, (q) => q.request.id === 'message-id');
+const queriesWithId = rootStore.getQueries(MessageQuery, (q) => q.variables.request?.id === 'message-id');
 queriesWithId.forEach((q) => q.refetch());
 
 const allMessageMutations = rootStore.getQueries(UpdateMessageMutation);
 allMessageMutations.forEach((m) => m.abort());
 ```
+
+Passing a query map definition to `getQueries` returns its entries. Singleton definitions
+continue to return singleton nodes, and mutation definitions return mutation nodes.

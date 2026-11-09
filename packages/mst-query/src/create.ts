@@ -1,5 +1,6 @@
 import { types, IAnyType, flow, SnapshotIn, Instance } from 'mobx-state-tree';
 import { type CacheOptions, MstQueryHandler, type OptimisticRevertMode } from './MstQueryHandler';
+import { createQueryCollection } from './QueryCollection';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -9,6 +10,11 @@ type CreateBaseOptions<TData extends IAnyType> = {
 
 type CreateOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateBaseOptions<TData> & {
     request?: TRequest;
+};
+
+type CollectionDefinitionOptions<TRequest extends IAnyType> = {
+    requestKey?: (request: SnapshotIn<TRequest>) => unknown;
+    cacheTime?: number;
 };
 
 type CreateMutationOptions<TData extends IAnyType, TRequest extends IAnyType> = CreateOptions<
@@ -40,8 +46,9 @@ type CreateQueryOptions<TData extends IAnyType, TRequest extends IAnyType> = Cre
             meta: { [key: string]: any };
             signal: AbortSignal;
             setData: (data: any) => any;
+            query: Instance<ReturnType<typeof createQueryEntry<TData, TRequest>>>;
         },
-        query: Instance<ReturnType<typeof createQuery<TData, TRequest>>>,
+        query: Instance<ReturnType<typeof createQueryEntry<TData, TRequest>>>,
     ) => Promise<any>;
 };
 
@@ -57,13 +64,13 @@ type CreateInfiniteQueryOptions<
         meta: { [key: string]: any };
         signal: AbortSignal;
         setData: (data: any) => any;
-        query: Instance<ReturnType<typeof createInfiniteQuery<TData, TRequest, TPagination>>>;
+        query: Instance<ReturnType<typeof createInfiniteQueryEntry<TData, TRequest, TPagination>>>;
     }) => Promise<any>;
     onQueryMore?: (options: {
         data: Instance<TData>;
         request: Instance<TRequest>;
         pagination: Instance<TPagination>;
-        query: Instance<ReturnType<typeof createInfiniteQuery<TData, TRequest, TPagination>>>;
+        query: Instance<ReturnType<typeof createInfiniteQueryEntry<TData, TRequest, TPagination>>>;
     }) => void;
 };
 
@@ -87,6 +94,57 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
     name: string,
     options: CreateQueryOptions<TData, TRequest>,
 ) {
+    return createQueryEntry<TData, TRequest>(name, options);
+}
+
+export function createQueryMap<
+    TData extends IAnyType = ReturnType<typeof types.frozen>,
+    TRequest extends IAnyType = ReturnType<typeof types.frozen>,
+>(
+    name: string,
+    options: CreateQueryOptions<TData, TRequest> & CollectionDefinitionOptions<TRequest>,
+) {
+    const request = (options.request ?? types.frozen()) as TRequest;
+    return createQueryCollection(
+        name,
+        createQueryEntry<TData, TRequest>(`${name}Entry`, options, true),
+        request,
+        options,
+    );
+}
+
+export function createInfiniteQuery<
+    TData extends IAnyType,
+    TRequest extends IAnyType,
+    TPagination extends IAnyType = any,
+>(name: string, options: CreateInfiniteQueryOptions<TData, TRequest, TPagination>) {
+    return createInfiniteQueryEntry<TData, TRequest, TPagination>(name, options);
+}
+
+export function createInfiniteQueryMap<
+    TData extends IAnyType = ReturnType<typeof types.frozen>,
+    TRequest extends IAnyType = ReturnType<typeof types.frozen>,
+    TPagination extends IAnyType = ReturnType<typeof types.frozen>,
+>(
+    name: string,
+    options: CreateInfiniteQueryOptions<TData, TRequest, TPagination> &
+        CollectionDefinitionOptions<TRequest>,
+) {
+    const request = (options.request ?? types.frozen()) as TRequest;
+    return createQueryCollection(
+        name,
+        createInfiniteQueryEntry<TData, TRequest, TPagination>(`${name}Entry`, options, true),
+        request,
+        { ...options, infinite: true },
+        options.pagination,
+    );
+}
+
+function createQueryEntry<TData extends IAnyType, TRequest extends IAnyType>(
+    name: string,
+    options: CreateQueryOptions<TData, TRequest>,
+    isMapEntry = false,
+) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
@@ -103,10 +161,10 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
             ),
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self, { endpoint }),
+            __MstQueryHandler: new MstQueryHandler(self, { endpoint, isMapEntry }),
             meta: {} as { [key: string]: any },
             isQuery: true,
-            isInfinte: false,
+            isInfinite: false,
             isMutation: false,
         }))
         .views((self) => ({
@@ -131,6 +189,7 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
                 return action();
             },
             query: flow(function* (options: any) {
+                if (isMapEntry) return yield self.__MstQueryHandler.executeQuery('query', options);
                 const next = yield self.__MstQueryHandler.query(options);
                 return next();
             }) as QueryReturn<
@@ -138,6 +197,8 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
                 SnapshotIn<(typeof self)['variables']['request']>
             >,
             refetch: flow(function* (options: any) {
+                if (isMapEntry)
+                    return yield self.__MstQueryHandler.executeQuery('refetch', options);
                 const next = yield self.__MstQueryHandler.refetch(options);
                 return next();
             }) as QueryReturn<
@@ -157,11 +218,15 @@ export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
         }));
 }
 
-export function createInfiniteQuery<
+function createInfiniteQueryEntry<
     TData extends IAnyType,
     TRequest extends IAnyType,
     TPagination extends IAnyType = any,
->(name: string, options: CreateInfiniteQueryOptions<TData, TRequest, TPagination>) {
+>(
+    name: string,
+    options: CreateInfiniteQueryOptions<TData, TRequest, TPagination>,
+    isMapEntry = false,
+) {
     const {
         data = types.frozen() as TypeOrFrozen<TData>,
         request = types.frozen() as TypeOrFrozen<TRequest>,
@@ -181,7 +246,7 @@ export function createInfiniteQuery<
             ),
         })
         .volatile((self) => ({
-            __MstQueryHandler: new MstQueryHandler(self, { endpoint, onQueryMore }),
+            __MstQueryHandler: new MstQueryHandler(self, { endpoint, onQueryMore, isMapEntry }),
             meta: {} as { [key: string]: any },
             isQuery: true,
             isInfinite: true,
@@ -212,6 +277,7 @@ export function createInfiniteQuery<
                 return action();
             },
             query: flow(function* (options: any) {
+                if (isMapEntry) return yield self.__MstQueryHandler.executeQuery('query', options);
                 const next = yield self.__MstQueryHandler.query(options);
                 return next();
             }) as QueryReturn<
@@ -220,6 +286,8 @@ export function createInfiniteQuery<
                 SnapshotIn<(typeof self)['variables']['pagination']>
             >,
             queryMore: flow(function* (options: any) {
+                if (isMapEntry)
+                    return yield self.__MstQueryHandler.executeQuery('queryMore', options);
                 const next = yield self.__MstQueryHandler.queryMore(options);
                 return next();
             }) as QueryReturn<
@@ -228,6 +296,8 @@ export function createInfiniteQuery<
                 SnapshotIn<(typeof self)['variables']['pagination']>
             >,
             refetch: flow(function* (options: any) {
+                if (isMapEntry)
+                    return yield self.__MstQueryHandler.executeQuery('refetch', options);
                 const next = yield self.__MstQueryHandler.refetch(options);
                 return next();
             }) as QueryReturn<
@@ -310,12 +380,19 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
         }));
 }
 
-export const VolatileQuery = createQuery('VolatileQuery', {});
+export const VolatileQuery = createQuery('VolatileQuery', {
+    data: types.frozen<any>(),
+    request: types.frozen<any>(),
+});
 
 export interface VolatileQueryType extends Instance<typeof VolatileQuery> {}
 
 export type QueryReturnType = ReturnType<typeof createQuery>;
 
 export type InfiniteQueryReturnType = ReturnType<typeof createInfiniteQuery>;
+
+export type QueryMapReturnType = ReturnType<typeof createQueryMap>;
+
+export type InfiniteQueryMapReturnType = ReturnType<typeof createInfiniteQueryMap>;
 
 export type MutationReturnType = ReturnType<typeof createMutation>;

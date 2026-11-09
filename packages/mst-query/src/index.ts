@@ -7,8 +7,15 @@ export {
     useInfiniteQuery,
     useVolatileQuery,
 } from './hooks';
-export { createQuery, createMutation, createInfiniteQuery } from './create';
+export {
+    createQuery,
+    createQueryMap,
+    createMutation,
+    createInfiniteQuery,
+    createInfiniteQueryMap,
+} from './create';
 export type { MutationScope } from './create';
+export type { EntryOf, QuerySelector, QueryResponse } from './QueryCollection';
 export { createRootStore, createModelStore } from './stores';
 export { QueryClient } from './QueryClient';
 export type {
