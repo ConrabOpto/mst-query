@@ -60,6 +60,7 @@ export class DisposedError extends Error {}
 
 export class QueryObserver {
     query: any;
+    readonly handler: MstQueryHandler;
     options: any = {};
     isQuery: boolean;
     isMounted = false;
@@ -70,15 +71,13 @@ export class QueryObserver {
 
     constructor(query: any, isQuery: boolean) {
         this.query = query;
+        // Cleanup may run after the query's owner has destroyed the MST node.
+        this.handler = query.__MstQueryHandler;
         this.isQuery = isQuery;
 
         makeObservable(this, {
             isFetchedAfterMount: observable,
         });
-    }
-
-    get handler() {
-        return this.query.__MstQueryHandler;
     }
 
     get queryStore() {

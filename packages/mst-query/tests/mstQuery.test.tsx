@@ -1,6 +1,17 @@
 import * as React from 'react';
 import { test, vi, expect, describe, beforeEach, afterEach } from 'vitest';
-import { types, unprotect, applySnapshot, getSnapshot } from 'mobx-state-tree';
+import {
+    types,
+    unprotect,
+    applySnapshot,
+    getSnapshot,
+    getRoot,
+    protect,
+    destroy,
+    isAlive,
+    getLivelinessChecking,
+    setLivelinessChecking,
+} from 'mobx-state-tree';
 import {
     createInfiniteQuery,
     createModelStore,
@@ -9,7 +20,7 @@ import {
     useQuery,
     useMutation,
 } from '../src';
-import { autorun, configure as configureMobx, observable, reaction, when } from 'mobx';
+import { autorun, configure as configureMobx, observable, reaction, runInAction, when } from 'mobx';
 import { collectSeenIdentifiers } from '../src/QueryStore';
 import { merge } from '../src/merge';
 import { act, cleanup, fireEvent, render as r, configure } from '@testing-library/react';
@@ -713,6 +724,80 @@ test('useQuery - placeholderData keeps previous wrapper model across query insta
         await when(() => !queries.second.isLoading);
     });
 });
+
+test.each([
+    { kind: 'identity', cacheKey: undefined },
+    { kind: 'wrapper', cacheKey: undefined },
+    { kind: 'identity', cacheKey: 'attachment' },
+    { kind: 'wrapper', cacheKey: 'attachment' },
+])(
+    'useQuery - $kind placeholder does not read data from a destroyed query with cacheKey=$cacheKey',
+    async ({ kind, cacheKey }) => {
+        const liveliness = getLivelinessChecking();
+        setLivelinessChecking('error');
+        try {
+            const { queries, render } = setupPlaceholderAttachmentQueries();
+            const first = queries.first;
+            const second = queries.second;
+            let resolveNext!: (data: { attachment: { id: string } }) => void;
+            const nextResponse = new Promise<{ attachment: { id: string } }>((resolve) => {
+                resolveNext = resolve;
+            });
+            const getAttachment = vi
+                .fn()
+                .mockResolvedValueOnce({ attachment: { id: 'first' } })
+                .mockReturnValueOnce(nextResponse);
+            const placeholderData = vi.fn((previousData: typeof first.data) =>
+                kind === 'identity'
+                    ? previousData
+                    : previousData
+                      ? { attachment: previousData.attachment }
+                      : null,
+            );
+            const Comp = observer(({ query }: { query: typeof first }) => {
+                const { data } = useQuery(query, {
+                    request: { attachmentPath: query === first ? 'first' : 'second' },
+                    meta: { getAttachment },
+                    placeholderData,
+                    cacheKey: cacheKey
+                        ? `${cacheKey}-${query === first ? 'first' : 'second'}`
+                        : undefined,
+                });
+                return <div>{data?.attachment.id ?? 'empty'}</div>;
+            });
+            const { rerender, container, unmount } = render(<Comp query={first} />);
+            await act(async () => {
+                await when(() => !first.isLoading);
+            });
+            const wrapper = first.data!;
+            const attachment = wrapper.attachment;
+            placeholderData.mockClear();
+
+            act(() => {
+                const root = getRoot(queries);
+                unprotect(root);
+                runInAction(() => destroy(first));
+                protect(root);
+                rerender(<Comp query={second} />);
+            });
+
+            expect(isAlive(wrapper)).toBe(false);
+            expect(isAlive(attachment)).toBe(true);
+            expect(placeholderData).toHaveBeenCalledWith(null);
+            expect(container.textContent).toBe('empty');
+            expect(second.isLoading).toBe(true);
+            await act(async () => {
+                resolveNext({ attachment: { id: 'second' } });
+                await when(() => !second.isLoading);
+            });
+            expect(container.textContent).toBe('second');
+            unmount();
+        } finally {
+            cleanup();
+            setLivelinessChecking(liveliness);
+        }
+    },
+);
 
 test('useQuery - changed request overrides fresh data when the same query remounts', async () => {
     const { queries, render } = setupPlaceholderAttachmentQueries(60_000);
