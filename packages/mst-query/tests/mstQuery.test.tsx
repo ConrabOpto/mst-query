@@ -1013,6 +1013,40 @@ test('onQueryMore', async () => {
     configureMobx({ enforceActions: 'observed' });
 });
 
+test('preparing partial query data preserves nested fields and the stored model', async () => {
+    const Model = types.model('PreparedModel', {
+        id: types.identifier,
+        details: types.model({ first: 'default', second: 'default' }),
+    });
+    const Query = createQuery('PreparedQuery', {
+        data: types.reference(Model),
+        endpoint: async () => ({ id: 'test', details: { first: 'first', second: 'second' } }),
+    });
+    const RootStore = createRootStore({
+        models: types.optional(createModelStore('PreparedModelStore', Model), {}),
+        query: types.optional(Query, {}),
+    });
+    const queryClient = new QueryClient({ RootStore });
+    queryClient.init();
+    const { query } = queryClient.rootStore;
+    await query.query();
+    const original = query.data;
+    const originalSnapshot = getSnapshot(original!);
+
+    const prepared = query.__MstQueryHandler.prepareData({
+        id: 'test',
+        details: { first: 'updated' },
+    });
+
+    expect(prepared).not.toBe(original);
+    expect(getSnapshot(prepared)).toEqual({
+        id: 'test',
+        details: { first: 'updated', second: 'second' },
+    });
+    expect(query.data).toBe(original);
+    expect(getSnapshot(original!)).toEqual(originalSnapshot);
+});
+
 test('onQueryMore is called for every parallel queryMore request', async () => {
     const { q } = setup();
 
