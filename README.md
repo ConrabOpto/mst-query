@@ -163,9 +163,11 @@ const { data, isLoading } = useQuery(messageStore.messageQuery, {
 
 You can also pass custom data directly (`placeholderData: message`) or return it from a callback
 (`placeholderData: (previousData) => previousData ?? message`). The callback receives `null` when
-there is no current data. Placeholder data uses the normal model conversion and is available through
-both `data` and `query.data`, so other consumers of the same query also see it. It does not mark the
-query as fetched or populate the response cache. Existing data is kept during a refetch, and cached
+there is no current or live previous data. When switching query instances, a previous MST data node
+is only reused while it is alive; destroying its query or service may destroy a data wrapper even
+if the entities it references survive. Placeholder data uses the normal model conversion and is
+available through both `data` and `query.data`, so other consumers of the same query also see it.
+It does not mark the query as fetched or populate the response cache. Existing data is kept during a refetch, and cached
 data takes precedence. The response replaces the placeholder; a failed request clears it. Queries
 with `enabled: false` do not apply placeholders.
 

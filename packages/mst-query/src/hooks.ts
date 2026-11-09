@@ -1,4 +1,4 @@
-import { Instance, SnapshotIn } from 'mobx-state-tree';
+import { Instance, SnapshotIn, isAlive, isStateTreeNode } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
     VolatileQuery,
@@ -70,6 +70,14 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         previousDataRef.current = { queryType, data };
         placeholderRef.current = undefined;
     }
+    // A query-owned wrapper can die while referenced entities remain alive.
+    // Never pass that wrapper to a callback or return it during a query switch.
+    if (
+        isStateTreeNode(previousDataRef.current?.data) &&
+        !isAlive(previousDataRef.current.data)
+    ) {
+        previousDataRef.current = undefined;
+    }
     const lastData = previousDataRef.current;
     const previousData =
         data ?? (lastData && lastData.queryType === queryType ? lastData.data : null);
@@ -94,6 +102,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         const canReusePlaceholder =
             typeof options.placeholderData === 'function' &&
             cachedPlaceholder?.query === query &&
+            !(isStateTreeNode(cachedPlaceholder.data) && !isAlive(cachedPlaceholder.data)) &&
             isVariableEqual(cachedPlaceholder.request, options.request);
         const placeholderData = canReusePlaceholder
             ? cachedPlaceholder.data
