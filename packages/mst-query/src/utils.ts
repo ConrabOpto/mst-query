@@ -6,12 +6,31 @@ import {
     isArrayType,
     isReferenceType,
     isFrozenType,
+    types,
 } from 'mobx-state-tree';
 import { isObservableArray } from 'mobx';
 import * as React from 'react';
 
 export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
-    const modelOrBaseType = getSubType(typeDef, data[key]);
+    const modelOrBaseType = getSubType(typeDef, data);
+    if (isUnionType(modelOrBaseType)) {
+        // A model union may not accept the response yet because its references
+        // still contain objects. Normalize its declared child properties first.
+        const propertyTypes = [
+            ...new Set(
+                (modelOrBaseType as any)._types
+                    .map((type: any) => getSubType(type, data).properties?.[key])
+                    .filter(Boolean)
+                    .map((type: any) => getSubType(type, data[key])),
+            ),
+        ];
+        if (propertyTypes.length) {
+            return propertyTypes.length === 1
+                ? propertyTypes[0]
+                : getSubType(types.union(...(propertyTypes as any[])), data[key]);
+        }
+        return null;
+    }
     if (modelOrBaseType && modelOrBaseType.properties && !modelOrBaseType.properties[key]) {
         return null;
     }
@@ -23,11 +42,15 @@ export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
 }
 
 export function getSubType(t: any, data?: any): any {
-    if (isUnionType(t)) {
+    // Late types inherit their resolved type's flags, including the union flag.
+    // Unwrap them before accessing union-specific members.
+    if (isLateType(t)) {
+        return getSubType((t as any).getSubType(), data);
+    } else if (isUnionType(t)) {
         const type = t as any;
         const actualType = type.determineType && data !== undefined && type.determineType(data);
         if (actualType) {
-            return actualType;
+            return getSubType(actualType, data);
         }
         if (!type.determineType) {
             return getSubType(type._subtype);
@@ -40,13 +63,11 @@ export function getSubType(t: any, data?: any): any {
         }
         // If we have a union of models and primitives (null/undefined), we need to find the first model or reference type
         // to enumerate the properties of the object.
-        const modelWithProperties = subTypes.find((x: any) => isModelType(x) || isReferenceType(x));        
+        const modelWithProperties = subTypes.find((x: any) => isModelType(x) || isReferenceType(x));
         if (modelWithProperties) {
             return getSubType(modelWithProperties, data);
         }
         return t;
-    } else if (isLateType(t)) {
-        return getSubType((t as any).getSubType(), data);
     } else if (isOptionalType(t)) {
         return getSubType((t as any)._subtype, data);
     } else if (isArrayType(t)) {
