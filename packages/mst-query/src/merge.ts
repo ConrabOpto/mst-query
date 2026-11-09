@@ -47,7 +47,7 @@ export function mergeInner(data: any, typeDef: any, ctx: any, cloneInstances = f
 export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, cloneInstances: boolean) {
     // GQL object with known type, instantiate or recycle MST object
     // Try to reuse instance.
-    const modelType = getSubType(typeDef);
+    const modelType = getSubType(typeDef, snapshot);
     const id = data[modelType.identifierAttribute];
 
     let instance = id && ctx.queryClient.queryStore.models.get(getKey(modelType, id));
