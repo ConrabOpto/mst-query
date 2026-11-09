@@ -335,17 +335,17 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
-            hydrate: action.bound,
-            setData: action.bound,
-            setError: action.bound,
-            run: action.bound,
-            query: action.bound,
-            mutate: action.bound,
-            queryMore: action.bound,
-            refetch: action.bound,
-            abort: action.bound,
-            onAfterCreate: action.bound,
-            onBeforeDestroy: action.bound,
+            hydrate: action,
+            setData: action,
+            setError: action,
+            run: action,
+            query: action,
+            mutate: action,
+            queryMore: action,
+            refetch: action,
+            abort: action,
+            onAfterCreate: action,
+            onBeforeDestroy: action,
         });
     }
 
@@ -353,7 +353,7 @@ export class MstQueryHandler {
         return !this.isFetched && !this.isLoading && !this.cachedAt;
     }
 
-    run(options: any = {}) {
+    run = (options: any = {}) => {
         const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
         if (!endpoint) {
@@ -394,7 +394,7 @@ export class MstQueryHandler {
             }
             return result;
         });
-    }
+    };
 
     async queryWhenChanged(options: QueryHookOptions) {
         if (this.isDisposed) {
@@ -455,9 +455,9 @@ export class MstQueryHandler {
         }
     }
 
-    query(options: any = {}): Promise<() => any> {
+    query = (options: any = {}): Promise<() => any> => {
         return this.handleResponse(this.run(options), options);
-    }
+    };
 
     // `run` must be called before this, since it assigns the abort controller of the current run
     handleResponse(promise: Promise<any>, options: OnResponseOptions = {}) {
@@ -475,7 +475,7 @@ export class MstQueryHandler {
         );
     }
 
-    mutate(options: any = {}): Promise<() => any> {
+    mutate = (options: any = {}): Promise<() => any> => {
         const { optimisticUpdate, scope, revert = 'revert-all' } = options;
         let updateRecorder: IPatchRecorder;
         let result: any;
@@ -520,9 +520,9 @@ export class MstQueryHandler {
         }
 
         return executeMutation();
-    }
+    };
 
-    queryMore(options: any = {}): Promise<() => any> {
+    queryMore = (options: any = {}): Promise<() => any> => {
         this.pendingQueryMoreCount += 1;
         this.isFetchingMore = true;
 
@@ -541,9 +541,9 @@ export class MstQueryHandler {
             this.finishQueryMore();
             throw error;
         }
-    }
+    };
 
-    refetch(options: any = {}): Promise<() => any> {
+    refetch = (options: any = {}): Promise<() => any> => {
         this.isRefetching = true;
 
         options.request = options.request ?? this.model.variables.request;
@@ -551,7 +551,7 @@ export class MstQueryHandler {
         options.meta = options.meta ?? this.options.meta;
 
         return this.handleResponse(this.run(options));
-    }
+    };
 
     invalidate() {
         this.markedAsStale = true;
@@ -715,18 +715,18 @@ export class MstQueryHandler {
         }
     }
 
-    abort() {
+    abort = () => {
         this.abortController?.abort();
         this.abortController = undefined;
 
         if (!this.isDisposed) {
             this.revertVariables();
         }
-    }
+    };
 
-    setError(error: any) {
+    setError = (error: any) => {
         this.error = error;
-    }
+    };
 
     setVariables(variables: any) {
         const isRequestEqual = isVariableEqual(this.model.variables.request, variables.request);
@@ -759,7 +759,7 @@ export class MstQueryHandler {
         return merge(data, this.type.properties.data, this.queryClient.config.env, true);
     }
 
-    setData(data: any, options: CacheOptions = {}) {
+    setData = (data: any, options: CacheOptions = {}) => {
         const opts = options ?? this.options;
 
         this.model.__MstQueryHandlerAction(() => {
@@ -788,9 +788,9 @@ export class MstQueryHandler {
         });
 
         return this.model.data;
-    }
+    };
 
-    hydrate(data: any, options: any) {
+    hydrate = (data: any, options: any) => {
         const { enabled, request, pagination } = options;
 
         if (enabled) {
@@ -803,7 +803,7 @@ export class MstQueryHandler {
         this.setData(data, options);
         this.cachedAt = new Date();
         this.error = null;
-    }
+    };
 
     isStale(options: any) {
         if (!this.cachedAt) {
@@ -813,16 +813,16 @@ export class MstQueryHandler {
         return this.markedAsStale || isDataStale(this.cachedAt.getTime(), options.staleTime);
     }
 
-    onAfterCreate() {
+    onAfterCreate = () => {
         this.queryClient.queryStore.setQuery(this.model);
-    }
+    };
 
-    onBeforeDestroy() {
+    onBeforeDestroy = () => {
         this.queryClient.queryStore.removeQuery(this.model);
         this.isDisposed = true;
         this.queryObservers.forEach((observer) => observer.unsubscribe());
         this.abort();
-    }
+    };
 }
 
 function isDataStale(cachedAt?: number, staleTime: number = 0) {
