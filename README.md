@@ -96,6 +96,28 @@ function App() {
 }
 ```
 
+When rendering on the server, avoid sharing a single client between requests. Pass a client per request with the `client` prop instead:
+
+```tsx
+let browserQueryClient: QueryClient<typeof RootStore> | undefined;
+
+function getQueryClient() {
+    if (typeof window === 'undefined') {
+        return new QueryClient({ RootStore });
+    }
+    return (browserQueryClient ??= new QueryClient({ RootStore }));
+}
+
+function App() {
+    const [queryClient] = useState(getQueryClient);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <Messages />
+        </QueryClientProvider>
+    );
+}
+```
+
 ## Queries
 
 ### `createQuery`
