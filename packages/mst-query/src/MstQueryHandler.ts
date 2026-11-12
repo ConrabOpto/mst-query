@@ -58,6 +58,13 @@ type OnResponseOptions = {
 
 export class DisposedError extends Error {}
 
+export type PrefetchedResponse = {
+    status: 'pending' | 'success' | 'error';
+    promise: Promise<any>;
+    result?: any;
+    cachedAt?: number;
+};
+
 export class QueryObserver {
     query: any;
     readonly handler: MstQueryHandler;
@@ -316,6 +323,10 @@ export class MstQueryHandler {
     cachedAt?: Date;
     markedAsStale = false;
 
+    // Settles after the latest query run has applied its result
+    promise?: Promise<void>;
+    prefetchedResponse?: PrefetchedResponse;
+
     isDisposed = false;
 
     constructor(model: any, options?: any) {
@@ -339,6 +350,8 @@ export class MstQueryHandler {
             setError: action,
             run: action,
             query: action,
+            prefetch: action,
+            adopt: action,
             mutate: action,
             queryMore: action,
             refetch: action,
@@ -352,8 +365,9 @@ export class MstQueryHandler {
         return !this.isFetched && !this.isLoading && !this.cachedAt;
     }
 
-    run = (options: any = {}) => {
-        const endpoint = this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
+    run = (options: any = {}, fetch?: (options: any) => Promise<any>) => {
+        const endpoint =
+            fetch ?? this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint;
 
         if (!endpoint) {
             throw new Error('No query endpoint or global endpoint configured');
@@ -458,13 +472,54 @@ export class MstQueryHandler {
         return this.handleResponse(this.run(options), options);
     };
 
+    // Keeps the raw endpoint response so it can be dehydrated
+    prefetch = (options: any = {}) => {
+        const promise = this.run(options);
+        const response: PrefetchedResponse = { status: 'pending', promise };
+        this.prefetchedResponse = response;
+        promise.then(
+            (result) => {
+                response.status = 'success';
+                response.result = result;
+                response.cachedAt = Date.now();
+            },
+            () => {
+                response.status = 'error';
+            },
+        );
+        return this.applyResponse(this.handleResponse(promise, options));
+    };
+
+    // Treats an externally started request, such as a streamed server response, as a query run
+    adopt = (promise: PromiseLike<any>, options: any = {}) => {
+        // React's deserialized promises are thenables whose then() doesn't return a promise
+        const response = Promise.resolve(promise);
+        return this.applyResponse(this.handleResponse(this.run(options, () => response), options));
+    };
+
+    private applyResponse(response: Promise<() => any>) {
+        return response.then((next) => this.model.__MstQueryHandlerAction(next));
+    }
+
     // `run` must be called before this, since it assigns the abort controller of the current run
     handleResponse(promise: Promise<any>, options: OnResponseOptions = {}) {
         const abortController = this.abortController;
         const requestVersion = this.requestVersion;
+        let settle: (() => void) | undefined;
+        if (!this.model.isMutation && !options.isQueryMore) {
+            this.promise = new Promise<void>((resolve) => (settle = resolve));
+        }
+        const settleAfter = (next: () => any) => () => {
+            try {
+                return next();
+            } finally {
+                settle?.();
+            }
+        };
         return promise.then(
-            (result) => this.onSuccess(result, { ...options, abortController, requestVersion }),
-            (err) => this.onError(err, { ...options, abortController, requestVersion }),
+            (result) =>
+                settleAfter(this.onSuccess(result, { ...options, abortController, requestVersion })),
+            (err) => settleAfter(this.onError(err, { ...options, abortController, requestVersion })),
         );
     }
 

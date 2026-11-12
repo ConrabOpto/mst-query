@@ -31,6 +31,14 @@ jobs:
         working-directory: ./packages/mst-query
         run: npm run test
 
+      - name: Build mst-query
+        working-directory: ./packages/mst-query
+        run: npm run build
+
+      - name: Check mst-query package
+        working-directory: ./packages/mst-query
+        run: npm run test:build
+
       - name: Install dependencies for mst-query-generator
         working-directory: ./packages/mst-query-generator
         run: npm install
@@ -38,3 +46,30 @@ jobs:
       - name: Run mst-query-generator test
         working-directory: ./packages/mst-query-generator
         run: npm run test
+
+  integration-next:
+    name: Next.js integration
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 22
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies for mst-query
+        working-directory: ./packages/mst-query
+        run: npm install
+
+      - name: Install dependencies for the Next.js app
+        working-directory: ./integrations/next
+        run: npm install
+
+      - name: Build the Next.js app against the packed mst-query
+        working-directory: ./integrations/next
+        run: npm run test:build

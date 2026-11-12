@@ -1,3 +1,5 @@
+'use client';
+import { equal } from '@wry/equality';
 import { Instance, SnapshotIn, isAlive, isStateTreeNode } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -238,6 +240,75 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
         isStale: query.__MstQueryHandler.isStale(options),
         isFetchedAfterMount: observer.isFetchedAfterMount,
     };
+}
+
+// Avoids refetching right after a suspended component mounts
+const MIN_SUSPENSE_STALE_TIME = 1000;
+
+type SuspenseQueryOptions<T extends Instance<QueryReturnType>> = Omit<
+    QueryOptions<T>,
+    | 'enabled'
+    | 'initialData'
+    | 'initialDataUpdatedAt'
+    | 'placeholderData'
+    | 'cacheKey'
+    | 'cacheTime'
+>;
+
+export function useSuspenseQuery<T extends Instance<QueryReturnType>>(
+    query: T,
+    options: SuspenseQueryOptions<T> = {},
+) {
+    const queryClient = useContext(Context)! as QueryClient<any>;
+    const staleTime = Math.max(
+        options.staleTime ?? queryClient.config.queryOptions?.staleTime ?? 0,
+        MIN_SUSPENSE_STALE_TIME,
+    );
+    const result = useQuery(query, { ...options, staleTime });
+
+    const handler = query.__MstQueryHandler;
+    const isRequestEqual = isVariableEqual(query.variables.request, options.request);
+    if (isRequestEqual) {
+        if (query.data != null) {
+            return result as typeof result & { data: NonNullable<T['data']> };
+        }
+        if (handler.isLoading) {
+            throw handler.promise;
+        }
+        if (query.error) {
+            throw query.error;
+        }
+    }
+
+    throw suspendQuery(query, options.request, options.meta);
+}
+
+const pendingSuspensions = new WeakMap<object, { request: any; promise: Promise<void> }>();
+
+function suspendQuery(query: Instance<QueryReturnType>, request: any, meta: any) {
+    const handler = query.__MstQueryHandler;
+    const pending = pendingSuspensions.get(handler);
+    if (pending && equal(pending.request, request)) {
+        return pending.promise;
+    }
+
+    // Start outside render, so components observing the query aren't updated while rendering
+    const entry = { request, promise: undefined as unknown as Promise<void> };
+    entry.promise = Promise.resolve()
+        .then(() => {
+            if (!isVariableEqual(query.variables.request, request)) {
+                query.setData(null);
+            }
+            query.query({ request, meta } as any);
+            return handler.promise;
+        })
+        .finally(() => {
+            if (pendingSuspensions.get(handler) === entry) {
+                pendingSuspensions.delete(handler);
+            }
+        });
+    pendingSuspensions.set(handler, entry);
+    return entry.promise;
 }
 
 type MutationOptions<T extends Instance<MutationReturnType>> = {

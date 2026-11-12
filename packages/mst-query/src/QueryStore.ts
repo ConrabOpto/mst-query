@@ -20,11 +20,11 @@ export const getKey = (type: IAnyComplexType, id: string | number) => {
 type QueryCacheEntry = {
     cachedAt: number;
     data: any;
-    timeout: number;
+    timeout: ReturnType<typeof setTimeout>;
 };
 
 export class QueryStore {
-    #scheduledGc = null as null | number;
+    #scheduledGc = null as null | ReturnType<typeof setTimeout>;
     #queryClient: any;
     #queryData = new Map() as Map<string, QueryCacheEntry>;
     #cache = new Map() as Map<string, any>;
@@ -53,13 +53,13 @@ export class QueryStore {
     ) {
         const existingEntry = this.#queryData.get(getKey(type, key));
         if (existingEntry) {
-            window.clearTimeout(existingEntry.timeout);
+            clearTimeout(existingEntry.timeout);
         }
 
         const cacheEntry = {
             cachedAt: Date.now(),
             data: model.data,
-            timeout: window.setTimeout(() => {
+            timeout: setTimeout(() => {
                 this.removeQueryData(type, key);
             }, cacheTime),
         };
@@ -80,6 +80,14 @@ export class QueryStore {
             if (getType(query) === queryDef && matcherFn(query)) {
                 results.push(query);
             }
+        }
+        return results;
+    }
+
+    getAllQueries(): any[] {
+        const results = [];
+        for (const [, arr] of this.#cache) {
+            results.push(...arr);
         }
         return results;
     }
@@ -145,7 +153,7 @@ export class QueryStore {
         for (let [_, arr] of this.#cache) {
             for (let query of arr) {
                 if (query.isLoading) {
-                    this.#scheduledGc = window.setTimeout(() => {
+                    this.#scheduledGc = setTimeout(() => {
                         this.#scheduledGc = null;
                         this.runGc();
                     }, 1000);
