@@ -157,7 +157,14 @@ export class QueryClient<T extends IAnyModelType> {
         for (const entry of state.queries) {
             const query: any = tryResolve(this.rootStore, entry.path);
             const handler = query?.__MstQueryHandler;
-            if (!handler || getType(query).name !== entry.type || handler.isLoading) {
+            if (!handler || getType(query).name !== entry.type) {
+                console.warn(
+                    `mst-query: no ${entry.type} at ${entry.path} to hydrate. ` +
+                        'Is the state rendered with the HydrationBoundary of the client that dehydrated it?',
+                );
+                continue;
+            }
+            if (handler.isLoading) {
                 continue;
             }
 

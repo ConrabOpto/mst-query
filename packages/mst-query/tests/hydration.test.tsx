@@ -1,7 +1,9 @@
 import * as React from 'react';
-import { test, expect, vi, afterEach } from 'vitest';
+import { test, expect, vi, afterEach, describe } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 import { observer } from 'mobx-react';
+import { types } from 'mobx-state-tree';
+import { createModelStore, createQuery, createRootStore } from '../src';
 import { QueryClient, DehydratedState } from '../src/QueryClient';
 import { createContext } from '../src/QueryClientProvider';
 import { HydrationBoundary } from '../src/HydrationBoundary';
@@ -205,7 +207,7 @@ test('hydrate adopts thenables whose then does not return a promise', async () =
                 path: '/serviceStore/itemServiceStore/itemQuery',
                 type: 'ItemQuery',
                 request: { id: 'test' },
-                promise: thenable,
+                promise: thenable as unknown as PromiseLike<unknown>,
             },
         ],
     });
@@ -327,7 +329,7 @@ test('hydrate does not overwrite newer client data', async () => {
     expect(q.itemQuery.data?.description).toBe('Newer');
 });
 
-test('hydrate ignores paths that do not resolve to a query of the same type', () => {
+test('hydrate warns about and skips paths that do not resolve to a query of the same type', () => {
     const { queryClient } = setupClient();
     const state: DehydratedState = {
         dehydratedAt: Date.now(),
@@ -337,7 +339,10 @@ test('hydrate ignores paths that do not resolve to a query of the same type', ()
         ],
     };
 
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(() => queryClient.hydrate(state)).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
     expect(queryClient.rootStore.itemStore.models.size).toBe(0);
 });
 
@@ -373,4 +378,138 @@ test('HydrationBoundary defers hydrating observed queries to an effect', async (
     expect(hydratedDuringRender[0]).toBe(false);
     await wait(0);
     expect(q.itemQuery.data?.description).toBe(itemData.description);
+});
+
+describe('multiple query clients', () => {
+    const AdminItemModel = types.model('AdminItem', {
+        id: types.identifier,
+        name: types.string,
+    });
+    const AdminItemQuery = createQuery('AdminItemQuery', {
+        data: types.reference(AdminItemModel),
+        request: types.model({ id: types.string }),
+        endpoint: ({ meta, request }) => meta.getAdminItem(request.id),
+    });
+    const AdminRoot = createRootStore({
+        adminItemStore: types.optional(
+            createModelStore('AdminItemStore', AdminItemModel).props({
+                adminItemQuery: types.optional(AdminItemQuery, {}),
+            }),
+            {},
+        ),
+    });
+    const getAdminItem = async (id: string) => ({ id, name: 'Admin item' });
+
+    const setup = (adminQueryOptions: any = {}) => {
+        const mainClient = new QueryClient({ RootStore: Root, queryOptions: { staleTime: 0 } }).init();
+        const adminClient = new QueryClient({
+            RootStore: AdminRoot,
+            queryOptions: adminQueryOptions,
+        }).init();
+        const main = createContext(mainClient);
+        const AdminContext = React.createContext<QueryClient<any> | undefined>(undefined);
+        const admin = createContext(adminClient, { context: AdminContext });
+        return { mainClient, adminClient, main, admin };
+    };
+
+    const prefetchAdminState = async () => {
+        const server = new QueryClient({ RootStore: AdminRoot }).init();
+        await server.prefetchQuery(server.rootStore.adminItemStore.adminItemQuery, {
+            request: { id: '1' },
+            meta: { getAdminItem },
+        });
+        return server.dehydrate();
+    };
+
+    test('a context-bound HydrationBoundary hydrates into its own client', async () => {
+        const { adminClient, main, admin } = setup();
+        const state = await prefetchAdminState();
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const Item = observer(() => {
+            const { data } = useSuspenseQuery(adminClient.rootStore.adminItemStore.adminItemQuery, {
+                request: { id: '1' },
+            });
+            return <div>{data.name}</div>;
+        });
+
+        const { getByText } = render(
+            <main.QueryClientProvider>
+                <admin.QueryClientProvider>
+                    <admin.HydrationBoundary state={state}>
+                        <React.Suspense fallback={<div>loading</div>}>
+                            <Item />
+                        </React.Suspense>
+                    </admin.HydrationBoundary>
+                </admin.QueryClientProvider>
+            </main.QueryClientProvider>,
+        );
+
+        getByText('Admin item');
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    test('the default HydrationBoundary warns about state from another client', async () => {
+        const { mainClient, main, admin } = setup();
+        const state = await prefetchAdminState();
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        render(
+            <main.QueryClientProvider>
+                <admin.QueryClientProvider>
+                    <HydrationBoundary state={state} />
+                </admin.QueryClientProvider>
+            </main.QueryClientProvider>,
+        );
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('/adminItemStore/adminItemQuery'));
+        expect(mainClient.queryStore.models.size).toBe(0);
+        warn.mockRestore();
+    });
+
+    test('hooks use the default options of the client that owns the query', async () => {
+        const { adminClient, main } = setup({ staleTime: 60_000 });
+        const getItem = vi.fn(getAdminItem);
+        const query = adminClient.rootStore.adminItemStore.adminItemQuery;
+        await query.query({ request: { id: '1' }, meta: { getAdminItem: getItem } });
+
+        const Item = observer(() => {
+            const { data } = useQuery(query, {
+                request: { id: '1' },
+                meta: { getAdminItem: getItem },
+            });
+            return <div>{data?.name}</div>;
+        });
+
+        render(
+            <main.QueryClientProvider>
+                <Item />
+            </main.QueryClientProvider>,
+        );
+        await wait(0);
+
+        expect(getItem).toHaveBeenCalledTimes(1);
+    });
+
+    test('a context-bound useVolatileQuery creates its query in that client', () => {
+        const { mainClient, adminClient, main, admin } = setup();
+        let query: any;
+
+        const Volatile = () => {
+            query = admin.useVolatileQuery({ endpoint: async () => 'volatile' }).query;
+            return null;
+        };
+
+        render(
+            <main.QueryClientProvider>
+                <admin.QueryClientProvider>
+                    <Volatile />
+                </admin.QueryClientProvider>
+            </main.QueryClientProvider>,
+        );
+
+        expect(query.__MstQueryHandler.queryClient).toBe(adminClient);
+        expect(query.__MstQueryHandler.queryClient).not.toBe(mainClient);
+    });
 });

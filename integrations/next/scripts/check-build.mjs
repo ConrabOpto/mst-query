@@ -8,6 +8,7 @@ const html = readFileSync(join(appDir, '.next/server/app/index.html'), 'utf8');
 const expected = [
     'Item awaited created 2024-01-01T00:00:00.000Z',
     'Item streamed created 2024-01-01T00:00:00.000Z',
+    'Item admin created 2024-01-01T00:00:00.000Z',
 ];
 
 // React may split adjacent text nodes with comments
