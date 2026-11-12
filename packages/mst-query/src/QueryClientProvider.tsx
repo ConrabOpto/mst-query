@@ -2,7 +2,8 @@ import { IAnyModelType } from 'mobx-state-tree';
 import * as React from 'react';
 import { QueryClient } from './QueryClient';
 
-type QueryClientProviderProps = {
+type QueryClientProviderProps<T extends IAnyModelType> = {
+    client?: QueryClient<T>;
     env?: any;
     initialData?: any;
     children: React.ReactNode;
@@ -18,15 +19,14 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
     const ctx = options?.context ?? Context;
 
     const QueryClientProvider = ({
+        client,
         env,
         initialData,
         children,
-    }: QueryClientProviderProps) => {
-        const q = React.useRef<any>(null);
-        if (!q.current) {
-            q.current = queryClient.init(initialData, env);
-        }
-        return <ctx.Provider value={q.current}>{children}</ctx.Provider>;
+    }: QueryClientProviderProps<T>) => {
+        // init is a no-op once the client is initialized
+        const value = (client ?? queryClient).init(initialData, env);
+        return <ctx.Provider value={value}>{children}</ctx.Provider>;
     };
     const useQueryClient = () => {
         const qc = React.useContext(ctx) as QueryClient<T>;

@@ -2709,6 +2709,37 @@ test('createContext with custom context supports multiple nested providers', asy
     expect(client2).toBe(queryClient2);
 });
 
+test('QueryClientProvider uses the client prop over the default client', () => {
+    const defaultClient = new QueryClient({ RootStore: Root });
+    const { QueryClientProvider, useQueryClient, useRootStore } = createContext(defaultClient);
+
+    const seen: { client: any; rootStore: any }[] = [];
+    const Inner = () => {
+        seen.push({ client: useQueryClient(), rootStore: useRootStore() });
+        return null;
+    };
+
+    const client1 = new QueryClient({ RootStore: Root });
+    const client2 = new QueryClient({ RootStore: Root });
+    r(
+        <QueryClientProvider client={client1}>
+            <Inner />
+        </QueryClientProvider>,
+    );
+    r(
+        <QueryClientProvider client={client2}>
+            <Inner />
+        </QueryClientProvider>,
+    );
+
+    expect(seen[0].client).toBe(client1);
+    expect(seen[0].rootStore).toBe(client1.rootStore);
+    expect(seen[1].client).toBe(client2);
+    expect(seen[1].rootStore).toBe(client2.rootStore);
+    expect(client1.rootStore).not.toBe(client2.rootStore);
+    expect(defaultClient.rootStore).toBeUndefined();
+});
+
 test('do not cancel queries with different variables', async () => {
     const { q } = setup();
 
