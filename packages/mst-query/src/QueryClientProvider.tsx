@@ -1,3 +1,4 @@
+'use client';
 import { IAnyModelType } from 'mobx-state-tree';
 import * as React from 'react';
 import { QueryClient } from './QueryClient';

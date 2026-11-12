@@ -327,6 +327,60 @@ const AddMessage = observer((props) => {
 });
 ```
 
+## Server components and streaming
+
+Prefetch queries in a server component and pass them to client components with `HydrationBoundary`.
+Create a new `QueryClient` per request on the server, for example with React's `cache`:
+
+```tsx
+// get-server-query-client.ts
+import { cache } from 'react';
+import { QueryClient } from 'mst-query';
+
+export const getServerQueryClient = cache(() => new QueryClient({ RootStore }).init());
+```
+
+```tsx
+// page.tsx (server component)
+import { Suspense } from 'react';
+import { HydrationBoundary } from 'mst-query';
+
+export default function Page({ params }) {
+    const queryClient = getServerQueryClient();
+    const { messageStore } = queryClient.rootStore;
+
+    // Not awaited: the response streams to the client when it resolves
+    queryClient.prefetchQuery(messageStore.messageQuery, { request: { id: params.id } });
+
+    return (
+        <HydrationBoundary state={queryClient.dehydrate()}>
+            <Suspense fallback={<div>Loading...</div>}>
+                <Message id={params.id} />
+            </Suspense>
+        </HydrationBoundary>
+    );
+}
+```
+
+```tsx
+// Message.tsx
+'use client';
+import { observer } from 'mobx-react';
+import { useSuspenseQuery } from 'mst-query';
+
+export const Message = observer(({ id }) => {
+    const { messageStore } = useRootStore();
+    const { data } = useSuspenseQuery(messageStore.messageQuery, { request: { id } });
+    return <div>{data.message}</div>;
+});
+```
+
+- `prefetchQuery` never rejects. Await it to block rendering until the data is available, or leave it pending to stream it.
+- `dehydrate` includes queries started with `prefetchQuery` that live in the root store. Resolved queries are sent as raw endpoint results, pending ones as promises, and failed ones are left out so the client can retry them. The client normalizes results the same way as its own responses, so endpoint results must be serializable by React.
+- `HydrationBoundary` matches queries by their path in the root store, so the server and client must use the same `RootStore`. Data is only applied when it is newer than what the client already has.
+- `useSuspenseQuery` suspends until the query has data, and throws errors to the nearest error boundary. It fetches by itself when nothing was prefetched. To avoid refetching right after suspending, `staleTime` is at least 1000 ms. It doesn't support `useVolatileQuery`.
+- Infinite queries only dehydrate their first page.
+
 ## Model generator (GraphQL)
 
 Generate mobx-state-tree models from your graphql schema.
