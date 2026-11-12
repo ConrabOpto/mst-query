@@ -2,6 +2,11 @@
 import { IAnyModelType } from 'mobx-state-tree';
 import * as React from 'react';
 import { QueryClient } from './QueryClient';
+import { Context } from './context';
+import { createHydrationBoundary } from './HydrationBoundary';
+import { createUseVolatileQuery } from './hooks';
+
+export { Context };
 
 type QueryClientProviderProps<T extends IAnyModelType> = {
     client?: QueryClient<T>;
@@ -13,8 +18,6 @@ type QueryClientProviderProps<T extends IAnyModelType> = {
 type CreateContextOptions = {
     context?: React.Context<QueryClient<any> | undefined>;
 };
-
-export const Context = React.createContext<QueryClient<any> | undefined>(undefined);
 
 export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>, options?: CreateContextOptions) {
     const ctx = options?.context ?? Context;
@@ -45,5 +48,7 @@ export function createContext<T extends IAnyModelType>(queryClient: QueryClient<
         useQueryClient,
         useRootStore,
         QueryClientProvider,
+        HydrationBoundary: createHydrationBoundary(ctx),
+        useVolatileQuery: createUseVolatileQuery(ctx),
     };
 }

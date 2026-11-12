@@ -54,7 +54,7 @@ export function mergeInstance(snapshot: any, data: any, typeDef: any, ctx: any, 
     if (cloneInstances && instance) {
         // Build the detached result from snapshots so updating reference arrays does not
         // try to resolve their old values outside the root store.
-        const existingSnapshot = getSnapshot(instance);
+        const existingSnapshot = getSnapshot<any>(instance);
         return modelType.create(
             { ...existingSnapshot, ...mergeObjects(existingSnapshot, snapshot, typeDef) },
             ctx,
@@ -96,12 +96,13 @@ export function mergeObjects(instance: any, data: any, typeDef: any): any {
             !(isStateTreeNode(instance[key]) && getIdentifier(instance[key]))
         ) {
             // Non-identifier object that's not frozen and is updating an existing instance
-            const mergedValue = mergeObjects(instance[key], data[key], realType);
+            const current = instance[key];
+            const mergedValue = mergeObjects(current, data[key], realType);
             const isNode = isStateTreeNode(data);
             isNode && unprotect(data);
             snapshot[key] = isStateTreeNode(instance)
-                ? Object.assign(instance[key], mergedValue)
-                : { ...instance[key], ...mergedValue };
+                ? Object.assign(current, mergedValue)
+                : { ...current, ...mergedValue };
             isNode && protect(data);
         } else if (isStateTreeNode(data[key]) && !getIdentifier(data[key])) {
             // Non-identifier instance in the merged data needs to be converted

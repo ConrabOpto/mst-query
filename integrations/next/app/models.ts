@@ -22,3 +22,11 @@ const ItemStore = createModelStore('ItemStore', ItemModel).props({
 export const RootStore = createRootStore({
     itemStore: types.optional(ItemStore, {}),
 });
+
+const AdminStore = createModelStore('AdminStore', ItemModel).props({
+    adminItemQuery: types.optional(ItemQuery, {}),
+});
+
+export const AdminRootStore = createRootStore({
+    adminStore: types.optional(AdminStore, {}),
+});

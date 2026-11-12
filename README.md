@@ -381,6 +381,33 @@ export const Message = observer(({ id }) => {
 - `useSuspenseQuery` suspends until the query has data, and throws errors to the nearest error boundary. It fetches by itself when nothing was prefetched. To avoid refetching right after suspending, `staleTime` is at least 1000 ms. It doesn't support `useVolatileQuery`.
 - Infinite queries only dehydrate their first page.
 
+### Multiple query clients
+
+An app can have several clients, each with its own React context. `createContext` returns a `HydrationBoundary` and `useVolatileQuery` bound to that context. Export them from a `'use client'` module so server components can render the boundary:
+
+```tsx
+// admin-query.tsx
+'use client';
+import { createContext as createReactContext } from 'react';
+import { QueryClient, createContext } from 'mst-query';
+
+const AdminQueryContext = createReactContext<QueryClient<any> | undefined>(undefined);
+
+export const {
+    QueryClientProvider: AdminQueryClientProvider,
+    HydrationBoundary: AdminHydrationBoundary,
+    useRootStore: useAdminRootStore,
+    useVolatileQuery: useAdminVolatileQuery,
+} = createContext(new QueryClient({ RootStore: AdminRootStore }), { context: AdminQueryContext });
+```
+
+```tsx
+// server component
+<AdminHydrationBoundary state={adminQueryClient.dehydrate()}>...</AdminHydrationBoundary>
+```
+
+The exported `HydrationBoundary` and `useVolatileQuery` always use the default context. Other hooks use the client that owns the query, so they work under any provider.
+
 ## Model generator (GraphQL)
 
 Generate mobx-state-tree models from your graphql schema.

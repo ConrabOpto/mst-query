@@ -1,7 +1,7 @@
 'use client';
 import { equal } from '@wry/equality';
 import { Instance, SnapshotIn, isAlive, isStateTreeNode } from 'mobx-state-tree';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState, type Context as ReactContext } from 'react';
 import {
     VolatileQuery,
     MutationReturnType,
@@ -9,7 +9,7 @@ import {
     InfiniteQueryReturnType,
     MutationScope,
 } from './create';
-import { Context } from './QueryClientProvider';
+import { Context } from './context';
 import { QueryClient } from './QueryClient';
 import { CacheOptions, EmptyPagination, EmptyRequest, isVariableEqual, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
 import { useEvent } from './utils';
@@ -19,6 +19,12 @@ function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryCl
         enabled: true,
         ...options,
     });
+}
+
+// Queries belong to the client that created them, which may not be the one in the default context
+function useOwningClient(query: any) {
+    const contextClient = useContext(Context);
+    return (query.__MstQueryHandler.queryClient ?? contextClient) as QueryClient<any>;
 }
 
 type PlaceholderData<T> = T | SnapshotIn<T> | Record<string, unknown> | readonly unknown[];
@@ -61,7 +67,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
         data: PlaceholderData<T['data']> | undefined;
     } | undefined>(undefined);
 
-    const queryClient = useContext(Context)! as QueryClient<any>;
+    const queryClient = useOwningClient(query);
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     (options as any).request = options.request ?? EmptyRequest;
@@ -201,7 +207,7 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(query, true));
 
-    const queryClient = useContext(Context)! as QueryClient<any>;
+    const queryClient = useOwningClient(query);
     options = mergeWithDefaultOptions('queryOptions', options, queryClient);
 
     (options as any).request = options.request ?? EmptyRequest;
@@ -259,7 +265,7 @@ export function useSuspenseQuery<T extends Instance<QueryReturnType>>(
     query: T,
     options: SuspenseQueryOptions<T> = {},
 ) {
-    const queryClient = useContext(Context)! as QueryClient<any>;
+    const queryClient = useOwningClient(query);
     const staleTime = Math.max(
         options.staleTime ?? queryClient.config.queryOptions?.staleTime ?? 0,
         MIN_SUSPENSE_STALE_TIME,
@@ -323,7 +329,7 @@ export function useMutation<T extends Instance<MutationReturnType>>(
 ) {
     const [observer, setObserver] = useState(() => new QueryObserver(mutation, false));
 
-    const queryClient = useContext(Context) as QueryClient<any>;
+    const queryClient = useOwningClient(mutation);
     options = { queryClient, ...options } as any;
 
     useEffect(() => {
@@ -371,15 +377,19 @@ type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions
     endpoint?: (args: any) => Promise<any>;
 };
 
-export function useVolatileQuery(
-    options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {},
-) {
-    const queryClient = useContext(Context)! as QueryClient<any>;
-    const query = useRefQuery(VolatileQuery, queryClient);
+export function createUseVolatileQuery(context: ReactContext<QueryClient<any> | undefined>) {
+    return function useVolatileQuery(
+        options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {},
+    ) {
+        const queryClient = useContext(context)! as QueryClient<any>;
+        const query = useRefQuery(VolatileQuery, queryClient);
 
-    if (!query.__MstQueryHandler.options.endpoint) {
-        query.__MstQueryHandler.options.endpoint = options.endpoint as any;
-    }
+        if (!query.__MstQueryHandler.options.endpoint) {
+            query.__MstQueryHandler.options.endpoint = options.endpoint as any;
+        }
 
-    return useQuery(query, options);
+        return useQuery(query, options);
+    };
 }
+
+export const useVolatileQuery = createUseVolatileQuery(Context);

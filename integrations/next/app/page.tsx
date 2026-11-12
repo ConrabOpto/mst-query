@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
 import { HydrationBoundary, QueryClient } from 'mst-query';
-import { RootStore } from './models';
+import { AdminRootStore, RootStore } from './models';
 import { Item } from './item';
+import { AdminHydrationBoundary, AdminItem, AdminProviders } from './admin';
 
 async function fetchItem(id: string) {
     await new Promise((resolve) => setTimeout(resolve, id === 'streamed' ? 200 : 0));
@@ -21,6 +22,12 @@ export default async function Page() {
         meta: { fetchItem },
     });
 
+    const adminQueryClient = new QueryClient({ RootStore: AdminRootStore }).init();
+    adminQueryClient.prefetchQuery(adminQueryClient.rootStore.adminStore.adminItemQuery, {
+        request: { id: 'admin' },
+        meta: { fetchItem },
+    });
+
     return (
         <main>
             <HydrationBoundary state={queryClient.dehydrate()}>
@@ -29,6 +36,13 @@ export default async function Page() {
                     <Item id="streamed" />
                 </Suspense>
             </HydrationBoundary>
+            <AdminProviders>
+                <AdminHydrationBoundary state={adminQueryClient.dehydrate()}>
+                    <Suspense fallback={<p>Loading admin item...</p>}>
+                        <AdminItem />
+                    </Suspense>
+                </AdminHydrationBoundary>
+            </AdminProviders>
         </main>
     );
 }

@@ -66,7 +66,7 @@ const App = ({
 const renderToHtml = (element: React.ReactElement, waitForAll: boolean) => {
     const chunks: string[] = [];
     const stream = new PassThrough();
-    stream.on('data', (chunk) => chunks.push(chunk.toString()));
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk.toString()));
     const done = new Promise<string>((resolve) => stream.on('end', () => resolve(chunks.join(''))));
 
     const shell = new Promise<void>((resolve, reject) => {
