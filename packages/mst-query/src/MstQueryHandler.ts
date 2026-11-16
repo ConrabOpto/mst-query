@@ -106,6 +106,14 @@ export class QueryObserver {
         }
     }
 
+    // React can unmount effects and later remount them with the same observer instance,
+    // e.g. when <Activity> hides and shows a tree. Resetting isMounted makes the next
+    // setOptions apply the mount rules (staleTime, refetchOnMount) again.
+    unmount() {
+        this.unsubscribe();
+        this.isMounted = false;
+    }
+
     setOptions(options: any) {
         this.subscribe();
 
@@ -429,6 +437,12 @@ export class MstQueryHandler {
             // data prevents the new request from starting and is subsequently cleared.
             if (!options.isRequestEqual) {
                 return this.model.query(options);
+            }
+
+            // A fetch for this request is already in flight, e.g. when StrictMode or <Activity>
+            // remounts right after the first mount started it. Restarting it would only abort it.
+            if (this.isLoading && !this.isFetchingMore) {
+                return;
             }
 
             if (options.refetchOnMount === 'never') {

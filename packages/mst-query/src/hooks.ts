@@ -163,7 +163,7 @@ export function useQuery<T extends Instance<QueryReturnType>>(
 
     useEffect(() => {
         return () => {
-            observer.unsubscribe();
+            observer.unmount();
         };
     }, [observer]);
 
@@ -226,12 +226,16 @@ export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
     }, [query]);
 
     useEffect(() => {
-        observer.setOptions(options);
+        if (observer.query === query) {
+            observer.setOptions(options);
+        }
+    }, [observer, query, options]);
 
+    useEffect(() => {
         return () => {
-            observer.unsubscribe();
+            observer.unmount();
         };
-    }, [options]);
+    }, [observer]);
 
     return {
         data: query.data as (typeof query)['data'],
@@ -339,8 +343,16 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     }, [mutation]);
 
     useEffect(() => {
-        observer.setOptions(options);        
-    }, [options]);
+        if (observer.query === mutation) {
+            observer.setOptions(options);
+        }
+    }, [observer, mutation, options]);
+
+    useEffect(() => {
+        return () => {
+            observer.unmount();
+        };
+    }, [observer]);
 
     const result = {
         data: mutation.data as (typeof mutation)['data'],
