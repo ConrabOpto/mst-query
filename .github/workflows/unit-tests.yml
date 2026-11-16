@@ -2,9 +2,9 @@ name: Unit Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, codex/release-4.12 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, codex/release-4.12 ]
 
   workflow_dispatch:
 
