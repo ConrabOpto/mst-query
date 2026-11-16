@@ -420,6 +420,8 @@ npx mst-query-generator schema.graphql
 
 The option `staleTime` controls how much time should pass before a cached value needs to be refetched from the server.
 
+Showing a component again with React's `<Activity>` counts as a mount: `staleTime` and `refetchOnMount` apply as they would on a remount. While hidden, its hooks are unsubscribed, so `invalidate()` only marks their queries as stale, and `useMutation`'s `onMutate` doesn't run.
+
 ### Garbage collection
 
 ```tsx
