@@ -200,7 +200,7 @@ export class QueryObserver {
                 }
 
                 const isStale = !cacheEntry || isDataStale(cacheEntry.cachedAt, options.staleTime);
-                if (isStale) {
+                if (isStale || this.handler.notInitialized) {
                     if (cacheEntry) {
                         this.handler.queryWhenChanged(options);
                     } else {
@@ -415,6 +415,7 @@ export class MstQueryHandler {
     private requestVersion = 0;
     private invalidationVersion = 0;
     private refetchAfterInvalidation = false;
+    private variablesInitialized = false;
 
     cachedAt: Date | undefined = undefined;
     markedAsStale = false;
@@ -477,7 +478,14 @@ export class MstQueryHandler {
     }
 
     get notInitialized() {
-        return !this.isFetched && !this.isLoading && !this.cachedAt;
+        // Disabled hydration seeds data before request variables are ready.
+        // A cached result alone must not prevent that query from initializing on enable.
+        // Map entries are created with their request, so their variables are always ready.
+        return (
+            !this.isFetched &&
+            !this.isLoading &&
+            (!this.cachedAt || (!this.isQueryMap && !this.variablesInitialized))
+        );
     }
 
     get isQueryMap() {
@@ -676,7 +684,7 @@ export class MstQueryHandler {
             return;
         }
 
-        const notInitialized = !this.isFetched && !this.isLoading && !this.cachedAt;
+        const notInitialized = this.notInitialized;
         if (!options.isMounted) {
             if (notInitialized) {
                 return this.model.query(options);
@@ -868,7 +876,12 @@ export class MstQueryHandler {
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        return this.handleResponse(this.run(options), options);
+        try {
+            return this.handleResponse(this.run(options), options);
+        } catch (error) {
+            this.isRefetching = false;
+            throw error;
+        }
     };
 
     invalidate() {
@@ -1083,7 +1096,8 @@ export class MstQueryHandler {
         let request = variables.request;
         let pagination = variables.pagination;
 
-        // Handle request and pagination being optional models
+        // Omitted variables keep the stored value, which may itself be undefined.
+        // Internal hook sentinels must never be assigned to an MST model.
         if (request === undefined || request === EmptyRequest) {
             request = this.model.variables.request;
         }
@@ -1094,6 +1108,7 @@ export class MstQueryHandler {
         this.model.__MstQueryHandlerAction(() => {
             this.model.variables = { request, pagination };
         });
+        this.variablesInitialized = true;
         if (!isRequestEqual) {
             this.requestVersion += 1;
         }
