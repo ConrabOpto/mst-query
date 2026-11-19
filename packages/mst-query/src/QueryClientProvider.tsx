@@ -1,5 +1,5 @@
 'use client';
-import { IAnyModelType } from 'mobx-state-tree';
+import { IAnyModelType, SnapshotIn } from 'mobx-state-tree';
 import * as React from 'react';
 import { QueryClient } from './QueryClient';
 import { Context } from './context';
@@ -10,8 +10,8 @@ export { Context };
 
 type QueryClientProviderProps<T extends IAnyModelType> = {
     client?: QueryClient<T>;
-    env?: any;
-    initialData?: any;
+    env?: Record<string, any>;
+    initialData?: SnapshotIn<T>;
     children: React.ReactNode;
 };
 
@@ -19,7 +19,10 @@ type CreateContextOptions = {
     context?: React.Context<QueryClient<any> | undefined>;
 };
 
-export function createContext<T extends IAnyModelType>(queryClient: QueryClient<T>, options?: CreateContextOptions) {
+export function createContext<T extends IAnyModelType>(
+    queryClient: QueryClient<T>,
+    options?: CreateContextOptions,
+) {
     const ctx = options?.context ?? Context;
 
     const QueryClientProvider = ({

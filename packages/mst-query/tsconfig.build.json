@@ -2,16 +2,15 @@
     "compilerOptions": {
         "target": "ESNext",
         "module": "ESNext",
-        "jsx": "react",
+        "jsx": "react-jsx",
         "lib": ["ESNext", "dom"],
         "declaration": true,
         "skipLibCheck": true,
         "strict": true,
         "noImplicitAny": true,
         "alwaysStrict": true,
-        "moduleResolution": "node",
-        "experimentalDecorators": true,
-        "downlevelIteration": true
+        "moduleResolution": "Bundler",
+        "experimentalDecorators": true
     },
     "include": ["./src"]
 }

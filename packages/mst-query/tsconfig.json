@@ -2,7 +2,7 @@
     "compilerOptions": {
         "target": "ES2022",
         "module": "ES2022",
-        "jsx": "react",
+        "jsx": "react-jsx",
         "lib": ["ESNext", "dom"],
         "declaration": true,
         "skipLibCheck": true,
@@ -11,9 +11,9 @@
         "alwaysStrict": true,
         "moduleResolution": "Bundler",
         "experimentalDecorators": true,
-        "downlevelIteration": true,
         "esModuleInterop": true,
         "allowJs": true,
+        "types": ["node"],
     },
     "include": ["./src", "./tests"]
 }

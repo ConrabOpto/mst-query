@@ -11,7 +11,7 @@ import {
 import { isObservableArray } from 'mobx';
 import * as React from 'react';
 
-export function getRealTypeFromObject(typeDef: any, data: any, key: any) {
+export function getRealTypeFromObject(typeDef: any, data: any, key: string) {
     const modelOrBaseType = getSubType(typeDef, data);
     if (isUnionType(modelOrBaseType)) {
         // A model union may not accept the response yet because its references
@@ -80,12 +80,12 @@ export function getSubType(t: any, data?: any): any {
     }
 }
 
-function isArray(a: any) {
+function isArray(a: unknown) {
     return Array.isArray(a) || isObservableArray(a);
 }
 
-export function isObject(a: any) {
-    return a && typeof a === 'object' && !isArray(a);
+export function isObject(a: unknown) {
+    return !!a && typeof a === 'object' && !isArray(a);
 }
 
 // From https://github.com/scottrippey/react-use-event-hook
@@ -133,6 +133,6 @@ export function useEvent<TCallback extends AnyFunction>(callback: TCallback): TC
  */
 function useEvent_shouldNotBeInvokedBeforeMount() {
     throw new Error(
-        'INVALID_USEEVENT_INVOCATION: the callback from useEvent cannot be invoked before the component has mounted.'
+        'INVALID_USEEVENT_INVOCATION: the callback from useEvent cannot be invoked before the component has mounted.',
     );
 }

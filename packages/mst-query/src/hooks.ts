@@ -1,331 +1,490 @@
 'use client';
 import { equal } from '@wry/equality';
-import { Instance, SnapshotIn, isAlive, isStateTreeNode } from 'mobx-state-tree';
+import { Instance, SnapshotIn, getEnv, isAlive, isStateTreeNode } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState, type Context as ReactContext } from 'react';
+import { runInAction, when } from 'mobx';
 import {
     VolatileQuery,
     MutationReturnType,
     QueryReturnType,
     InfiniteQueryReturnType,
+    QueryMapReturnType,
+    InfiniteQueryMapReturnType,
     MutationScope,
 } from './create';
+import type { EntryOf, QueryResponse } from './QueryCollection';
 import { Context } from './context';
-import { QueryClient } from './QueryClient';
-import { CacheOptions, EmptyPagination, EmptyRequest, isVariableEqual, QueryObserver, OptimisticRevertMode } from './MstQueryHandler';
+import { QueryClient, type RefetchOnWindowFocus, type RetryOptions } from './QueryClient';
+import {
+    CacheOptions,
+    EmptyPagination,
+    EmptyRequest,
+    isVariableEqual,
+    QueryObserver,
+    OptimisticRevertMode,
+} from './MstQueryHandler';
+import { resolvePlaceholder } from './requestKey';
+import {
+    useQueryErrorResetBoundary,
+    type QueryErrorResetBoundaryValue,
+} from './QueryErrorResetBoundary';
 import { useEvent } from './utils';
 
-function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
-    return Object.assign({ queryClient }, (queryClient.config as any)[key], {
-        enabled: true,
-        ...options,
-    });
+function mergeWithDefaultOptions(options: any, queryClient: QueryClient<any>) {
+    return { queryClient, ...queryClient.config.queryOptions, enabled: true, ...options };
 }
 
 // Queries belong to the client that created them, which may not be the one in the default context
-function useOwningClient(query: any) {
+function useOwningClient(source: any) {
     const contextClient = useContext(Context);
-    return (query.__MstQueryHandler.queryClient ?? contextClient) as QueryClient<any>;
+    const owner = source.isQueryCollection
+        ? getEnv(source).queryClient
+        : source.__MstQueryHandler.queryClient;
+    return (owner ?? contextClient) as QueryClient<any>;
 }
 
+type Collection = Instance<QueryMapReturnType | InfiniteQueryMapReturnType>;
+type QuerySource =
+    Instance<QueryReturnType | InfiniteQueryReturnType> | Collection | EntryOf<Collection>;
+type Entry<T> = EntryOf<T>;
+type ResultQuery<T> = T extends Collection ? Entry<T> | undefined : T;
+type ChangedOptions<T> = {
+    prevRequest: Exclude<
+        Entry<T> extends { variables: { request: infer R } } ? R : never,
+        undefined
+    >;
+} & (Entry<T> extends { variables: { pagination: infer P } }
+    ? { prevPagination: Exclude<P, undefined> }
+    : {});
 type PlaceholderData<T> = T | SnapshotIn<T> | Record<string, unknown> | readonly unknown[];
 
-type QueryOptions<T extends Instance<QueryReturnType>> = {
-    request?: SnapshotIn<T['variables']['request']>;
+type QueryOptions<T extends QuerySource> = {
+    request?: SnapshotIn<Entry<T>['variables']['request']>;
+    /** Separate independent consumers of an otherwise identical request. */
+    scope?: string;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
+    /** Controls singleton updates; query maps always select by request identity. */
     refetchOnChanged?:
-        | 'all'
-        | 'request'
-        | 'pagination'
-        | 'none'
-        | ((options: { prevRequest: Exclude<T['variables']['request'], undefined> }) => boolean);
+        'all' | 'request' | 'pagination' | 'none' | ((options: ChangedOptions<T>) => boolean);
     staleTime?: number;
-    /** Poll at this interval in milliseconds, or return false/undefined to stop. */
-    refetchInterval?: number | false | ((query: T) => number | false | undefined);
-    /** Continue polling while the document is hidden. Defaults to false. */
+    refetchOnWindowFocus?: RefetchOnWindowFocus<Entry<T>>;
+    refetchInterval?: number | false | ((query: Entry<T>) => number | false | undefined);
     refetchIntervalInBackground?: boolean;
     enabled?: boolean;
     initialData?: any;
     initialDataUpdatedAt?: number;
     placeholderData?:
-        | PlaceholderData<T['data']>
-        | ((previousData: T['data']) => PlaceholderData<T['data']> | undefined);
-    meta?: { [key: string]: any };
-} & CacheOptions;
+        | PlaceholderData<Entry<T>['data']>
+        | ((previousData: Entry<T>['data']) => PlaceholderData<Entry<T>['data']> | undefined);
+    meta?: Record<string, any>;
+    /** Throw errors to the nearest error boundary. Defaults to false. */
+    throwOnError?: ThrowOnError<Entry<T>>;
+} & CacheOptions &
+    RetryOptions;
 
-export function useQuery<T extends Instance<QueryReturnType>>(
-    query: T,
-    options: QueryOptions<T> = {},
+export type ThrowOnError<TQuery = any> = boolean | ((error: any, query: TQuery) => boolean);
+
+function useEntry<T extends QuerySource>(
+    source: T,
+    options: QueryOptions<T> & { pagination?: any },
+    infinite: boolean,
 ) {
-    const [observer, setObserver] = useState(() => new QueryObserver(query, true));
-    const previousDataRef = useRef<{
-        queryType: T['__MstQueryHandler']['type'];
-        data: T['data'];
-    } | undefined>(undefined);
-    const placeholderRef = useRef<{
-        query: T;
-        request: QueryOptions<T>['request'];
-        data: PlaceholderData<T['data']> | undefined;
-    } | undefined>(undefined);
+    const client = useOwningClient(source);
+    const errorResetBoundary = useQueryErrorResetBoundary();
+    const suppliedCacheTime = options.cacheTime;
+    options = mergeWithDefaultOptions(options, client);
+    const collection = (source as any).isQueryCollection ? (source as Collection) : undefined;
+    const isMap = !!collection || (source as any).__MstQueryHandler?.isQueryMap;
+    if (isMap && suppliedCacheTime === undefined)
+        options.cacheTime = collection?.__cacheTime ?? client.queryMapCacheTime;
+    if (!!source.isInfinite !== infinite) {
+        throw new Error(
+            infinite
+                ? 'useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.'
+                : 'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
+        );
+    }
+    const key = collection ? collection.__getKey(options.request, options.scope) : '';
+    const query: any = collection ? collection.get(options.request, options.scope) : source;
+    if (!isMap) {
+        (options as any).request = options.request ?? EmptyRequest;
+        (options as any).pagination = options.pagination ?? EmptyPagination;
+    }
+    const [observer, setObserver] = useState<QueryObserver>();
+    const previousData = useRef<
+        { source: T; data: any; handler: QueryObserver['handler'] } | undefined
+    >(undefined);
+    const placeholder = useRef<{ source: T; key: string; request: any; data: any } | undefined>(
+        undefined,
+    );
 
-    const queryClient = useOwningClient(query);
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
+    // Creating/attaching MST entries and starting requests happens only after commit.
+    useEffect(() => {
+        const next = runInAction(() => {
+            const entry: any = collection ? collection.getOrCreate(options) : source;
+            const observer = new QueryObserver(entry, true);
+            observer.setOptions({
+                ...options,
+                request: isMap ? (entry.variables.request ?? EmptyRequest) : options.request,
+                pagination: isMap
+                    ? (entry.variables.pagination ?? EmptyPagination)
+                    : options.pagination,
+            });
+            setObserver(observer);
+            return observer;
+        });
+        return () => next.unmount();
+    }, [source, key]);
 
-    (options as any).request = options.request ?? EmptyRequest;
+    useEffect(() => {
+        // An observer unmounted by <Activity> is replaced on resume and must not resubscribe.
+        if (observer?.isMounted && observer.query === query) {
+            observer.setOptions({
+                ...options,
+                request: isMap ? (query.variables.request ?? EmptyRequest) : options.request,
+                pagination: isMap
+                    ? (query.variables.pagination ?? EmptyPagination)
+                    : options.pagination,
+            });
+        }
+    }, [observer, query, options]);
 
-    let data = query.data;
-    const queryType = query.__MstQueryHandler.type;
+    // Query-owned wrappers may die even when their referenced entities survive.
+    if (isStateTreeNode(previousData.current?.data) && !isAlive(previousData.current.data)) {
+        previousData.current = undefined;
+    }
+    if (isStateTreeNode(placeholder.current?.data) && !isAlive(placeholder.current.data)) {
+        placeholder.current = undefined;
+    }
+
+    let data = query?.data ?? null;
+    let placeholderOwner: QueryObserver['handler'] | undefined;
+    const cached = options.cacheKey
+        ? client.queryStore.getQueryData(
+              collection?.__entryType ?? query.__MstQueryHandler.type,
+              options.cacheKey,
+          )
+        : undefined;
+    const isHydrating = !query?.cachedAt && !!cached;
+    const hasInitialData = data == null && !query?.cachedAt && options.initialData != null;
     if (data != null) {
-        previousDataRef.current = { queryType, data };
-        placeholderRef.current = undefined;
-    }
-    // A query-owned wrapper can die while referenced entities remain alive.
-    // Never pass that wrapper to a callback or return it during a query switch.
-    if (
-        isStateTreeNode(previousDataRef.current?.data) &&
-        !isAlive(previousDataRef.current.data)
-    ) {
-        previousDataRef.current = undefined;
-    }
-    const lastData = previousDataRef.current;
-    const previousData =
-        data ?? (lastData && lastData.queryType === queryType ? lastData.data : null);
-    const isRequestChanged = !isVariableEqual(query.variables.request, options.request);
-    const hasCachedData =
-        options.cacheKey &&
-        observer.queryStore.getQueryData(query.__MstQueryHandler.type, options.cacheKey);
-    // Hydration runs in an effect. Do not surface the previous request's error
-    // before that effect can replace it with successful initial or cached data.
-    const isHydrating =
-        (observer.query !== query || !observer.isMounted) &&
-        !!((options.initialData && !query.cachedAt) || hasCachedData);
-    if (
+        previousData.current = { source, data, handler: query.__MstQueryHandler };
+        placeholder.current = undefined;
+    } else if (isHydrating || hasInitialData) {
+        const type = collection ? collection.__entryType : query?.__MstQueryHandler.type;
+        data = resolvePlaceholder(
+            type!.properties.data,
+            cached?.data ?? options.initialData,
+            client.rootStore,
+        );
+    } else if (
         options.enabled &&
-        data == null &&
-        (query.error == null || isRequestChanged) &&
-        !options.initialData &&
-        !hasCachedData &&
+        (!query?.error || (!isMap && !isVariableEqual(query.variables.request, options.request))) &&
         options.placeholderData !== undefined
     ) {
-        const cachedPlaceholder = placeholderRef.current;
-        const canReusePlaceholder =
-            typeof options.placeholderData === 'function' &&
-            cachedPlaceholder?.query === query &&
-            !(isStateTreeNode(cachedPlaceholder.data) && !isAlive(cachedPlaceholder.data)) &&
-            isVariableEqual(cachedPlaceholder.request, options.request);
-        const placeholderData = canReusePlaceholder
-            ? cachedPlaceholder.data
-            : typeof options.placeholderData === 'function'
-              ? (
-                    options.placeholderData as (
-                        previousData: T['data'],
-                    ) => PlaceholderData<T['data']> | undefined
-                )(previousData)
-              : options.placeholderData;
-
-        if (typeof options.placeholderData === 'function' && !canReusePlaceholder) {
-            placeholderRef.current = {
-                query,
+        if (isMap) placeholderOwner = previousData.current?.handler;
+        if (
+            placeholder.current?.source !== source ||
+            placeholder.current?.key !== key ||
+            (!isMap && !isVariableEqual(placeholder.current?.request, options.request))
+        ) {
+            const previous =
+                previousData.current?.source === source ||
+                previousData.current?.handler.type ===
+                    (collection?.__entryType ?? query.__MstQueryHandler.type)
+                    ? previousData.current?.data
+                    : null;
+            const value =
+                typeof options.placeholderData === 'function'
+                    ? (options.placeholderData as any)(previous)
+                    : options.placeholderData;
+            const type = collection ? collection.__entryType : query?.__MstQueryHandler.type;
+            placeholder.current = {
+                source,
+                key,
                 request: options.request,
-                data: placeholderData,
+                data: resolvePlaceholder(type!.properties.data, value, client.rootStore),
             };
         }
-
-        data = (placeholderData ?? null) as typeof data;
-
-        // Reuse the value resolved for this render when the observer applies it to the query.
-        // In particular, this avoids returning null first and resolving a reference placeholder
-        // only after the effect has run.
-        if (typeof options.placeholderData === 'function') {
-            options = {
-                ...options,
-                placeholderData: () => placeholderData,
-            };
+        data = placeholder.current.data ?? null;
+        if (!isMap && typeof options.placeholderData === 'function') {
+            options = { ...options, placeholderData: () => data };
         }
     }
 
-    if ((query as any).isInfinite) {
-        throw new Error(
-            'useQuery should be used with a query that does not have pagination. Use useInfiniteQuery instead.',
-        );
+    useEffect(() => placeholderOwner?.retainPlaceholder(), [placeholderOwner]);
+    useEffect(() => errorResetBoundary.clearReset(), [errorResetBoundary]);
+
+    const refetch = useEvent((params: Parameters<T['refetch']>[0] = {}) =>
+        source.refetch((isMap ? { ...options, ...params } : params) as any),
+    );
+    const error = isHydrating || hasInitialData ? null : (query?.error ?? null);
+    const throwsError =
+        !!error &&
+        !errorResetBoundary.isReset() &&
+        !!(typeof options.throwOnError === 'function'
+            ? options.throwOnError(error, query)
+            : options.throwOnError);
+    // Report the fetch the committed effect is about to start for missing data.
+    const willFetchOnMount =
+        !(observer?.isMounted && observer.query === query) &&
+        !!options.enabled &&
+        !hasInitialData &&
+        !isHydrating &&
+        query?.data == null &&
+        !query?.isPaused &&
+        !throwsError;
+    const isFetching: boolean = (query?.isFetching ?? false) || willFetchOnMount;
+    const status: 'pending' | 'error' | 'success' = error
+        ? 'error'
+        : data != null
+          ? 'success'
+          : 'pending';
+    if (throwsError && !isFetching) {
+        throw error;
     }
-
-    useEffect(() => {
-        if (observer.query !== query) {
-            setObserver(new QueryObserver(query, true));
-        }
-    }, [query]);
-
-    useEffect(() => {
-        if (observer.query === query) {
-            observer.setOptions(options);
-        }
-    }, [observer, query, options]);
-
-    useEffect(() => {
-        return () => {
-            observer.unmount();
-        };
-    }, [observer]);
-
     return {
-        data: data as (typeof query)['data'],
-        dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
-        error: isHydrating ? null : query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        query: query,
-        refetch: query.refetch,
-        isStale: query.__MstQueryHandler.isStale(options),
-        isFetchedAfterMount: observer.isFetchedAfterMount,
+        data: data as Entry<T>['data'],
+        dataUpdatedAt: query?.__MstQueryHandler.cachedAt?.getTime(),
+        error,
+        status,
+        fetchStatus: (query?.isPaused
+            ? 'paused'
+            : isFetching
+              ? 'fetching'
+              : 'idle') as 'fetching' | 'paused' | 'idle',
+        /** True while a retry waits for the tab to become visible again. */
+        isPaused: (query?.isPaused ?? false) as boolean,
+        /** True until the query has data or an error. */
+        isPending: status === 'pending',
+        /** True while the first request for data runs. */
+        isLoading: status === 'pending' && isFetching,
+        /** True while any request runs, including background refetches. */
+        isFetching,
+        /** True while a request runs for a query that already has data or an error. */
+        isRefetching: isFetching && status !== 'pending' && !query?.isFetchingMore,
+        isSuccess: status === 'success',
+        isError: status === 'error',
+        /** The query failed and has no data to show. */
+        isLoadingError: !!error && query.data == null,
+        /** The query failed but still has data from an earlier fetch. */
+        isRefetchError: !!error && query.data != null,
+        failureCount: (query?.failureCount ?? 0) as number,
+        failureReason: query?.failureReason ?? null,
+        isFetched: query?.isFetched ?? false,
+        query: query as ResultQuery<T>,
+        refetch: isMap ? refetch : (query.refetch as T['refetch']),
+        isStale: query?.__MstQueryHandler.isStale(options) ?? false,
+        isFetchedAfterMount: (observer?.query === query && observer?.isFetchedAfterMount) || false,
     };
 }
 
-type InfiniteQueryOptions<T extends Instance<InfiniteQueryReturnType>> = {
-    request?: SnapshotIn<T['variables']['request']>;
-    pagination?: SnapshotIn<T['variables']['pagination']>;
-    refetchOnMount?: 'always' | 'never' | 'if-stale';
-    refetchOnChanged?:
-        | 'all'
-        | 'request'
-        | 'pagination'
-        | 'none'
-        | ((options: {
-              prevRequest: Exclude<T['variables']['request'], undefined>;
-              prevPagination: Exclude<T['variables']['pagination'], undefined>;
-          }) => boolean);
-    staleTime?: number;
-    enabled?: boolean;
-    initialData?: any;
-    initialDataUpdatedAt?: number;
-    meta?: { [key: string]: any };
+export function useQuery<T extends QuerySource>(source: T, options: QueryOptions<T> = {}) {
+    return useEntry(source, options, false);
+}
+
+type InfiniteQueryOptions<T extends QuerySource> = QueryOptions<T> & {
+    /** Initializes maps once; singleton queries also react to pagination changes. */
+    pagination?: Entry<T> extends { variables: { pagination: infer P } } ? SnapshotIn<P> : never;
 };
 
-export function useInfiniteQuery<T extends Instance<InfiniteQueryReturnType>>(
-    query: T,
+export function useInfiniteQuery<T extends QuerySource>(
+    source: T,
     options: InfiniteQueryOptions<T> = {},
 ) {
-    const [observer, setObserver] = useState(() => new QueryObserver(query, true));
-
-    const queryClient = useOwningClient(query);
-    options = mergeWithDefaultOptions('queryOptions', options, queryClient);
-
-    (options as any).request = options.request ?? EmptyRequest;
-    (options as any).pagination = options.pagination ?? EmptyPagination;
-
-    if (!(query as any).isInfinite) {
-        throw new Error(
-            'useInfiniteQuery should be used with a query that has pagination. Use useQuery instead.',
-        );
-    }
-
-    useEffect(() => {
-        if (observer.query !== query) {
-            setObserver(new QueryObserver(query, true));
-        }
-    }, [query]);
-
-    useEffect(() => {
-        if (observer.query === query) {
-            observer.setOptions(options);
-        }
-    }, [observer, query, options]);
-
-    useEffect(() => {
-        return () => {
-            observer.unmount();
-        };
-    }, [observer]);
-
-    return {
-        data: query.data as (typeof query)['data'],
-        dataUpdatedAt: query.__MstQueryHandler.cachedAt?.getTime(),
-        error: query.error,
-        isFetched: query.isFetched,
-        isLoading: query.isLoading,
-        isRefetching: query.isRefetching,
-        isFetchingMore: query.isFetchingMore,
-        query: query,
-        refetch: query.refetch,
-        isStale: query.__MstQueryHandler.isStale(options),
-        isFetchedAfterMount: observer.isFetchedAfterMount,
-    };
+    const queryMore = useEvent(
+        (
+            params: {
+                pagination?: InfiniteQueryOptions<T>['pagination'];
+                meta?: Record<string, any>;
+            } = {},
+        ) =>
+            (source as any).queryMore({
+                request: options.request,
+                scope: options.scope,
+                meta: options.meta,
+                ...params,
+            }) as Promise<QueryResponse<Entry<T>>>,
+    );
+    const result = useEntry(source, options, true);
+    return { ...result, isFetchingMore: (result.query as any)?.isFetchingMore ?? false, queryMore };
 }
 
-// Avoids refetching right after a suspended component mounts
-const MIN_SUSPENSE_STALE_TIME = 1000;
+// Avoids refetching, or evicting a map entry, right after a suspended component mounts
+const MIN_SUSPENSE_TIME = 1000;
 
-type SuspenseQueryOptions<T extends Instance<QueryReturnType>> = Omit<
-    QueryOptions<T>,
+type SuspenseSource =
+    | Instance<QueryReturnType>
+    | Instance<QueryMapReturnType>
+    | EntryOf<Instance<QueryMapReturnType>>;
+
+type SuspenseInfiniteSource =
+    | Instance<InfiniteQueryReturnType>
+    | Instance<InfiniteQueryMapReturnType>
+    | EntryOf<Instance<InfiniteQueryMapReturnType>>;
+
+type SuspenseOmittedOptions =
     | 'enabled'
     | 'initialData'
     | 'initialDataUpdatedAt'
     | 'placeholderData'
     | 'cacheKey'
     | 'cacheTime'
+    | 'throwOnError';
+
+type SuspenseQueryOptions<T extends SuspenseSource> = Omit<QueryOptions<T>, SuspenseOmittedOptions>;
+
+type SuspenseInfiniteQueryOptions<T extends SuspenseInfiniteSource> = Omit<
+    InfiniteQueryOptions<T>,
+    SuspenseOmittedOptions
 >;
 
-export function useSuspenseQuery<T extends Instance<QueryReturnType>>(
-    query: T,
+type WithSuspenseData<TResult, T extends QuerySource> = TResult & {
+    data: NonNullable<Entry<T>['data']>;
+    query: Entry<T>;
+};
+
+export function useSuspenseQuery<T extends SuspenseSource>(
+    source: T,
     options: SuspenseQueryOptions<T> = {},
 ) {
-    const queryClient = useOwningClient(query);
+    return useSuspenseEntry(source, options, false) as WithSuspenseData<
+        ReturnType<typeof useQuery<T>>,
+        T
+    >;
+}
+
+export function useSuspenseInfiniteQuery<T extends SuspenseInfiniteSource>(
+    source: T,
+    options: SuspenseInfiniteQueryOptions<T> = {},
+) {
+    return useSuspenseEntry(source, options, true) as WithSuspenseData<
+        ReturnType<typeof useInfiniteQuery<T>>,
+        T
+    >;
+}
+
+function useSuspenseEntry(source: any, options: any, infinite: boolean) {
+    const queryClient = useOwningClient(source);
+    const errorResetBoundary = useQueryErrorResetBoundary();
     const staleTime = Math.max(
         options.staleTime ?? queryClient.config.queryOptions?.staleTime ?? 0,
-        MIN_SUSPENSE_STALE_TIME,
+        MIN_SUSPENSE_TIME,
     );
-    const result = useQuery(query, { ...options, staleTime });
+    const collection = source.isQueryCollection ? source : undefined;
+    const map = collection ?? source.__MstQueryHandler.collection;
+    const cacheTime = map
+        ? Math.max(map.__cacheTime ?? queryClient.queryMapCacheTime, MIN_SUSPENSE_TIME)
+        : undefined;
+    const hookOptions = {
+        ...options,
+        staleTime,
+        // Suspense throws only errors without data to show, below.
+        throwOnError: false,
+        ...(cacheTime === undefined ? {} : { cacheTime }),
+    };
+    // `infinite` is fixed per call site, so the hook order doesn't change.
+    const result: any = infinite
+        ? useInfiniteQuery(source, hookOptions)
+        : useQuery(source, hookOptions);
 
-    const handler = query.__MstQueryHandler;
-    const isRequestEqual = isVariableEqual(query.variables.request, options.request);
+    const query: any = collection ? collection.get(options.request, options.scope) : source;
+    const isRequestEqual =
+        !!query && (!!map || isVariableEqual(query.variables.request, options.request));
     if (isRequestEqual) {
         if (query.data != null) {
-            return result as typeof result & { data: NonNullable<T['data']> };
+            return result;
         }
-        if (handler.isLoading) {
-            throw handler.promise;
+        if (query.__MstQueryHandler.isLoading && query.__MstQueryHandler.promise) {
+            throw untilData(query, query.__MstQueryHandler.promise);
         }
-        if (query.error) {
+        if (query.error && !errorResetBoundary.isReset()) {
             throw query.error;
         }
     }
 
-    throw suspendQuery(query, options.request, options.meta);
+    throw suspendQuery(source, { ...options, cacheTime }, errorResetBoundary);
 }
 
-const pendingSuspensions = new WeakMap<object, { request: any; promise: Promise<void> }>();
+const pendingSuspensions = new WeakMap<
+    object,
+    Map<string, { request: any; promise: Promise<void> }>
+>();
 
-function suspendQuery(query: Instance<QueryReturnType>, request: any, meta: any) {
-    const handler = query.__MstQueryHandler;
-    const pending = pendingSuspensions.get(handler);
-    if (pending && equal(pending.request, request)) {
-        return pending.promise;
+function suspendQuery(
+    source: any,
+    options: any,
+    errorResetBoundary: QueryErrorResetBoundaryValue,
+) {
+    const { request, scope, pagination, meta, cacheTime } = options;
+    const collection = source.isQueryCollection ? source : undefined;
+    const owner = collection ?? source.__MstQueryHandler;
+    // A map can suspend on several entries at once; a singleton has one slot.
+    const slot = collection ? collection.__getKey(request, scope) : '';
+    let pending = pendingSuspensions.get(owner);
+    if (!pending) {
+        pending = new Map();
+        pendingSuspensions.set(owner, pending);
+    }
+    const current = pending.get(slot);
+    if (current && (collection || equal(current.request, request))) {
+        return current.promise;
     }
 
     // Start outside render, so components observing the query aren't updated while rendering
     const entry = { request, promise: undefined as unknown as Promise<void> };
     entry.promise = Promise.resolve()
         .then(() => {
-            if (!isVariableEqual(query.variables.request, request)) {
-                query.setData(null);
+            let query = source;
+            let fetch: Promise<unknown>;
+            if (collection) {
+                fetch = collection.query({ request, scope, pagination, meta, cacheTime });
+                query = collection.get(request, scope);
+            } else if (source.__MstQueryHandler.isQueryMap) {
+                fetch = source.query({ meta, cacheTime });
+            } else {
+                if (!isVariableEqual(source.variables.request, request)) {
+                    source.setData(null);
+                }
+                source.query({ request, pagination, meta });
+                fetch = source.__MstQueryHandler.promise;
             }
-            query.query({ request, meta } as any);
-            return handler.promise;
+            return untilData(query, fetch).then(() => {
+                // A failed retry is thrown again rather than retried in a loop.
+                if (query.error) errorResetBoundary.clearReset();
+            });
         })
         .finally(() => {
-            if (pendingSuspensions.get(handler) === entry) {
-                pendingSuspensions.delete(handler);
+            if (pending.get(slot) === entry) {
+                pending.delete(slot);
             }
         });
-    pendingSuspensions.set(handler, entry);
+    pending.set(slot, entry);
     return entry.promise;
 }
+
+const dataPromises = new WeakMap<Promise<unknown>, Promise<void>>();
+
+// Like the fetch, but also settles once data is set while it's in flight, e.g. by setData
+function untilData(query: any, fetch: Promise<unknown>) {
+    let promise = dataPromises.get(fetch);
+    if (!promise) {
+        const hasData = when(() => !isAlive(query) || query.data != null);
+        promise = Promise.race([fetch, hasData])
+            .then(noop, noop)
+            .finally(() => hasData.cancel());
+        dataPromises.set(fetch, promise);
+    }
+    return promise;
+}
+
+const noop = () => {};
 
 type MutationOptions<T extends Instance<MutationReturnType>> = {
     onMutate?: (data: T['data'], self: T) => void;
     meta?: { [key: string]: any };
     scope?: MutationScope;
-};
+} & RetryOptions;
 
 export function useMutation<T extends Instance<MutationReturnType>>(
     mutation: T,
@@ -357,17 +516,26 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     const result = {
         data: mutation.data as (typeof mutation)['data'],
         error: mutation.error,
-        isLoading: mutation.isLoading,
+        status: mutation.status,
+        isIdle: mutation.isIdle,
+        isPending: mutation.isPending,
+        isPaused: mutation.isPaused,
+        isSuccess: mutation.isSuccess,
+        isError: mutation.isError,
+        failureCount: mutation.failureCount,
+        failureReason: mutation.failureReason,
         mutation,
     };
 
     const mutate = useEvent(
-        <TResult = any>(params: {
-            request: SnapshotIn<T['variables']['request']>;
-            optimisticUpdate?: () => void;
-            revert?: OptimisticRevertMode;
-            scope?: MutationScope;
-        }) => {
+        <TResult = any>(
+            params: {
+                request: SnapshotIn<T['variables']['request']>;
+                optimisticUpdate?: () => void;
+                revert?: OptimisticRevertMode;
+                scope?: MutationScope;
+            } & RetryOptions,
+        ) => {
             // Merge options but allow params to override (including scope)
             const result = mutation.mutate({ ...options, ...params } as any);
             return result as Promise<{ data: T['data']; error: any; result: TResult }>;
@@ -377,12 +545,12 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     return [mutate, result] as [typeof mutate, typeof result];
 }
 
-function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
+function useRefQuery<T extends QueryReturnType>(query: T, queryClient: QueryClient<any>) {
     const q = useRef<Instance<T>>(undefined);
     if (!q.current) {
-        (q.current as any) = query.create(undefined, queryClient.config.env);
+        q.current = query.create(undefined, queryClient.config.env) as Instance<T>;
     }
-    return q.current!;
+    return q.current;
 }
 
 type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions<T> & {
@@ -393,12 +561,12 @@ export function createUseVolatileQuery(context: ReactContext<QueryClient<any> | 
     return function useVolatileQuery(
         options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {},
     ) {
-        const queryClient = useContext(context)! as QueryClient<any>;
+        const queryClient = useContext(context)!;
         const query = useRefQuery(VolatileQuery, queryClient);
 
-        if (!query.__MstQueryHandler.options.endpoint) {
-            query.__MstQueryHandler.options.endpoint = options.endpoint as any;
-        }
+        useEffect(() => {
+            query.__MstQueryHandler.options.endpoint = options.endpoint;
+        }, [query, options.endpoint]);
 
         return useQuery(query, options);
     };

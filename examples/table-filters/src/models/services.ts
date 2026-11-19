@@ -17,8 +17,8 @@ export const InvoiceService = types
     .views((self) => ({
         get isMutating() {
             return (
-                self.saveInvoiceFilterMutation.isLoading ||
-                self.removeInvoiceFilterMutation.isLoading
+                self.saveInvoiceFilterMutation.isPending ||
+                self.removeInvoiceFilterMutation.isPending
             );
         },
     }))

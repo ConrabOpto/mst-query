@@ -5,13 +5,24 @@ import {
     isAlive,
     getType,
     isArrayType,
+    isMapType,
     getIdentifier,
     IAnyComplexType,
     IAnyStateTreeNode,
     getParent,
     hasParent,
+    onSnapshot,
+    onPatch,
+    addDisposer,
+    getRoot,
 } from 'mobx-state-tree';
-import { observable, action, makeObservable } from 'mobx';
+import { observable, action, makeObservable, runInAction, type IObservableArray } from 'mobx';
+import { type EntryOf, getQueryMapEntryType } from './QueryCollection';
+import type { QueryClient } from './QueryClient';
+
+const entryTypeOf = (type: IAnyComplexType): IAnyComplexType => {
+    return getQueryMapEntryType(type as IAnyModelType) ?? type;
+};
 
 export const getKey = (type: IAnyComplexType, id: string | number) => {
     return `${type.name}:${id}`;
@@ -20,29 +31,46 @@ export const getKey = (type: IAnyComplexType, id: string | number) => {
 type QueryCacheEntry = {
     cachedAt: number;
     data: any;
-    timeout: ReturnType<typeof setTimeout>;
+    timeout?: ReturnType<typeof setTimeout>;
+    roots: Set<string>;
+    dispose?: () => void;
 };
 
+type QueryNode = Instance<IAnyModelType>;
+
 export class QueryStore {
-    #scheduledGc = null as null | ReturnType<typeof setTimeout>;
-    #queryClient: any;
-    #queryData = new Map() as Map<string, QueryCacheEntry>;
-    #cache = new Map() as Map<string, any>;
+    #scheduledGc: ReturnType<typeof setTimeout> | undefined;
+    #gcInterval: number;
+    #collecting = false;
+    #rootDisposer?: () => void;
+    #disposed = false;
+    #queryClient: QueryClient<any>;
+    #queryData = new Map<string, QueryCacheEntry>();
+    #cache = observable.map<string, IObservableArray<QueryNode>>(undefined, { deep: false });
 
-    models = new Map() as Map<string, any>;
+    models = new Map<string, QueryNode>();
 
-    constructor(queryClient: any) {
+    constructor(queryClient: QueryClient<any>) {
         makeObservable(this, {
             setQuery: action,
             removeQuery: action,
             clear: action,
+            dispose: action,
         });
 
         this.#queryClient = queryClient;
+        this.#gcInterval = queryClient.config.gcInterval!;
+    }
+
+    /** @internal Start automatic collection once the client's root has been created. */
+    observeRoot(root: IAnyStateTreeNode) {
+        this.#rootDisposer = onPatch(root, () => this.#requestGc());
+        addDisposer(root, () => this.dispose());
+        if (this.models.size) this.#requestGc();
     }
 
     getQueryData(type: IAnyComplexType, key: string) {
-        return this.#queryData.get(getKey(type, key));
+        return this.#queryData.get(getKey(entryTypeOf(type), key));
     }
 
     setQueryData(
@@ -51,55 +79,79 @@ export class QueryStore {
         model: Instance<IAnyModelType>,
         cacheTime: number = 0,
     ) {
-        const existingEntry = this.#queryData.get(getKey(type, key));
-        if (existingEntry) {
-            clearTimeout(existingEntry.timeout);
-        }
+        this.removeQueryData(type, key);
 
-        const cacheEntry = {
+        const cacheEntry: QueryCacheEntry = {
             cachedAt: Date.now(),
             data: model.data,
-            timeout: setTimeout(() => {
-                this.removeQueryData(type, key);
-            }, cacheTime),
+            roots: new Set(),
+            timeout:
+                cacheTime === Infinity
+                    ? undefined
+                    : setTimeout(() => {
+                          this.removeQueryData(type, key);
+                      }, cacheTime),
         };
+        const data = cacheEntry.data;
+        if (isStateTreeNode(data) && isAlive(data)) {
+            const updateRoots = () => {
+                if (!isAlive(data)) return;
+                const roots = new Set<string>();
+                // Stop at managed models: GC follows their current references,
+                // rather than pinning obsolete transitive targets in the cache.
+                collectSeenIdentifiers(data, roots, new Set(), (node) => {
+                    const id = getIdentifier(node);
+                    if (id == null) return false;
+                    const modelKey = getKey(getType(node), id);
+                    if (this.models.get(modelKey) !== node) return false;
+                    roots.add(modelKey);
+                    return true;
+                });
+                cacheEntry.roots = roots;
+            };
+            updateRoots();
+            cacheEntry.dispose = onSnapshot(data, updateRoots);
+        }
         this.#queryData.set(getKey(type, key), cacheEntry);
     }
 
     removeQueryData(type: IAnyComplexType, key: string) {
-        this.#queryData.delete(getKey(type, key));
+        const cacheKey = getKey(entryTypeOf(type), key);
+        const entry = this.#queryData.get(cacheKey);
+        if (entry) {
+            if (entry.timeout !== undefined) clearTimeout(entry.timeout);
+            entry.dispose?.();
+            this.#queryData.delete(cacheKey);
+            this.#requestGc();
+        }
     }
 
     getQueries<T extends IAnyModelType>(
         queryDef: T,
-        matcherFn: (query: Instance<T>) => boolean = () => true,
-    ): Instance<T>[] {
-        let results = [];
-        const arr = this.#cache.get(queryDef.name) ?? [];
-        for (let query of arr) {
-            if (getType(query) === queryDef && matcherFn(query)) {
+        matcherFn: (query: EntryOf<Instance<T>>) => boolean = () => true,
+    ): EntryOf<Instance<T>>[] {
+        const results: EntryOf<Instance<T>>[] = [];
+        const entryType = entryTypeOf(queryDef);
+        for (const query of this.#cache.get(entryType.name) ?? []) {
+            if (getType(query) === entryType && matcherFn(query)) {
                 results.push(query);
             }
         }
         return results;
     }
 
-    getAllQueries(): any[] {
-        const results = [];
-        for (const [, arr] of this.#cache) {
-            results.push(...arr);
-        }
-        return results;
+    getAllQueries(): QueryNode[] {
+        return [...this.#cache.values()].flat();
     }
 
     hasPendingMutations(node: IAnyStateTreeNode) {
-        for (const [, queries] of this.#cache) {
+        for (const queries of this.#cache.values()) {
             for (const query of queries) {
-                if (!query.isMutation || !query.isLoading) {
+                if (!query.isMutation || !query.isPending) {
                     continue;
                 }
 
-                let currentNode = query;
+                let currentNode: IAnyStateTreeNode = query;
                 while (true) {
                     if (currentNode === node) {
                         return true;
@@ -115,100 +167,181 @@ export class QueryStore {
         return false;
     }
 
-    setQuery(q: any) {
-        const type = getType(q);
-        let arr = this.#cache.get(type.name);
-        if (!arr) {
-            arr = observable.array([], { deep: false });
-            this.#cache.set(type.name, arr);
+    get isMutating() {
+        for (const queries of this.#cache.values()) {
+            if (queries.some((query) => query.isMutation && query.isPending)) {
+                return true;
+            }
         }
-        arr.push(q);
+        return false;
     }
 
-    removeQuery(query: any) {
+    setQuery(query: QueryNode) {
+        const type = getType(query);
+        let arr = this.#cache.get(type.name);
+        if (!arr) {
+            arr = observable.array<QueryNode>([], { deep: false });
+            this.#cache.set(type.name, arr);
+        }
+        arr.push(query);
+    }
+
+    removeQuery(query: QueryNode) {
         const type = getType(query);
         this.#cache.get(type.name)?.remove(query);
+        this.#requestGc();
     }
 
     clear() {
-        for (let [, obj] of this.models) {
-            this.#queryClient.rootStore.__MstQueryAction(
-                'delete',
-                getType(obj),
-                getIdentifier(obj),
-                obj,
-            );
+        this.#cancelGc();
+        this.#clearQueryData();
+        this.#collecting = true;
+        try {
+            for (const obj of this.models.values()) {
+                this.#queryClient.rootStore.__MstQueryAction(
+                    'delete',
+                    getType(obj),
+                    getIdentifier(obj),
+                    obj,
+                );
+            }
+            this.models.clear();
+            this.#cache.clear();
+        } finally {
+            this.#collecting = false;
         }
-
-        this.models.clear();
-        this.#cache.clear();
     }
 
-    runGc() {
-        if (this.#scheduledGc) {
+    dispose() {
+        if (this.#disposed) return;
+        this.#disposed = true;
+        this.#rootDisposer?.();
+        this.#rootDisposer = undefined;
+        this.#cancelGc();
+        this.#clearQueryData();
+    }
+
+    #cancelGc() {
+        if (this.#scheduledGc !== undefined) clearTimeout(this.#scheduledGc);
+        this.#scheduledGc = undefined;
+    }
+
+    #clearQueryData() {
+        for (const entry of this.#queryData.values()) {
+            if (entry.timeout !== undefined) clearTimeout(entry.timeout);
+            entry.dispose?.();
+        }
+        this.#queryData.clear();
+    }
+
+    #hasLoadingQueries() {
+        for (const queries of this.#cache.values()) {
+            if (
+                queries.some(
+                    (query) =>
+                        isAlive(query) &&
+                        getRoot(query) === this.#queryClient.rootStore &&
+                        (query.__MstQueryHandler.isLoading || query.isFetchingMore),
+                )
+            )
+                return true;
+        }
+        return false;
+    }
+
+    #requestGc() {
+        if (!this.#collecting) this.#scheduleGc(this.#gcInterval);
+    }
+
+    #scheduleGc(delay: number) {
+        if (this.#disposed || this.#gcInterval === Infinity || this.#scheduledGc !== undefined)
+            return;
+        // The first change fixes the deadline; later changes join the same batch.
+        this.#scheduledGc = setTimeout(() => {
+            this.#scheduledGc = undefined;
+            runInAction(() => this.#runGc());
+        }, delay);
+    }
+
+    #runGc() {
+        if (this.#disposed || !this.models.size) return;
+        if (this.#hasLoadingQueries()) {
+            this.#scheduleGc(1000);
             return;
         }
-
-        const seenIdentifiers = new Set();
-        for (let [_, arr] of this.#cache) {
-            for (let query of arr) {
-                if (query.isLoading) {
-                    this.#scheduledGc = setTimeout(() => {
-                        this.#scheduledGc = null;
-                        this.runGc();
-                    }, 1000);
-
-                    return;
+        this.#collecting = true;
+        try {
+            const seenIdentifiers = new Set<string>();
+            const visited = new Set<IAnyStateTreeNode>();
+            const rootStore = this.#queryClient.rootStore;
+            const modelStores = rootStore.__getModelStores();
+            // Read the live registry: walking a service can initialize a lazy store.
+            const skipModelStore = (node: IAnyStateTreeNode) => {
+                for (const store of modelStores.values()) {
+                    if (isAlive(store) && store.models === node) return true;
                 }
-
-                collectSeenIdentifiers(query.data, seenIdentifiers);
-                collectSeenIdentifiers(query.request, seenIdentifiers);
-
-                for (let [_, queryData] of this.#queryData) {
-                    collectSeenIdentifiers(queryData.data, seenIdentifiers);
+                return false;
+            };
+            const mark = (node: unknown) =>
+                collectSeenIdentifiers(node, seenIdentifiers, visited, skipModelStore);
+            mark(rootStore);
+            for (const entry of this.#queryData.values()) {
+                if (isStateTreeNode(entry.data) && !isAlive(entry.data)) {
+                    for (const key of entry.roots) mark(this.models.get(key));
+                } else {
+                    mark(entry.data);
                 }
             }
-        }
-
-        for (let [key, obj] of this.models) {
-            const identifier = getIdentifier(obj) as string | number;
-            if (!seenIdentifiers.has(getKey(getType(obj), identifier))) {
-                this.models.delete(getKey(getType(obj), getIdentifier(obj) as string));
-                this.#queryClient.rootStore.__MstQueryAction('delete', getType(obj), key, obj);
+            // Root traversal can instantiate queries with afterCreate behavior.
+            if (this.#hasLoadingQueries()) {
+                this.#scheduleGc(1000);
+                return;
             }
+
+            for (const [key, obj] of [...this.models]) {
+                if (this.models.get(key) !== obj) continue;
+                if (!isAlive(obj)) {
+                    this.models.delete(key);
+                    continue;
+                }
+                const identifier = getIdentifier(obj) as string | number;
+                if (!seenIdentifiers.has(getKey(getType(obj), identifier))) {
+                    this.models.delete(key);
+                    rootStore.__MstQueryAction('delete', getType(obj), identifier, obj);
+                }
+            }
+        } finally {
+            this.#collecting = false;
         }
     }
 }
 
-export function collectSeenIdentifiers(node: any, seenIdentifiers: any) {
-    if (!isStateTreeNode(node)) {
-        return;
-    }
-    if (!isAlive(node)) {
-        return;
-    }
-    if (!node || node instanceof Date || typeof node !== 'object') {
-        return;
-    }
-    const n = node as any;
-    const t = getType(node) as any;
-    if (isArrayType(t)) {
-        n.forEach((n: any) => collectSeenIdentifiers(n, seenIdentifiers));
-        return;
-    }
-
-    const nodeIdentifier = getIdentifier(n);
-    if (nodeIdentifier) {
-        const identifier = getKey(t, nodeIdentifier);
-
-        if (seenIdentifiers.has(identifier)) {
-            return;
-        } else {
-            seenIdentifiers.add(identifier);
+export function collectSeenIdentifiers(
+    node: unknown,
+    seenIdentifiers: Set<string>,
+    visited = new Set<IAnyStateTreeNode>(),
+    skip?: (node: IAnyStateTreeNode) => boolean,
+) {
+    const pending: unknown[] = [node];
+    while (pending.length) {
+        const current = pending.pop();
+        if (
+            !isStateTreeNode(current) ||
+            !isAlive(current) ||
+            visited.has(current) ||
+            skip?.(current)
+        ) {
+            continue;
         }
-    }
-
-    for (const key in t.properties) {
-        collectSeenIdentifiers(n[key], seenIdentifiers);
+        visited.add(current);
+        const n = current as any;
+        const type = getType(current);
+        if (isArrayType(type) || isMapType(type)) {
+            n.forEach((child: unknown) => pending.push(child));
+            continue;
+        }
+        const identifier = getIdentifier(current);
+        if (identifier != null) seenIdentifiers.add(getKey(type, identifier));
+        for (const key in (type as IAnyModelType).properties) pending.push(n[key]);
     }
 }

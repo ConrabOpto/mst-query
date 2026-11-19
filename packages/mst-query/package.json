@@ -1,6 +1,6 @@
 {
     "name": "mst-query",
-    "version": "4.13.0-alpha.2",
+    "version": "5.0.0",
     "description": "Query library for mobx-state-tree",
     "source": "src/index.ts",
     "type": "module",
@@ -18,7 +18,8 @@
         }
     },
     "scripts": {
-        "build": "tsup",
+        "build": "tsdown",
+        "typecheck": "tsc --noEmit",
         "watch": "vitest",
         "test": "vitest run",
         "test:build": "publint --strict && attw --pack"
@@ -34,32 +35,32 @@
     ],
     "devDependencies": {
         "@arethetypeswrong/cli": "^0.18.5",
-        "@testing-library/react": "16.3.0",
+        "@testing-library/react": "16.3.3",
         "@types/node": "^22.20.5",
         "@types/react": "19.3.0",
         "@types/react-dom": "^19.3.0",
-        "jsdom": "26.1.0",
-        "mobx": "^7.1.5",
-        "mobx-react": "^10.0.3",
-        "mobx-state-tree": "^9.0.1",
-        "prettier": "3.6.2",
+        "jsdom": "31.0.0",
+        "mobx": "7.1.5",
+        "mobx-react": "10.0.3",
+        "mobx-state-tree": "9.0.1",
+        "prettier": "3.9.10",
         "publint": "^0.3.25",
         "react": "19.3.1",
         "react-dom": "19.3.1",
-        "tsup": "8.5.0",
-        "typescript": "5.8.3",
-        "vitest": "3.2.4"
+        "tsdown": "0.23.5",
+        "typescript": "7.0.2",
+        "vitest": "5.1.0"
     },
     "peerDependencies": {
-        "mobx": ">=6.0.0 <8.0.0",
-        "mobx-state-tree": ">=5.0.0 <10.0.0",
-        "react": ">=18.0.0 <20.0.0",
-        "react-dom": ">=18.0.0 <20.0.0"
+        "mobx": ">=7.0.0 <8.0.0",
+        "mobx-state-tree": ">=9.0.0 <10.0.0",
+        "react": ">=19.0.0 <20.0.0",
+        "react-dom": ">=19.0.0 <20.0.0"
     },
     "dependencies": {
         "@wry/equality": "0.5.7"
     },
     "volta": {
-        "node": "22.17.0"
+        "node": "24.22.2"
     }
 }

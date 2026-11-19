@@ -46,7 +46,7 @@ export const InvoiceList = observer(() => {
     const [offset, setOffset] = useState(0);
     const [previewId, setPreviewId] = useState<string | undefined>();
 
-    const { data, isLoading, isFetchingMore, isRefetching, refetch } = useInfiniteQuery(
+    const { data, isFetching, isFetchingMore, isRefetching, refetch } = useInfiniteQuery(
         invoiceService.invoiceListQuery,
         {
             request: { id: companyId! },
@@ -98,7 +98,7 @@ export const InvoiceList = observer(() => {
 
     const reset = () => {
         setOffset(0);
-        refetch({ request: { id: companyId }, pagination: { offset: 0 } });
+        if (companyId) void refetch({ request: { id: companyId }, pagination: { offset: 0 } });
     };
 
     if (!data || !selectedFilter) {
@@ -136,13 +136,10 @@ export const InvoiceList = observer(() => {
                 </button>
                 <button onClick={() => reset()}>Refetch</button>
                 <button onClick={() => loadMore()}>Load more</button>
-                <button
-                    onClick={() =>
-                        rootStore.runGc()
-                    }>{`GC: ${invoiceStore.models.size} invoices in store`}</button>
+                <span>{`${invoiceStore.models.size} invoices in store`}</span>
             </div>
             <div>
-                <div>isLoading:{`${isLoading}`}</div>
+                <div>isFetching:{`${isFetching}`}</div>
                 <div>isRefetching:{`${isRefetching}`}</div>
                 <div>isFetchingMore:{`${isFetchingMore}`}</div>
             </div>
