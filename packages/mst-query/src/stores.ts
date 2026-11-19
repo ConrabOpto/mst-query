@@ -9,6 +9,7 @@ import {
 } from 'mobx-state-tree';
 import { merge } from './merge';
 import type { EntryOf } from './QueryCollection';
+import type { QueryClient } from './QueryClient';
 
 type MstQueryAction = 'get' | 'put' | 'delete';
 
@@ -48,8 +49,8 @@ export const createModelStore = <T extends IAnyModelType>(name: string, type: T)
 
 export const createRootStore = <T extends ModelPropertiesDeclaration>(props: T) => {
     return types.model('RootStore', props).extend((self) => {
-        const queryClient = getEnv(self).queryClient as any;
-        const modelStores = new Map();
+        const queryClient: QueryClient<any> = getEnv(self).queryClient;
+        const modelStores = new Map<string, any>();
 
         // nodes are lazily created on property access, we need to
         // loop over them to setup our model store map

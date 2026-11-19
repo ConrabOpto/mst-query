@@ -30,11 +30,8 @@ import {
 } from './QueryErrorResetBoundary';
 import { useEvent } from './utils';
 
-function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
-    return Object.assign({ queryClient }, (queryClient.config as any)[key], {
-        enabled: true,
-        ...options,
-    });
+function mergeWithDefaultOptions(options: any, queryClient: QueryClient<any>) {
+    return { queryClient, ...queryClient.config.queryOptions, enabled: true, ...options };
 }
 
 // Queries belong to the client that created them, which may not be the one in the default context
@@ -95,7 +92,7 @@ function useEntry<T extends QuerySource>(
     const client = useOwningClient(source);
     const errorResetBoundary = useQueryErrorResetBoundary();
     const suppliedCacheTime = options.cacheTime;
-    options = mergeWithDefaultOptions('queryOptions', options, client);
+    options = mergeWithDefaultOptions(options, client);
     const collection = (source as any).isQueryCollection ? (source as Collection) : undefined;
     const isMap = !!collection || (source as any).__MstQueryHandler?.isQueryMap;
     if (isMap && suppliedCacheTime === undefined)
@@ -548,12 +545,12 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     return [mutate, result] as [typeof mutate, typeof result];
 }
 
-function useRefQuery<T extends QueryReturnType>(query: T, queryClient: any) {
+function useRefQuery<T extends QueryReturnType>(query: T, queryClient: QueryClient<any>) {
     const q = useRef<Instance<T>>(undefined);
     if (!q.current) {
-        (q.current as any) = query.create(undefined, queryClient.config.env);
+        q.current = query.create(undefined, queryClient.config.env) as Instance<T>;
     }
-    return q.current!;
+    return q.current;
 }
 
 type UseVolatileQueryOptions<T extends Instance<QueryReturnType>> = QueryOptions<T> & {
@@ -564,11 +561,11 @@ export function createUseVolatileQuery(context: ReactContext<QueryClient<any> | 
     return function useVolatileQuery(
         options: UseVolatileQueryOptions<Instance<typeof VolatileQuery>> = {},
     ) {
-        const queryClient = useContext(context)! as QueryClient<any>;
+        const queryClient = useContext(context)!;
         const query = useRefQuery(VolatileQuery, queryClient);
 
         useEffect(() => {
-            query.__MstQueryHandler.options.endpoint = options.endpoint as any;
+            query.__MstQueryHandler.options.endpoint = options.endpoint;
         }, [query, options.endpoint]);
 
         return useQuery(query, options);

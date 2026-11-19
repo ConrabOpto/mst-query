@@ -15,6 +15,7 @@ import {
     getRoot,
     getSnapshot,
     getType,
+    IAnyModelType,
     Instance,
     IPatchRecorder,
     isReferenceType,
@@ -37,7 +38,7 @@ type QueryHookOptions = {
     staleTime?: number;
     pagination?: any;
     enabled?: boolean;
-    isMounted?: any;
+    isMounted?: boolean;
     isRequestEqual?: boolean;
     isReenabled?: boolean;
     isPaginationChanged?: boolean;
@@ -45,9 +46,7 @@ type QueryHookOptions = {
     refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
 };
 
-type NotifyOptions = {
-    onMutate?: boolean;
-};
+type QueryResult = { data: any; error: any; result: any };
 
 export type CacheOptions = {
     cacheTime?: number;
@@ -398,33 +397,26 @@ export class QueryObserver {
     }
 }
 
-function subscribe(target: any, options: any) {
-    const observer = new QueryObserver(target, false);
-    observer.setOptions(options);
-    observer.subscribe();
-    addDisposer(target, () => {
-        observer.unsubscribe();
-    });
-}
-
 export function onMutate<T extends Instance<MutationReturnType>>(
     target: T,
     callback: (data: T['data'], self: T) => void,
 ) {
-    subscribe(target, {
-        onMutate: (data: any, self: any) => {
+    const observer = new QueryObserver(target, false);
+    // setOptions subscribes the observer
+    observer.setOptions({
+        onMutate: (data: T['data'], self: T) => {
             const root = getRoot(self);
             unprotect(root);
             callback(data, self);
             protect(root);
         },
     });
+    addDisposer(target, () => observer.unsubscribe());
 }
 
 export class MstQueryHandler {
     private isQueryLoading = false;
     private pendingMutationCount = 0;
-    isRefetching = false;
     isFetchingMore = false;
     pendingQueryMoreCount = 0;
     isFetched = false;
@@ -433,10 +425,10 @@ export class MstQueryHandler {
     failureReason: any = null;
     /** A retry is waiting for the document to become visible. */
     isPaused = false;
-    queryObservers = [] as any[];
+    queryObservers: QueryObserver[] = [];
 
     options: {
-        endpoint: EndpointType;
+        endpoint?: EndpointType;
         onQueryMore?: (options: any) => void;
         meta?: { [key: string]: any };
         scope?: MutationScope;
@@ -445,7 +437,7 @@ export class MstQueryHandler {
 
     previousVariables: any;
     model: any;
-    type: any;
+    type: IAnyModelType;
     queryClient!: QueryClient<any>;
 
     abortController?: AbortController;
@@ -479,7 +471,7 @@ export class MstQueryHandler {
 
     constructor(model: any, options?: any) {
         this.model = model;
-        this.type = getType(model) as any;
+        this.type = getType(model) as IAnyModelType;
 
         this.options = options ?? {};
         this.queryClient = getEnv(this.model).queryClient;
@@ -491,7 +483,6 @@ export class MstQueryHandler {
             isQueryLoading: observable,
             pendingMutationCount: observable,
             isLoading: computed,
-            isRefetching: observable,
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
@@ -504,7 +495,6 @@ export class MstQueryHandler {
             markedAsStale: observable,
             hydrate: action,
             setData: action,
-            setError: action,
             run: action,
             query: action,
             prefetch: action,
@@ -675,21 +665,17 @@ export class MstQueryHandler {
         const existing = this.executions.get(key);
         if (existing) return existing;
         const version = this.requestVersion;
+        const empty = () => ({ data: null, error: null, result: null, query: this.model });
         const start = () => {
             if (this.isDisposed || version !== this.requestVersion)
-                return Promise.resolve({
-                    data: null,
-                    error: null,
-                    result: null,
-                    query: this.model,
-                });
+                return Promise.resolve(empty());
             const response = this[method](options);
             const controller = this.abortController;
             if (controller) this.controllers.add(controller);
             return response
                 .then((next) =>
                     this.isDisposed
-                        ? { data: null, error: null, result: null, query: this.model }
+                        ? empty()
                         : this.model.__MstQueryHandlerAction(() => ({
                               ...next(),
                               query: this.model,
@@ -710,7 +696,6 @@ export class MstQueryHandler {
             execution = preceding ? preceding.then(start, start) : start();
         } catch (error) {
             this.isQueryLoading = false;
-            this.isRefetching = false;
             this.scheduleEviction();
             return Promise.reject(error);
         }
@@ -874,7 +859,7 @@ export class MstQueryHandler {
         }
     }
 
-    query = (options: any = {}): Promise<() => any> => {
+    query = (options: any = {}): Promise<() => QueryResult> => {
         return this.handleResponse(this.run(options), options);
     };
 
@@ -903,7 +888,7 @@ export class MstQueryHandler {
         return this.applyResponse(this.handleResponse(this.run(options, () => response), options));
     };
 
-    private applyResponse(response: Promise<() => any>) {
+    private applyResponse(response: Promise<() => QueryResult>) {
         return response.then((next) => this.model.__MstQueryHandlerAction(next));
     }
 
@@ -916,7 +901,7 @@ export class MstQueryHandler {
         if (!this.model.isMutation && !options.isQueryMore) {
             this.promise = new Promise<void>((resolve) => (settle = resolve));
         }
-        const settleAfter = (next: () => any) => () => {
+        const settleAfter = (next: () => QueryResult) => () => {
             try {
                 return next();
             } finally {
@@ -945,7 +930,7 @@ export class MstQueryHandler {
         this.pendingMutationCount = Math.max(0, this.pendingMutationCount - 1);
     }
 
-    mutate = (options: any = {}): Promise<() => any> => {
+    mutate = (options: any = {}): Promise<() => QueryResult> => {
         const { optimisticUpdate, scope, revert = 'revert-all' } = options;
         let updateRecorder: IPatchRecorder;
         let result: any;
@@ -955,8 +940,7 @@ export class MstQueryHandler {
             updateRecorder.stop();
         }
         if (result) {
-            const data = this.prepareData(result);
-            this.notify({ onMutate: true }, data, this.model);
+            this.notifyMutate(this.prepareData(result));
         }
 
         const executeMutation = () => {
@@ -992,7 +976,7 @@ export class MstQueryHandler {
         return executeMutation();
     };
 
-    queryMore = (options: any = {}): Promise<() => any> => {
+    queryMore = (options: any = {}): Promise<() => QueryResult> => {
         // Two sources of truth for the current page would load pages twice.
         if (!this.isQueryMap) {
             const source = options.isPaginationOption ? 'option' : 'queryMore';
@@ -1021,19 +1005,12 @@ export class MstQueryHandler {
         }
     };
 
-    refetch = (options: any = {}): Promise<() => any> => {
-        this.isRefetching = true;
-
+    refetch = (options: any = {}): Promise<() => QueryResult> => {
         options.request = options.request ?? this.model.variables.request;
         options.pagination = options.pagination ?? this.model.variables.pagination;
         options.meta = options.meta ?? this.options.meta;
 
-        try {
-            return this.handleResponse(this.run(options), options);
-        } catch (error) {
-            this.isRefetching = false;
-            throw error;
-        }
+        return this.handleResponse(this.run(options), options);
     };
 
     invalidate() {
@@ -1050,7 +1027,7 @@ export class MstQueryHandler {
 
     onSuccess(result: any, options: OnResponseOptions = {}) {
         const { shouldUpdate = true, updateRecorder, revert = 'revert-all' } = options;
-        return (): { data: any; error: any; result: any } => {
+        return (): QueryResult => {
             if (updateRecorder && revert === 'revert-all') {
                 updateRecorder.undo();
             }
@@ -1086,41 +1063,24 @@ export class MstQueryHandler {
                 this.markedAsStale = false;
             }
 
-            let data;
-            if (shouldUpdate) {
-                data = this.setData(result, options);
-            } else {
-                data = this.prepareData(result);
-            }
+            const data = shouldUpdate ? this.setData(result, options) : this.prepareData(result);
             this.cachedAt = new Date();
-
-            if (this.error) {
-                this.error = null;
-            }
+            this.error = null;
             this.failureCount = 0;
             this.failureReason = null;
-
-            if (this.isLoading) {
-                this.isQueryLoading = false;
-            }
-
-            if (this.isRefetching) {
-                this.isRefetching = false;
-            }
+            this.isQueryLoading = false;
 
             if (options.isQueryMore) {
                 this.notifyQueryMore(data, options);
             }
 
-            if (!this.isFetched) {
-                this.isFetched = true;
-            }
+            this.isFetched = true;
             this.queryObservers.forEach((observer) => {
                 observer.isFetchedAfterMount = true;
             });
 
             if (this.model.isMutation) {
-                this.notify({ onMutate: true }, data, this.model);
+                this.notifyMutate(data);
             }
 
             return { data, error: null, result };
@@ -1129,7 +1089,7 @@ export class MstQueryHandler {
 
     onError(err: any, options: OnResponseOptions = {}) {
         const { shouldUpdate = true, updateRecorder, revert = 'revert-all' } = options;
-        return (): { data: any; error: any; result: any } => {
+        return (): QueryResult => {
             if (updateRecorder && (revert === 'revert-all' || revert === 'revert-on-error')) {
                 updateRecorder.undo();
             }
@@ -1141,15 +1101,7 @@ export class MstQueryHandler {
                 this.finishQueryMore();
             }
 
-            if (this.isDisposed) {
-                return { data: null, error: null, result: null };
-            }
-
-            if (err instanceof DisposedError) {
-                return { data: null, error: null, result: null };
-            }
-
-            if (err?.name === 'AbortError') {
+            if (this.isDisposed || err instanceof DisposedError || err?.name === 'AbortError') {
                 return { data: null, error: null, result: null };
             }
 
@@ -1170,14 +1122,7 @@ export class MstQueryHandler {
             }
 
             this.error = err;
-
-            if (this.isLoading) {
-                this.isQueryLoading = false;
-            }
-
-            if (this.isRefetching) {
-                this.isRefetching = false;
-            }
+            this.isQueryLoading = false;
 
             return { data: null, error: err, result: null };
         };
@@ -1214,7 +1159,7 @@ export class MstQueryHandler {
         }
     }
 
-    removeQueryObserver(queryObserver: any) {
+    removeQueryObserver(queryObserver: QueryObserver) {
         this.queryObservers = this.queryObservers.filter((observer) => observer !== queryObserver);
         if (!this.queryObservers.some((observer) => observer.isQuery)) {
             this.paginationSource = undefined;
@@ -1222,11 +1167,9 @@ export class MstQueryHandler {
         this.scheduleEviction();
     }
 
-    notify(notifyOptions: NotifyOptions, ...args: any[]) {
-        for (let observer of this.queryObservers) {
-            for (let key of Object.keys(notifyOptions)) {
-                observer.options[key]?.(...args);
-            }
+    private notifyMutate(data: any) {
+        for (const observer of this.queryObservers) {
+            observer.options.onMutate?.(data, this.model);
         }
     }
 
@@ -1239,7 +1182,6 @@ export class MstQueryHandler {
         this.abortController?.abort();
         this.abortController = undefined;
         this.isQueryLoading = false;
-        this.isRefetching = false;
         this.pendingQueryMoreCount = 0;
         this.isFetchingMore = false;
 
@@ -1247,10 +1189,6 @@ export class MstQueryHandler {
             this.revertVariables();
         }
         this.scheduleEviction();
-    };
-
-    setError = (error: any) => {
-        this.error = error;
     };
 
     setVariables(variables: any) {
@@ -1288,8 +1226,6 @@ export class MstQueryHandler {
     }
 
     setData = (data: any, options: CacheOptions = {}) => {
-        const opts = options ?? this.options;
-
         this.dataRequestVersion = this.requestVersion;
         this.model.__MstQueryHandlerAction(() => {
             if (isStateTreeNode(data)) {
@@ -1306,12 +1242,12 @@ export class MstQueryHandler {
                 );
             }
 
-            if (opts.cacheKey && this.model.data) {
+            if (options.cacheKey && this.model.data) {
                 this.queryClient.queryStore.setQueryData(
                     this.type,
-                    opts.cacheKey,
+                    options.cacheKey,
                     this.model,
-                    opts.cacheTime,
+                    options.cacheTime,
                 );
             }
         });
@@ -1362,7 +1298,7 @@ export class MstQueryHandler {
     };
 }
 
-export const defaultRetryDelay = (failureCount: number) =>
+const defaultRetryDelay = (failureCount: number) =>
     Math.min(1000 * 2 ** failureCount, 30_000);
 
 // Resolves early when aborted, so an aborted retry doesn't wait out its delay

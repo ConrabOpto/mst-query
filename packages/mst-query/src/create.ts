@@ -144,7 +144,51 @@ function queryViews(handler: MstQueryHandler) {
         get failureReason() {
             return handler.failureReason;
         },
+        get cachedAt() {
+            return handler.cachedAt;
+        },
     };
+}
+
+type HandlerNode = { __MstQueryHandler: MstQueryHandler; meta: { [key: string]: any } };
+
+// Actions shared by query, infinite query and mutation nodes
+function baseActions(self: HandlerNode) {
+    return {
+        __MstQueryHandlerAction(action: () => any) {
+            return action();
+        },
+        setMeta(key: string, value: any) {
+            self.meta[key] = value;
+        },
+        abort: self.__MstQueryHandler.abort,
+    };
+}
+
+function queryActions(self: HandlerNode) {
+    return {
+        ...baseActions(self),
+        invalidate() {
+            self.__MstQueryHandler.invalidate();
+        },
+        setData(data: any, options?: CacheOptions) {
+            return self.__MstQueryHandler.setData(data, options);
+        },
+    };
+}
+
+// Map entries share one execution per request, singletons apply their response directly
+function queryFlow(
+    self: HandlerNode,
+    method: 'query' | 'refetch' | 'queryMore',
+    isMapEntry: boolean,
+) {
+    return flow(function* (options: any) {
+        const handler = self.__MstQueryHandler;
+        if (isMapEntry) return yield handler.executeQuery(method, options);
+        const next = yield handler[method](options);
+        return next();
+    });
 }
 
 export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
@@ -225,43 +269,17 @@ function createQueryEntry<TData extends IAnyType, TRequest extends IAnyType>(
             isMutation: false,
         }))
         .views((self) => queryViews(self.__MstQueryHandler))
-        .views((self) => ({
-            get cachedAt() {
-                return self.__MstQueryHandler.cachedAt;
-            },
-        }))
-        .actions((self) => ({
-            __MstQueryHandlerAction(action: any) {
-                return action();
-            },
-            query: flow(function* (options: any) {
-                if (isMapEntry) return yield self.__MstQueryHandler.executeQuery('query', options);
-                const next = yield self.__MstQueryHandler.query(options);
-                return next();
-            }) as QueryReturn<
+        .actions((self) => {
+            type Run = QueryReturn<
                 (typeof self)['data'],
                 SnapshotIn<(typeof self)['variables']['request']>
-            >,
-            refetch: flow(function* (options: any) {
-                if (isMapEntry)
-                    return yield self.__MstQueryHandler.executeQuery('refetch', options);
-                const next = yield self.__MstQueryHandler.refetch(options);
-                return next();
-            }) as QueryReturn<
-                (typeof self)['data'],
-                SnapshotIn<(typeof self)['variables']['request']>
-            >,
-            invalidate() {
-                self.__MstQueryHandler.invalidate();
-            },
-            setData(data: any, options?: CacheOptions) {
-                return self.__MstQueryHandler.setData(data, options);
-            },
-            setMeta(key: string, value: any) {
-                self.meta[key] = value;
-            },
-            abort: self.__MstQueryHandler.abort,
-        }));
+            >;
+            return {
+                ...queryActions(self),
+                query: queryFlow(self, 'query', isMapEntry) as Run,
+                refetch: queryFlow(self, 'refetch', isMapEntry) as Run,
+            };
+        });
 }
 
 function createInfiniteQueryEntry<
@@ -303,54 +321,20 @@ function createInfiniteQueryEntry<
             get isFetchingMore() {
                 return self.__MstQueryHandler.isFetchingMore;
             },
-            get cachedAt() {
-                return self.__MstQueryHandler.cachedAt;
-            },
         }))
-        .actions((self) => ({
-            __MstQueryHandlerAction(action: any) {
-                return action();
-            },
-            query: flow(function* (options: any) {
-                if (isMapEntry) return yield self.__MstQueryHandler.executeQuery('query', options);
-                const next = yield self.__MstQueryHandler.query(options);
-                return next();
-            }) as QueryReturn<
+        .actions((self) => {
+            type Run = QueryReturn<
                 (typeof self)['data'],
                 SnapshotIn<(typeof self)['variables']['request']>,
                 SnapshotIn<(typeof self)['variables']['pagination']>
-            >,
-            queryMore: flow(function* (options: any) {
-                if (isMapEntry)
-                    return yield self.__MstQueryHandler.executeQuery('queryMore', options);
-                const next = yield self.__MstQueryHandler.queryMore(options);
-                return next();
-            }) as QueryReturn<
-                (typeof self)['data'],
-                SnapshotIn<(typeof self)['variables']['request']>,
-                SnapshotIn<(typeof self)['variables']['pagination']>
-            >,
-            refetch: flow(function* (options: any) {
-                if (isMapEntry)
-                    return yield self.__MstQueryHandler.executeQuery('refetch', options);
-                const next = yield self.__MstQueryHandler.refetch(options);
-                return next();
-            }) as QueryReturn<
-                (typeof self)['data'],
-                SnapshotIn<(typeof self)['variables']['request']>,
-                SnapshotIn<(typeof self)['variables']['pagination']>
-            >,
-            invalidate() {
-                self.__MstQueryHandler.invalidate();
-            },
-            setData(data: any) {
-                return self.__MstQueryHandler.setData(data);
-            },
-            setMeta(key: string, value: any) {
-                self.meta[key] = value;
-            },
-            abort: self.__MstQueryHandler.abort,
-        }));
+            >;
+            return {
+                ...queryActions(self),
+                query: queryFlow(self, 'query', isMapEntry) as Run,
+                queryMore: queryFlow(self, 'queryMore', isMapEntry) as Run,
+                refetch: queryFlow(self, 'refetch', isMapEntry) as Run,
+            };
+        });
 }
 
 export function createMutation<TData extends IAnyType, TRequest extends IAnyType>(
@@ -377,7 +361,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             __MstQueryHandler: new MstQueryHandler(self, { endpoint, scope }),
             meta: {} as { [key: string]: any },
             isQuery: false,
-            isInfinte: false,
+            isInfinite: false,
             isMutation: true,
         }))
         .views((self) => ({
@@ -411,9 +395,7 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             },
         }))
         .actions((self) => ({
-            __MstQueryHandlerAction(action: any) {
-                return action();
-            },
+            ...baseActions(self),
             mutate: flow(function* (options: any) {
                 const handler = self.__MstQueryHandler;
                 handler.startMutation();
@@ -432,10 +414,6 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                     scope?: MutationScope;
                 } & RetryOptions,
             ) => Promise<ReturnData<Instance<TData>, TResult>>,
-            abort: self.__MstQueryHandler.abort,
-            setMeta(key: string, value: any) {
-                self.meta[key] = value;
-            },
         }));
 }
 

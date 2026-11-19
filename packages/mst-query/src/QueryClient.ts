@@ -117,7 +117,6 @@ export class QueryClient<T extends IAnyModelType> {
     /** @internal Default retention for map entries; singleton response caches default to zero. */
     readonly queryMapCacheTime: number;
     #initialized = false;
-    #initialData = {} as any;
     #mutationScopes = new Map<string, Promise<any>>();
 
     constructor(config: QueryClientConfig<T>) {
@@ -156,7 +155,7 @@ export class QueryClient<T extends IAnyModelType> {
         return this.queryStore?.isMutating ?? false;
     }
 
-    init(initialData: any = {}, env = {}) {
+    init(initialData?: SnapshotIn<T>, env: Record<string, any> = {}) {
         if (this.#initialized) {
             return this;
         }
@@ -177,7 +176,7 @@ export class QueryClient<T extends IAnyModelType> {
         this.queryStore.dispose();
         destroy(this.rootStore);
         this.queryStore = new QueryStore(this);
-        this.rootStore = this.config.RootStore.create(this.#initialData, this.config.env);
+        this.rootStore = this.config.RootStore.create({}, this.config.env);
         this.queryStore.observeRoot(this.rootStore);
     }
 

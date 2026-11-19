@@ -16,8 +16,9 @@ import {
     addDisposer,
     getRoot,
 } from 'mobx-state-tree';
-import { observable, action, makeObservable, runInAction } from 'mobx';
+import { observable, action, makeObservable, runInAction, type IObservableArray } from 'mobx';
 import { type EntryOf, getQueryMapEntryType } from './QueryCollection';
+import type { QueryClient } from './QueryClient';
 
 const entryTypeOf = (type: IAnyComplexType): IAnyComplexType => {
     return getQueryMapEntryType(type as IAnyModelType) ?? type;
@@ -35,19 +36,21 @@ type QueryCacheEntry = {
     dispose?: () => void;
 };
 
+type QueryNode = Instance<IAnyModelType>;
+
 export class QueryStore {
     #scheduledGc: ReturnType<typeof setTimeout> | undefined;
     #gcInterval: number;
     #collecting = false;
     #rootDisposer?: () => void;
     #disposed = false;
-    #queryClient: any;
-    #queryData = new Map() as Map<string, QueryCacheEntry>;
-    #cache = observable.map<string, any>(undefined, { deep: false });
+    #queryClient: QueryClient<any>;
+    #queryData = new Map<string, QueryCacheEntry>();
+    #cache = observable.map<string, IObservableArray<QueryNode>>(undefined, { deep: false });
 
-    models = new Map() as Map<string, any>;
+    models = new Map<string, QueryNode>();
 
-    constructor(queryClient: any) {
+    constructor(queryClient: QueryClient<any>) {
         makeObservable(this, {
             setQuery: action,
             removeQuery: action,
@@ -56,7 +59,7 @@ export class QueryStore {
         });
 
         this.#queryClient = queryClient;
-        this.#gcInterval = queryClient.config.gcInterval;
+        this.#gcInterval = queryClient.config.gcInterval!;
     }
 
     /** @internal Start automatic collection once the client's root has been created. */
@@ -127,10 +130,9 @@ export class QueryStore {
         queryDef: T,
         matcherFn: (query: EntryOf<Instance<T>>) => boolean = () => true,
     ): EntryOf<Instance<T>>[] {
-        let results = [];
+        const results: EntryOf<Instance<T>>[] = [];
         const entryType = entryTypeOf(queryDef);
-        const arr = this.#cache.get(entryType.name) ?? [];
-        for (let query of arr) {
+        for (const query of this.#cache.get(entryType.name) ?? []) {
             if (getType(query) === entryType && matcherFn(query)) {
                 results.push(query);
             }
@@ -138,22 +140,18 @@ export class QueryStore {
         return results;
     }
 
-    getAllQueries(): any[] {
-        const results = [];
-        for (const [, arr] of this.#cache) {
-            results.push(...arr);
-        }
-        return results;
+    getAllQueries(): QueryNode[] {
+        return [...this.#cache.values()].flat();
     }
 
     hasPendingMutations(node: IAnyStateTreeNode) {
-        for (const [, queries] of this.#cache) {
+        for (const queries of this.#cache.values()) {
             for (const query of queries) {
                 if (!query.isMutation || !query.isPending) {
                     continue;
                 }
 
-                let currentNode = query;
+                let currentNode: IAnyStateTreeNode = query;
                 while (true) {
                     if (currentNode === node) {
                         return true;
@@ -171,28 +169,24 @@ export class QueryStore {
 
     get isMutating() {
         for (const queries of this.#cache.values()) {
-            if (
-                queries.some(
-                    (query: Instance<IAnyModelType>) => query.isMutation && query.isPending,
-                )
-            ) {
+            if (queries.some((query) => query.isMutation && query.isPending)) {
                 return true;
             }
         }
         return false;
     }
 
-    setQuery(q: any) {
-        const type = getType(q);
+    setQuery(query: QueryNode) {
+        const type = getType(query);
         let arr = this.#cache.get(type.name);
         if (!arr) {
-            arr = observable.array([], { deep: false });
+            arr = observable.array<QueryNode>([], { deep: false });
             this.#cache.set(type.name, arr);
         }
-        arr.push(q);
+        arr.push(query);
     }
 
-    removeQuery(query: any) {
+    removeQuery(query: QueryNode) {
         const type = getType(query);
         this.#cache.get(type.name)?.remove(query);
         this.#requestGc();
@@ -203,7 +197,7 @@ export class QueryStore {
         this.#clearQueryData();
         this.#collecting = true;
         try {
-            for (let [, obj] of this.models) {
+            for (const obj of this.models.values()) {
                 this.#queryClient.rootStore.__MstQueryAction(
                     'delete',
                     getType(obj),
@@ -244,7 +238,7 @@ export class QueryStore {
         for (const queries of this.#cache.values()) {
             if (
                 queries.some(
-                    (query: IAnyStateTreeNode) =>
+                    (query) =>
                         isAlive(query) &&
                         getRoot(query) === this.#queryClient.rootStore &&
                         (query.__MstQueryHandler.isLoading || query.isFetchingMore),
