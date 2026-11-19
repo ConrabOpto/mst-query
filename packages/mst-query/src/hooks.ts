@@ -228,7 +228,7 @@ function useEntry<T extends QuerySource>(
         !!(typeof options.throwOnError === 'function'
             ? options.throwOnError(error, query)
             : options.throwOnError);
-    // Like React Query, report the fetch the committed effect is about to start for missing data.
+    // Report the fetch the committed effect is about to start for missing data.
     const willFetchOnMount =
         !(observer?.isMounted && observer.query === query) &&
         !!options.enabled &&

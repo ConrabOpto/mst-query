@@ -17,9 +17,9 @@ Version 5 also includes everything added after 4.12: server components and strea
 
 ## Breaking changes
 
-### Status flags match React Query
+### Status flags renamed
 
-`isLoading` used to be true for any running request. Like React Query, it now only means the first
+`isLoading` used to be true for any running request. It now only means the first
 request is running (`isPending && isFetching`), and `isFetching` covers every request:
 
 | 4.x | 5.0 |
@@ -38,7 +38,7 @@ mutations. See [Status](README.md#status).
 
 ### Queries retry failed requests
 
-Like React Query, a failed query is now retried 3 times in the browser, after 1, 2 and 4 seconds,
+A failed query is now retried 3 times in the browser, after 1, 2 and 4 seconds,
 before `error` is set. Queries don't retry on the server, and mutations still don't retry. While
 the tab is hidden, retries wait until it's visible again. Errors
 therefore show up about 7 seconds later than in 4.x. To keep the 4.x behavior:
@@ -51,7 +51,7 @@ Tests that assert on query errors usually want `retry: false` too. See [Retries]
 
 ### Failed fetches keep their data
 
-In 4.x, a failed fetch set `query.data` to `null`. Like React Query, a failed fetch now keeps the
+In 4.x, a failed fetch set `query.data` to `null`. A failed fetch now keeps the
 data from the last successful fetch of the same request. `error` is still set, and two new hook
 result flags tell the cases apart:
 

@@ -544,7 +544,7 @@ export class MstQueryHandler {
         this.isPaused = isPaused;
     }
 
-    // Like React Query, retries wait while the tab is hidden instead of running in the background.
+    // Retries wait while the tab is hidden instead of running in the background.
     private whenVisible(signal: AbortSignal) {
         if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
             return Promise.resolve();
@@ -573,7 +573,7 @@ export class MstQueryHandler {
                 options.retry ??
                 observer?.options.retry ??
                 defaults?.retry ??
-                // Like React Query, queries retry 3 times in the browser and mutations never.
+                // Queries retry 3 times in the browser and mutations never.
                 (isMutation || typeof window === 'undefined' ? 0 : 3),
             retryDelay:
                 options.retryDelay ??
@@ -1160,7 +1160,7 @@ export class MstQueryHandler {
                 return { data: null, error: err, result: null };
             }
 
-            // Like React Query, a failed fetch keeps data from the same request.
+            // A failed fetch keeps data from the same request.
             // Mutations, placeholders and data from a previous request are cleared.
             if (
                 shouldUpdate &&

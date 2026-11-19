@@ -91,7 +91,7 @@ type QueryReturn<TData = any, TRequest = any, TPagination = any> = <TResult = an
     options?: QueryOptions<TRequest, TPagination>,
 ) => Promise<ReturnData<Instance<TData>, TResult>>;
 
-// Status flags named and defined like React Query's query results
+// Status flags shared by query and infinite query nodes
 function queryViews(handler: MstQueryHandler) {
     return {
         get status() {

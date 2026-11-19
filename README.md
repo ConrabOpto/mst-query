@@ -58,6 +58,7 @@ const MesssageView = observer((props) => {
 
 # Documentation
 
+The API follows [TanStack Query](https://tanstack.com/query) (React Query) where it fits mobx-state-tree.
 Upgrading from version 4? See the [migration notes](MIGRATION.md).
 
 ## Installation
@@ -192,7 +193,7 @@ when multiple hooks need to coordinate requests through the same store property.
 
 ### Status
 
-Hook results and query nodes use the same status fields as React Query:
+Hook results and query nodes have these status fields:
 
 | Field | Meaning |
 | --- | --- |
@@ -214,7 +215,7 @@ Mutations have `status` (`'idle'`, `'pending'`, `'success'` or `'error'`), `isId
 
 ### Retries
 
-Like React Query, a failed query is retried 3 times in the browser before its `error` is set,
+A failed query is retried 3 times in the browser before its `error` is set,
 waiting 1, 2 and 4 seconds (doubling up to 30 seconds). Queries don't retry on the server, and
 mutations don't retry by default. While retrying, the query keeps fetching and `failureCount` and
 `failureReason` describe the failed attempts.
@@ -242,7 +243,7 @@ visible again; meanwhile `isPaused` is true, `fetchStatus` is `'paused'`, and `i
 
 ### Errors
 
-Like React Query, a failed fetch keeps the data from the last successful fetch of the same
+A failed fetch keeps the data from the last successful fetch of the same
 request, so a failed background refetch doesn't remove what's on screen. `error` is set either
 way, and two flags tell the cases apart:
 

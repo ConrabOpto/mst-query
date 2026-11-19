@@ -253,7 +253,7 @@ test('mutations do not retry unless configured', async () => {
     expect(endpoint).toHaveBeenCalledTimes(2);
 });
 
-test('useQuery reports pending, success, background fetching and errors like React Query', async () => {
+test('useQuery reports pending, success, background fetching and errors', async () => {
     const { root, render } = setup({ queryOptions: { retry: false } });
     const states: any[] = [];
     let result: any;
