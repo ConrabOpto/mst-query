@@ -62,7 +62,7 @@ const Posts: React.FC<any> = observer((props) => {
     const { setSelectedPost } = props;
     const { postStore } = useRootStore();
 
-    const { data, error, isLoading } = useQuery(postStore.postsQuery);
+    const { data, error, isFetching } = useQuery(postStore.postsQuery);
 
     return (
         <div>
@@ -99,7 +99,7 @@ const Posts: React.FC<any> = observer((props) => {
                                 </p>
                             ))}
                         </div>
-                        <div>{data && isLoading ? 'Background Updating...' : ' '}</div>
+                        <div>{data && isFetching ? 'Background Updating...' : ' '}</div>
                     </>
                 )}
             </div>
@@ -111,7 +111,7 @@ const Post: React.FC<any> = observer((props) => {
     const { post, setSelectedPost } = props;
     const { postStore } = useRootStore();
 
-    const { data, isLoading, error } = useQuery(postStore.postQuery, {
+    const { data, isFetching, error } = useQuery(postStore.postQuery, {
         request: { id: post.id },
         enabled: !!post
     });
@@ -133,7 +133,7 @@ const Post: React.FC<any> = observer((props) => {
                     <div>
                         <p>{data.body}</p>
                     </div>
-                    <div>{isLoading ? 'Background Updating...' : ' '}</div>
+                    <div>{isFetching ? 'Background Updating...' : ' '}</div>
                 </>
             )}
         </div>

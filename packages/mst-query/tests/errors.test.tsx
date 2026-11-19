@@ -41,7 +41,11 @@ afterEach(() => {
 });
 
 const setup = (queryOptions: any = {}) => {
-    const client = new QueryClient({ RootStore: Root, gcInterval: Infinity, queryOptions }).init();
+    const client = new QueryClient({
+        RootStore: Root,
+        gcInterval: Infinity,
+        queryOptions: { retry: false, ...queryOptions },
+    }).init();
     cleanups.push(() => {
         if (isAlive(client.rootStore)) destroy(client.rootStore);
     });

@@ -153,9 +153,12 @@ const MesssageView = observer((props) => {
     const {
         data,
         error,
+        status,
+        isPending,
         isLoading,
-        isFetched,
+        isFetching,
         isRefetching,
+        isFetched,
         query,
         refetch,
         dataUpdatedAt,
@@ -178,7 +181,7 @@ const MesssageView = observer((props) => {
 Mount only one `useQuery` or `useInfiniteQuery` hook per query instance. A second hook throws,
 even when the requests match, `request` is omitted, or `enabled` is false. The hook coordinates
 the query's fetching and updates; other `observer` components can read `query.data`,
-`query.isLoading`, and `query.error` directly through MobX reactivity. Use separate query
+`query.isFetching`, and `query.error` directly through MobX reactivity. Use separate query
 instances when components need independent control. After the hook unmounts, another hook
 can take over the same instance.
 
@@ -186,6 +189,56 @@ can take over the same instance.
 `query.error`, loading flags, mutable requests, and requestless `query.refetch()` are preserved.
 Their snapshots remain `{ data, variables }`. Use `createQueryMap` or `createInfiniteQueryMap`
 when multiple hooks need to coordinate requests through the same store property.
+
+### Status
+
+Hook results and query nodes use the same status fields as React Query:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `'pending'` until there is data or an error, then `'success'` or `'error'` |
+| `isPending` | `status === 'pending'` |
+| `isSuccess` / `isError` | `status === 'success'` / `status === 'error'` |
+| `isFetching` | a request is running, including background refetches and `queryMore` |
+| `fetchStatus` | `'fetching'`, `'paused'` or `'idle'` |
+| `isPaused` | a retry is waiting for the tab to become visible, see [Retries](#retries) |
+| `isLoading` | the first request is running: `isPending && isFetching` |
+| `isRefetching` | a request is running for a query that has data or an error, not counting `queryMore` |
+| `failureCount` / `failureReason` | failed attempts of the current request, see [Retries](#retries) |
+
+Use `isLoading` (or `isPending`) for a first-load spinner, and `isFetching` for a background
+indicator. Infinite queries also have `isFetchingMore`.
+
+Mutations have `status` (`'idle'`, `'pending'`, `'success'` or `'error'`), `isIdle`,
+`isPending`, `isPaused`, `isSuccess`, `isError`, `failureCount` and `failureReason`.
+
+### Retries
+
+Like React Query, a failed query is retried 3 times in the browser before its `error` is set,
+waiting 1, 2 and 4 seconds (doubling up to 30 seconds). Queries don't retry on the server, and
+mutations don't retry by default. While retrying, the query keeps fetching and `failureCount` and
+`failureReason` describe the failed attempts.
+
+```tsx
+useQuery(messageStore.messageQuery, {
+    request: { id },
+    retry: 1, // false, a number, or (failureCount, error) => boolean
+    retryDelay: 500, // or (failureCount, error) => milliseconds
+});
+
+const queryClient = new QueryClient({
+    RootStore,
+    queryOptions: { retry: (failureCount, error) => error.status !== 404 && failureCount < 2 },
+    mutationOptions: { retry: 1 },
+});
+```
+
+`retry` and `retryDelay` can also be passed to `useMutation` and `mutate`. Aborting a query, or
+starting a newer request for it, stops its retries.
+
+Retries don't run while the tab is hidden. A retry that comes due then waits until the tab is
+visible again; meanwhile `isPaused` is true, `fetchStatus` is `'paused'`, and `isFetching` and
+`isLoading` are false. Mutations have `isPaused` too.
 
 ### Errors
 
@@ -553,13 +606,13 @@ import { AddMessageMutation } from './AddMessageMutation';
 const AddMessage = observer((props) => {
     const { messageStore } = props;
     const [message, setMessage] = useState('');
-    const [addMessage, { isLoading }] = useMutation(messageStore.addMessageMutation);
+    const [addMessage, { isPending }] = useMutation(messageStore.addMessageMutation);
     return (
         <div>
             <textarea value={message} onChange={(ev) => setMessage(ev.target.value)} />
             <button
                 type="button"
-                disabled={!message.length || isLoading}
+                disabled={!message.length || isPending}
                 onClick={() => {
                     addMessage({
                         request: { message },
@@ -581,7 +634,7 @@ const AddMessage = observer((props) => {
 
 ### Global mutation indicator
 
-Each mutation's `isLoading` stays true until all of its calls finish, including overlapping
+Each mutation's `isPending` stays true until all of its calls finish, including overlapping
 calls and scoped calls waiting in a queue. `queryClient.isMutating` derives a reactive boolean
 from those loading states across the client's registered mutations. It also covers imperative
 `mutation.mutate()` calls; ordinary queries do not affect it. Completed, failed, and aborted

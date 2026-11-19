@@ -59,7 +59,7 @@ const createClient = () => {
     const client = new QueryClient({
         RootStore: Root,
         gcInterval: Infinity,
-        queryOptions: { cacheTime: Infinity },
+        queryOptions: { cacheTime: Infinity, retry: false },
     }).init();
     cleanups.push(() => {
         if (isAlive(client.rootStore)) destroy(client.rootStore);
@@ -71,7 +71,7 @@ const setupClient = (staleTime = 60_000) => {
     const client = new QueryClient({
         RootStore: Root,
         gcInterval: Infinity,
-        queryOptions: { cacheTime: Infinity, staleTime },
+        queryOptions: { cacheTime: Infinity, staleTime, retry: false },
     }).init();
     cleanups.push(() => {
         if (isAlive(client.rootStore)) destroy(client.rootStore);

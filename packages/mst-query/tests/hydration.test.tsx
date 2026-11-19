@@ -16,10 +16,14 @@ afterEach(() => {
     cleanup();
 });
 
-const createServerClient = () => new QueryClient({ RootStore: Root }).init();
+const createServerClient = () =>
+    new QueryClient({ RootStore: Root, queryOptions: { retry: false } }).init();
 
 const setupClient = (queryOptions: any = {}) => {
-    const queryClient = new QueryClient({ RootStore: Root, queryOptions }).init();
+    const queryClient = new QueryClient({
+        RootStore: Root,
+        queryOptions: { retry: false, ...queryOptions },
+    }).init();
     const { QueryClientProvider } = createContext(queryClient);
     return {
         queryClient,

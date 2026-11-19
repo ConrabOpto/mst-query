@@ -61,6 +61,16 @@ const serializable = (value: unknown) => (typeof value === 'symbol' ? undefined 
 export type RefetchOnWindowFocus<TQuery> =
     boolean | 'always' | ((query: TQuery) => boolean | 'always');
 
+/** Retry a failed request: `true` forever, a number of times, or while the callback returns true. */
+export type Retry = boolean | number | ((failureCount: number, error: any) => boolean);
+/** Milliseconds before a retry, or a callback of the number of failures so far. */
+export type RetryDelay = number | ((failureCount: number, error: any) => number);
+
+export type RetryOptions = {
+    retry?: Retry;
+    retryDelay?: RetryDelay;
+};
+
 export type EndpointType = (options: {
     request?: any;
     pagination?: any;
@@ -83,7 +93,9 @@ type QueryClientConfig<T extends IAnyModelType> = {
             EntryOf<Instance<QueryReturnType | InfiniteQueryReturnType>>
         >;
         throwOnError?: boolean | ((error: any, query: any) => boolean);
-    };
+    } & RetryOptions;
+    /** Mutations don't retry by default. */
+    mutationOptions?: RetryOptions;
     RootStore: T;
 };
 

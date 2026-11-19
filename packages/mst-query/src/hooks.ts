@@ -14,7 +14,7 @@ import {
 } from './create';
 import type { EntryOf, QueryResponse } from './QueryCollection';
 import { Context } from './context';
-import { QueryClient, type RefetchOnWindowFocus } from './QueryClient';
+import { QueryClient, type RefetchOnWindowFocus, type RetryOptions } from './QueryClient';
 import {
     CacheOptions,
     EmptyPagination,
@@ -82,7 +82,8 @@ type QueryOptions<T extends QuerySource> = {
     meta?: Record<string, any>;
     /** Throw errors to the nearest error boundary. Defaults to false. */
     throwOnError?: ThrowOnError<Entry<T>>;
-} & CacheOptions;
+} & CacheOptions &
+    RetryOptions;
 
 export type ThrowOnError<TQuery = any> = boolean | ((error: any, query: TQuery) => boolean);
 
@@ -221,27 +222,59 @@ function useEntry<T extends QuerySource>(
         source.refetch((isMap ? { ...options, ...params } : params) as any),
     );
     const error = isHydrating || hasInitialData ? null : (query?.error ?? null);
-    if (
-        error &&
-        !query.isLoading &&
+    const throwsError =
+        !!error &&
         !errorResetBoundary.isReset() &&
-        (typeof options.throwOnError === 'function'
+        !!(typeof options.throwOnError === 'function'
             ? options.throwOnError(error, query)
-            : options.throwOnError)
-    ) {
+            : options.throwOnError);
+    // Like React Query, report the fetch the committed effect is about to start for missing data.
+    const willFetchOnMount =
+        !(observer?.isMounted && observer.query === query) &&
+        !!options.enabled &&
+        !hasInitialData &&
+        !isHydrating &&
+        query?.data == null &&
+        !query?.isPaused &&
+        !throwsError;
+    const isFetching: boolean = (query?.isFetching ?? false) || willFetchOnMount;
+    const status: 'pending' | 'error' | 'success' = error
+        ? 'error'
+        : data != null
+          ? 'success'
+          : 'pending';
+    if (throwsError && !isFetching) {
         throw error;
     }
     return {
         data: data as Entry<T>['data'],
         dataUpdatedAt: query?.__MstQueryHandler.cachedAt?.getTime(),
         error,
+        status,
+        fetchStatus: (query?.isPaused
+            ? 'paused'
+            : isFetching
+              ? 'fetching'
+              : 'idle') as 'fetching' | 'paused' | 'idle',
+        /** True while a retry waits for the tab to become visible again. */
+        isPaused: (query?.isPaused ?? false) as boolean,
+        /** True until the query has data or an error. */
+        isPending: status === 'pending',
+        /** True while the first request for data runs. */
+        isLoading: status === 'pending' && isFetching,
+        /** True while any request runs, including background refetches. */
+        isFetching,
+        /** True while a request runs for a query that already has data or an error. */
+        isRefetching: isFetching && status !== 'pending' && !query?.isFetchingMore,
+        isSuccess: status === 'success',
+        isError: status === 'error',
         /** The query failed and has no data to show. */
         isLoadingError: !!error && query.data == null,
         /** The query failed but still has data from an earlier fetch. */
         isRefetchError: !!error && query.data != null,
+        failureCount: (query?.failureCount ?? 0) as number,
+        failureReason: query?.failureReason ?? null,
         isFetched: query?.isFetched ?? false,
-        isLoading: query?.isLoading ?? (!!options.enabled && !hasInitialData && !isHydrating),
-        isRefetching: query?.isRefetching ?? false,
         query: query as ResultQuery<T>,
         refetch: isMap ? refetch : (query.refetch as T['refetch']),
         isStale: query?.__MstQueryHandler.isStale(options) ?? false,
@@ -365,7 +398,7 @@ function useSuspenseEntry(source: any, options: any, infinite: boolean) {
         if (query.data != null) {
             return result;
         }
-        if (query.isLoading && query.__MstQueryHandler.promise) {
+        if (query.__MstQueryHandler.isLoading && query.__MstQueryHandler.promise) {
             throw untilData(query, query.__MstQueryHandler.promise);
         }
         if (query.error && !errorResetBoundary.isReset()) {
@@ -454,7 +487,7 @@ type MutationOptions<T extends Instance<MutationReturnType>> = {
     onMutate?: (data: T['data'], self: T) => void;
     meta?: { [key: string]: any };
     scope?: MutationScope;
-};
+} & RetryOptions;
 
 export function useMutation<T extends Instance<MutationReturnType>>(
     mutation: T,
@@ -486,17 +519,26 @@ export function useMutation<T extends Instance<MutationReturnType>>(
     const result = {
         data: mutation.data as (typeof mutation)['data'],
         error: mutation.error,
-        isLoading: mutation.isLoading,
+        status: mutation.status,
+        isIdle: mutation.isIdle,
+        isPending: mutation.isPending,
+        isPaused: mutation.isPaused,
+        isSuccess: mutation.isSuccess,
+        isError: mutation.isError,
+        failureCount: mutation.failureCount,
+        failureReason: mutation.failureReason,
         mutation,
     };
 
     const mutate = useEvent(
-        <TResult = any>(params: {
-            request: SnapshotIn<T['variables']['request']>;
-            optimisticUpdate?: () => void;
-            revert?: OptimisticRevertMode;
-            scope?: MutationScope;
-        }) => {
+        <TResult = any>(
+            params: {
+                request: SnapshotIn<T['variables']['request']>;
+                optimisticUpdate?: () => void;
+                revert?: OptimisticRevertMode;
+                scope?: MutationScope;
+            } & RetryOptions,
+        ) => {
             // Merge options but allow params to override (including scope)
             const result = mutation.mutate({ ...options, ...params } as any);
             return result as Promise<{ data: T['data']; error: any; result: TResult }>;

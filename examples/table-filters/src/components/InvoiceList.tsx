@@ -46,7 +46,7 @@ export const InvoiceList = observer(() => {
     const [offset, setOffset] = useState(0);
     const [previewId, setPreviewId] = useState<string | undefined>();
 
-    const { data, isLoading, isFetchingMore, isRefetching, refetch } = useInfiniteQuery(
+    const { data, isFetching, isFetchingMore, isRefetching, refetch } = useInfiniteQuery(
         invoiceService.invoiceListQuery,
         {
             request: { id: companyId! },
@@ -139,7 +139,7 @@ export const InvoiceList = observer(() => {
                 <span>{`${invoiceStore.models.size} invoices in store`}</span>
             </div>
             <div>
-                <div>isLoading:{`${isLoading}`}</div>
+                <div>isFetching:{`${isFetching}`}</div>
                 <div>isRefetching:{`${isRefetching}`}</div>
                 <div>isFetchingMore:{`${isFetchingMore}`}</div>
             </div>

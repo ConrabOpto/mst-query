@@ -66,7 +66,10 @@ const Root = createRootStore({
 type Options = NonNullable<Parameters<typeof useQuery<ReturnType<typeof Query.create>>>[1]>;
 type Defaults = ConstructorParameters<typeof QueryClient<typeof Root>>[0]['queryOptions'];
 const setup = (queryOptions: Defaults = {}) => {
-    const client = new QueryClient({ RootStore: Root, queryOptions }).init();
+    const client = new QueryClient({
+        RootStore: Root,
+        queryOptions: { retry: false, ...queryOptions },
+    }).init();
     disposers.push(() => {
         if (isAlive(client.rootStore)) destroy(client.rootStore);
     });

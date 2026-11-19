@@ -64,11 +64,11 @@ test('isMutating is false before initialization and reacts to mutation start and
         meta: { execute: () => pending.promise },
     });
     expect(client.isMutating).toBe(true);
-    expect(client.rootStore.first.isLoading).toBe(true);
+    expect(client.rootStore.first.isPending).toBe(true);
     pending.resolve({ value: 'Done' });
     await mutation;
     expect(client.isMutating).toBe(false);
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     expect(states).toEqual([false, true, false]);
     dispose();
     destroy(client.rootStore);
@@ -112,7 +112,7 @@ test.each([false, true])(
         });
         const localStates: boolean[] = [];
         const disposeLocal = autorun(() => {
-            localStates.push(client.rootStore.first.isLoading);
+            localStates.push(client.rootStore.first.isPending);
         });
         const first = deferred();
         const second = deferred();
@@ -126,12 +126,12 @@ test.each([false, true])(
         second.resolve({ value: 'Second' });
         await secondMutation;
         expect(client.isMutating).toBe(true);
-        expect(client.rootStore.first.isLoading).toBe(true);
-        expect(client.rootStore.second.isLoading).toBe(false);
+        expect(client.rootStore.first.isPending).toBe(true);
+        expect(client.rootStore.second.isPending).toBe(false);
         first.resolve({ value: 'First' });
         await firstMutation;
         expect(client.isMutating).toBe(false);
-        expect(client.rootStore.first.isLoading).toBe(false);
+        expect(client.rootStore.first.isPending).toBe(false);
         expect(states).toEqual([false, true, false]);
         expect(localStates).toEqual([false, true, false]);
         dispose();
@@ -166,19 +166,19 @@ test.each([false, true])(
         });
         expect(client.isMutating).toBe(true);
         expect(secondEndpoint).not.toHaveBeenCalled();
-        expect(client.rootStore.first.isLoading).toBe(true);
-        expect(secondNode.isLoading).toBe(true);
+        expect(client.rootStore.first.isPending).toBe(true);
+        expect(secondNode.isPending).toBe(true);
         expect(client.hasPendingMutations(secondNode)).toBe(true);
         await waitFor(() => expect(firstEndpoint).toHaveBeenCalledTimes(1));
         first.resolve({ value: 'First' });
         await firstMutation;
-        expect(client.rootStore.first.isLoading).toBe(sameNode);
+        expect(client.rootStore.first.isPending).toBe(sameNode);
         await waitFor(() => expect(secondEndpoint).toHaveBeenCalledTimes(1));
         expect(client.isMutating).toBe(true);
-        expect(secondNode.isLoading).toBe(true);
+        expect(secondNode.isPending).toBe(true);
         second.resolve({ value: 'Second' });
         await secondMutation;
-        expect(secondNode.isLoading).toBe(false);
+        expect(secondNode.isPending).toBe(false);
         expect(states).toEqual([false, true, false]);
         dispose();
         destroy(client.rootStore);
@@ -198,7 +198,7 @@ test('mutation rejection clears the indicator after error processing', async () 
     const result = await mutation;
     expect(result.error).toBe(error);
     expect(client.isMutating).toBe(false);
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     destroy(client.rootStore);
 });
 
@@ -217,7 +217,7 @@ test('synchronous mutation failures release tracking', async () => {
         }),
     ).rejects.toThrow(error);
     expect(client.isMutating).toBe(false);
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     destroy(client.rootStore);
 });
 
@@ -237,7 +237,7 @@ test('an optimistic update that throws releases tracking before the endpoint run
     ).rejects.toThrow(error);
     expect(client.isMutating).toBe(false);
     expect(execute).not.toHaveBeenCalled();
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     destroy(client.rootStore);
 });
 
@@ -255,7 +255,7 @@ test('an aborted endpoint releases mutation tracking', async () => {
     const result = await mutation;
     expect(result.error).toBeNull();
     expect(client.isMutating).toBe(false);
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     destroy(client.rootStore);
 });
 
@@ -265,7 +265,7 @@ test('isMutating stays true during response callbacks and clears even if a callb
     const error = new Error('Callback failed');
     onMutate(client.rootStore.first, () => {
         expect(client.isMutating).toBe(true);
-        expect(client.rootStore.first.isLoading).toBe(true);
+        expect(client.rootStore.first.isPending).toBe(true);
         throw error;
     });
     await expect(
@@ -275,7 +275,7 @@ test('isMutating stays true during response callbacks and clears even if a callb
         }),
     ).rejects.toThrow(error);
     expect(client.isMutating).toBe(false);
-    expect(client.rootStore.first.isLoading).toBe(false);
+    expect(client.rootStore.first.isPending).toBe(false);
     destroy(client.rootStore);
 });
 
@@ -352,11 +352,11 @@ test('a new mutation type registered while idle is discovered reactively', async
     const node = NewMutation.create({}, client.config.env);
     const mutation = node.mutate({ request: undefined });
     expect(states).toEqual([false, true]);
-    expect(node.isLoading).toBe(true);
+    expect(node.isPending).toBe(true);
     pending.resolve({ value: 'New mutation type' });
     await mutation;
     expect(states).toEqual([false, true, false]);
-    expect(node.isLoading).toBe(false);
+    expect(node.isPending).toBe(false);
     dispose();
     destroy(node);
     destroy(client.rootStore);

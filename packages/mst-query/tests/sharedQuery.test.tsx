@@ -49,7 +49,7 @@ const setup = (cacheTime = Infinity) => {
     const client = new QueryClient({
         RootStore: Root,
         gcInterval: Infinity,
-        queryOptions: { cacheTime },
+        queryOptions: { cacheTime, retry: false },
     }).init();
     cleanups.push(() => {
         if (isAlive(client.rootStore)) destroy(client.rootStore);

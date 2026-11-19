@@ -36,7 +36,11 @@ import { useInfiniteQuery, useVolatileQuery } from '../src/hooks';
 import { UnionModel } from './models/UnionModel';
 
 const setup = ({ strictMode = false, gcInterval = Infinity } = {}) => {
-    const queryClient = new QueryClient({ RootStore: Root, gcInterval });
+    const queryClient = new QueryClient({
+        RootStore: Root,
+        gcInterval,
+        queryOptions: { retry: false },
+    });
     queryClient.init();
 
     const { QueryClientProvider } = createContext(queryClient);
@@ -552,9 +556,9 @@ test('useMutation', async () => {
     let loadingStates: boolean[] = [false];
 
     const sub = reaction(
-        () => q.addItemMutation.isLoading,
-        (isLoading) => {
-            loadingStates.push(isLoading);
+        () => q.addItemMutation.isPending,
+        (isPending) => {
+            loadingStates.push(isPending);
         },
     );
 
@@ -639,13 +643,13 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     const placeholderData = vi.fn((previousData: typeof q.itemQuery.data) => previousData);
 
     const Comp = observer(({ id }: { id: string }) => {
-        const { data, isLoading } = useQuery(q.itemQuery, {
+        const { data, isFetching } = useQuery(q.itemQuery, {
             request: { id },
             meta: { getItem },
             placeholderData: (previousData) => placeholderData(previousData),
         });
         renderedData.push(data?.id ?? null);
-        return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
+        return <div>{isFetching ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
     });
     const { container, rerender, unmount } = render(<Comp id="test" />);
 
@@ -661,7 +665,7 @@ test('useQuery - placeholderData keeps previous data while a changed request is 
     rerender(<Comp id="different-test" />);
 
     expect(getItem).toHaveBeenCalledTimes(2);
-    expect(q.itemQuery.isLoading).toBe(true);
+    expect(q.itemQuery.isFetching).toBe(true);
     expect.soft(placeholderData).toHaveBeenCalledWith(previousData);
     expect.soft(container.textContent).toBe('loading:test');
     expect(renderedData.slice(renderCountBeforeRequestChange)).not.toContain(null);
@@ -864,7 +868,7 @@ test.each([
         const getItem = vi.fn(() => response);
 
         const Comp = observer(() => {
-            const { data, isLoading } = useQuery(q.itemQuery, {
+            const { data, isFetching } = useQuery(q.itemQuery, {
                 request: { id: 'test' },
                 meta: { getItem },
                 cacheKey,
@@ -872,12 +876,12 @@ test.each([
                 placeholderData: kind === 'value' ? placeholder : () => placeholder,
             });
             renderedData.push(data?.id ?? null);
-            return <div>{isLoading ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
+            return <div>{isFetching ? 'loading' : 'ready'}:{data?.id ?? 'empty'}</div>;
         });
         const { container, unmount } = render(<Comp />);
 
         expect(getItem).toHaveBeenCalledTimes(1);
-        expect(q.itemQuery.isLoading).toBe(true);
+        expect(q.itemQuery.isFetching).toBe(true);
         expect(q.itemQuery.isFetched).toBe(false);
         expect(q.itemQuery.cachedAt).toBeUndefined();
         expect(queryClient.queryStore.getQueryData(ItemQuery, 'test')).toBeUndefined();
@@ -1239,7 +1243,7 @@ test.each(['pending', 'resolved', 'changed back'])(
         expect(pageResult.data).toBeNull();
         expect(pageResult.result).toEqual(listData);
         expect(q.listQuery.isFetchingMore).toBe(false);
-        expect(q.listQuery.isLoading).toBe(replacementState === 'pending');
+        expect(q.listQuery.isFetching).toBe(replacementState === 'pending');
         expect(q.listQuery.error).toBeNull();
 
         if (replacementState === 'pending') {
@@ -1451,7 +1455,7 @@ test('mutation updates query (with optimistic update)', async () => {
 
     expect(q.listQuery.data?.items[4].id).toBe('temp');
 
-    await when(() => !q.addItemMutation.isLoading);
+    await when(() => !q.addItemMutation.isPending);
 
     expect(q.listQuery.data?.items[4].id).toBe('add-test');
     expect(q.listQuery.data?.items.length).toBe(5);
@@ -2183,13 +2187,13 @@ test('useQuery should run when initialData is passed and initialDataUpdatedAt is
 
     const loadingStates: boolean[] = [];
     const Comp = observer(() => {
-        const { query, isLoading } = useQuery(q.itemQuery, {
+        const { query, isFetching } = useQuery(q.itemQuery, {
             initialData,
             initialDataUpdatedAt,
             request: { id: id.get() },
             staleTime: 500,
         });
-        loadingStates.push(isLoading);
+        loadingStates.push(isFetching);
         return <div></div>;
     });
     render(<Comp />);
@@ -2217,7 +2221,7 @@ test('useQuery should run when initialData is given and invalidate is called', a
 
     const loadingStates: boolean[] = [];
     const disposer = autorun(() => {
-        loadingStates.push(q.itemQuery.isLoading);
+        loadingStates.push(q.itemQuery.isFetching);
     });
 
     const Comp = observer(() => {

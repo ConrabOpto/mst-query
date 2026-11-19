@@ -265,7 +265,7 @@ export class QueryObserver {
         void this.handler.queryWhenChanged(options).catch(() => {});
         if (
             options.enabled &&
-            this.query.isLoading &&
+            this.handler.isLoading &&
             (!options.isRequestEqual || this.query.data == null)
         ) {
             const data =
@@ -429,6 +429,10 @@ export class MstQueryHandler {
     pendingQueryMoreCount = 0;
     isFetched = false;
     error: any = null;
+    failureCount = 0;
+    failureReason: any = null;
+    /** A retry is waiting for the document to become visible. */
+    isPaused = false;
     queryObservers = [] as any[];
 
     options: {
@@ -491,6 +495,11 @@ export class MstQueryHandler {
             isFetchingMore: observable,
             isFetched: observable,
             error: observable,
+            failureCount: observable,
+            failureReason: observableRef,
+            isPaused: observable,
+            setPaused: action,
+            recordFailure: action,
             cachedAt: observableRef,
             markedAsStale: observable,
             hydrate: action,
@@ -514,6 +523,64 @@ export class MstQueryHandler {
 
     get isLoading() {
         return this.model.isMutation ? this.pendingMutationCount > 0 : this.isQueryLoading;
+    }
+
+    get status(): 'pending' | 'error' | 'success' {
+        return this.error ? 'error' : this.model.data != null ? 'success' : 'pending';
+    }
+
+    get mutationStatus(): 'idle' | 'pending' | 'error' | 'success' {
+        if (this.isLoading) return 'pending';
+        if (this.error) return 'error';
+        return this.isFetched ? 'success' : 'idle';
+    }
+
+    recordFailure(failureCount: number, error: any) {
+        this.failureCount = failureCount;
+        this.failureReason = error;
+    }
+
+    setPaused(isPaused: boolean) {
+        this.isPaused = isPaused;
+    }
+
+    // Like React Query, retries wait while the tab is hidden instead of running in the background.
+    private whenVisible(signal: AbortSignal) {
+        if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+            return Promise.resolve();
+        }
+        this.setPaused(true);
+        return new Promise<void>((resolve) => {
+            const done = () => {
+                unsubscribe();
+                signal.removeEventListener('abort', done);
+                this.setPaused(false);
+                resolve();
+            };
+            const unsubscribe = subscribeToWindowFocus(done);
+            signal.addEventListener('abort', done);
+        });
+    }
+
+    private retryOptions(options: any) {
+        const isMutation = this.model.isMutation;
+        const observer = this.queryObservers.find((observer) => observer.isQuery === !isMutation);
+        const defaults = isMutation
+            ? this.queryClient.config.mutationOptions
+            : this.queryClient.config.queryOptions;
+        return {
+            retry:
+                options.retry ??
+                observer?.options.retry ??
+                defaults?.retry ??
+                // Like React Query, queries retry 3 times in the browser and mutations never.
+                (isMutation || typeof window === 'undefined' ? 0 : 3),
+            retryDelay:
+                options.retryDelay ??
+                observer?.options.retryDelay ??
+                defaults?.retryDelay ??
+                defaultRetryDelay,
+        };
     }
 
     get notInitialized() {
@@ -688,6 +755,8 @@ export class MstQueryHandler {
             this.isQueryLoading = true;
         }
         this.error = null;
+        this.failureCount = 0;
+        this.failureReason = null;
 
         const opts = {
             ...options,
@@ -699,14 +768,44 @@ export class MstQueryHandler {
             query: this.model,
         };
 
-        let response;
-        try {
-            response = endpoint(opts);
-        } catch (error) {
-            if (this.model.isMutation) throw error;
-            response = Promise.reject(error);
-        }
-        return Promise.resolve(response).then((result: any) => {
+        // Adopted responses, e.g. streamed from the server, can't be requested again.
+        const { retry, retryDelay } = fetch
+            ? { retry: 0, retryDelay: 0 }
+            : this.retryOptions(options);
+        const isCancelled = () =>
+            abortController.signal.aborted ||
+            this.isDisposed ||
+            this.isSuperseded(abortController);
+        let failures = 0;
+        const attempt = (first: boolean): Promise<any> => {
+            let response;
+            try {
+                response = endpoint(opts);
+            } catch (error) {
+                if (first && this.model.isMutation) throw error;
+                response = Promise.reject(error);
+            }
+            return Promise.resolve(response).catch((error) => {
+                if (isCancelled()) throw error;
+                const failureCount = failures;
+                failures += 1;
+                this.recordFailure(failures, error);
+                const shouldRetry =
+                    retry === true ||
+                    (typeof retry === 'number' && failureCount < retry) ||
+                    (typeof retry === 'function' && retry(failureCount, error));
+                if (!shouldRetry) throw error;
+                const delay =
+                    typeof retryDelay === 'function' ? retryDelay(failureCount, error) : retryDelay;
+                return sleep(delay, abortController.signal)
+                    .then(() => this.whenVisible(abortController.signal))
+                    .then(() => {
+                        if (isCancelled()) throw new DisposedError();
+                        return attempt(false);
+                    });
+            });
+        };
+        return attempt(true).then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
@@ -998,6 +1097,8 @@ export class MstQueryHandler {
             if (this.error) {
                 this.error = null;
             }
+            this.failureCount = 0;
+            this.failureReason = null;
 
             if (this.isLoading) {
                 this.isQueryLoading = false;
@@ -1259,6 +1360,22 @@ export class MstQueryHandler {
         this.queryObservers.forEach((observer) => observer.unsubscribe());
         this.abort();
     };
+}
+
+export const defaultRetryDelay = (failureCount: number) =>
+    Math.min(1000 * 2 ** failureCount, 30_000);
+
+// Resolves early when aborted, so an aborted retry doesn't wait out its delay
+function sleep(ms: number, signal: AbortSignal) {
+    return new Promise<void>((resolve) => {
+        const done = () => {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', done);
+            resolve();
+        };
+        const timer = setTimeout(done, ms);
+        signal.addEventListener('abort', done);
+    });
 }
 
 function isDataStale(cachedAt?: number, staleTime: number = 0) {

@@ -149,7 +149,7 @@ export class QueryStore {
     hasPendingMutations(node: IAnyStateTreeNode) {
         for (const [, queries] of this.#cache) {
             for (const query of queries) {
-                if (!query.isMutation || !query.isLoading) {
+                if (!query.isMutation || !query.isPending) {
                     continue;
                 }
 
@@ -173,7 +173,7 @@ export class QueryStore {
         for (const queries of this.#cache.values()) {
             if (
                 queries.some(
-                    (query: Instance<IAnyModelType>) => query.isMutation && query.isLoading,
+                    (query: Instance<IAnyModelType>) => query.isMutation && query.isPending,
                 )
             ) {
                 return true;
@@ -247,7 +247,7 @@ export class QueryStore {
                     (query: IAnyStateTreeNode) =>
                         isAlive(query) &&
                         getRoot(query) === this.#queryClient.rootStore &&
-                        (query.isLoading || query.isFetchingMore),
+                        (query.__MstQueryHandler.isLoading || query.isFetchingMore),
                 )
             )
                 return true;

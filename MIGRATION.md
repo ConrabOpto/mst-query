@@ -17,6 +17,38 @@ Version 5 also includes everything added after 4.12: server components and strea
 
 ## Breaking changes
 
+### Status flags match React Query
+
+`isLoading` used to be true for any running request. Like React Query, it now only means the first
+request is running (`isPending && isFetching`), and `isFetching` covers every request:
+
+| 4.x | 5.0 |
+| --- | --- |
+| `isLoading` (any request) | `isFetching` |
+| first load, `isLoading && !data` | `isLoading` or `isPending` |
+| `isRefetching` (a `refetch()` call) | `isRefetching`: any request while the query has data or an error, except `queryMore` |
+| mutation `isLoading` | mutation `isPending` (`isLoading` was removed) |
+
+This applies to hook results and to query and mutation nodes. Search for `isLoading`: keep it
+for first-load spinners, and switch to `isFetching` where you show background activity or wait
+for a request to finish, for example `when(() => !query.isFetching)`. New fields are `status`,
+`fetchStatus`, `isPending`, `isPaused`, `isSuccess`, `isError`, `failureCount` and `failureReason` on
+queries, and `status`, `isIdle`, `isPaused`, `isSuccess`, `isError`, `failureCount` and `failureReason` on
+mutations. See [Status](README.md#status).
+
+### Queries retry failed requests
+
+Like React Query, a failed query is now retried 3 times in the browser, after 1, 2 and 4 seconds,
+before `error` is set. Queries don't retry on the server, and mutations still don't retry. While
+the tab is hidden, retries wait until it's visible again. Errors
+therefore show up about 7 seconds later than in 4.x. To keep the 4.x behavior:
+
+```tsx
+const queryClient = new QueryClient({ RootStore, queryOptions: { retry: false } });
+```
+
+Tests that assert on query errors usually want `retry: false` too. See [Retries](README.md#retries).
+
 ### Failed fetches keep their data
 
 In 4.x, a failed fetch set `query.data` to `null`. Like React Query, a failed fetch now keeps the
@@ -71,7 +103,7 @@ singleton; use createQueryMap or createInfiniteQueryMap for shared query hooks.
 
 This also applies when the requests match, `request` is omitted, or a hook is disabled. Either:
 
-- keep one hook, and read `query.data`, `query.isLoading` and `query.error` directly from other
+- keep one hook, and read `query.data`, `query.isFetching` and `query.error` directly from other
   `observer` components,
 - give each component its own query instance, or
 - switch the query to `createQueryMap` / `createInfiniteQueryMap`, where any number of hooks can
@@ -110,7 +142,7 @@ see [Garbage collection](README.md#garbage-collection).
 - Data hydrated from a `cacheKey` response cache, or from `initialData` with
   `initialDataUpdatedAt`, keeps its original timestamp. `staleTime` counts from that time instead
   of from when it was applied, so such data may refetch right away.
-- A mutation's `isLoading` stays `true` until all of its overlapping or queued calls finish,
+- A mutation's `isPending` stays `true` until all of its overlapping or queued calls finish,
   instead of turning `false` when the first one does.
 - Query endpoints that throw synchronously now produce an `error` result, like a rejected promise,
   instead of throwing from `query()` or `refetch()`. Mutations still throw.
@@ -129,6 +161,8 @@ see [Garbage collection](README.md#garbage-collection).
 - **`queryClient.isMutating`** is true while any mutation of the client is running. See
   [Global mutation indicator](README.md#global-mutation-indicator).
 - **`refetchOnWindowFocus`**, see above.
+- **Retries**: `retry` and `retryDelay` on hooks, `mutate` and the client (`queryOptions` and
+  `mutationOptions`), with `failureCount` and `failureReason`.
 - **Errors**: `throwOnError`, `isLoadingError`, `isRefetchError`, `QueryErrorResetBoundary` and
   `useQueryErrorResetBoundary`. See [Errors](README.md#errors).
 - **Suspense**: `useSuspenseInfiniteQuery` is new. `useSuspenseQuery` and

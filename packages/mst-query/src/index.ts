@@ -30,6 +30,9 @@ export type {
     DehydratedState,
     DehydratedQuery,
     RefetchOnWindowFocus,
+    Retry,
+    RetryDelay,
+    RetryOptions,
 } from './QueryClient';
 export { createContext } from './QueryClientProvider';
 export { HydrationBoundary } from './HydrationBoundary';

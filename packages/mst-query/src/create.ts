@@ -1,6 +1,7 @@
 import { types, IAnyType, flow, SnapshotIn, Instance } from 'mobx-state-tree';
 import { type CacheOptions, MstQueryHandler, type OptimisticRevertMode } from './MstQueryHandler';
 import { createQueryCollection } from './QueryCollection';
+import type { RetryOptions } from './QueryClient';
 
 type TypeOrFrozen<T> = T extends IAnyType ? T : ReturnType<typeof types.frozen>;
 
@@ -90,6 +91,62 @@ type QueryReturn<TData = any, TRequest = any, TPagination = any> = <TResult = an
     options?: QueryOptions<TRequest, TPagination>,
 ) => Promise<ReturnData<Instance<TData>, TResult>>;
 
+// Status flags named and defined like React Query's query results
+function queryViews(handler: MstQueryHandler) {
+    return {
+        get status() {
+            return handler.status;
+        },
+        get fetchStatus(): 'fetching' | 'paused' | 'idle' {
+            if (!handler.isLoading) return 'idle';
+            return handler.isPaused ? 'paused' : 'fetching';
+        },
+        /** True while any request runs, including background refetches. */
+        get isFetching() {
+            return handler.isLoading && !handler.isPaused;
+        },
+        /** True while a retry waits for the tab to become visible again. */
+        get isPaused() {
+            return handler.isPaused;
+        },
+        /** True until the query has data or an error. */
+        get isPending() {
+            return handler.status === 'pending';
+        },
+        /** True while the first request for data runs. */
+        get isLoading() {
+            return handler.status === 'pending' && handler.isLoading && !handler.isPaused;
+        },
+        /** True while a request runs for a query that already has data or an error. */
+        get isRefetching() {
+            return (
+                handler.isLoading &&
+                !handler.isPaused &&
+                handler.status !== 'pending' &&
+                !handler.isFetchingMore
+            );
+        },
+        get isSuccess() {
+            return handler.status === 'success';
+        },
+        get isError() {
+            return handler.status === 'error';
+        },
+        get error() {
+            return handler.error;
+        },
+        get isFetched() {
+            return handler.isFetched;
+        },
+        get failureCount() {
+            return handler.failureCount;
+        },
+        get failureReason() {
+            return handler.failureReason;
+        },
+    };
+}
+
 export function createQuery<TData extends IAnyType, TRequest extends IAnyType>(
     name: string,
     options: CreateQueryOptions<TData, TRequest>,
@@ -167,19 +224,8 @@ function createQueryEntry<TData extends IAnyType, TRequest extends IAnyType>(
             isInfinite: false,
             isMutation: false,
         }))
+        .views((self) => queryViews(self.__MstQueryHandler))
         .views((self) => ({
-            get isLoading() {
-                return self.__MstQueryHandler.isLoading;
-            },
-            get error() {
-                return self.__MstQueryHandler.error;
-            },
-            get isRefetching() {
-                return self.__MstQueryHandler.isRefetching;
-            },
-            get isFetched() {
-                return self.__MstQueryHandler.isFetched;
-            },
             get cachedAt() {
                 return self.__MstQueryHandler.cachedAt;
             },
@@ -252,21 +298,10 @@ function createInfiniteQueryEntry<
             isInfinite: true,
             isMutation: false,
         }))
+        .views((self) => queryViews(self.__MstQueryHandler))
         .views((self) => ({
-            get isLoading() {
-                return self.__MstQueryHandler.isLoading;
-            },
-            get error() {
-                return self.__MstQueryHandler.error;
-            },
-            get isRefetching() {
-                return self.__MstQueryHandler.isRefetching;
-            },
             get isFetchingMore() {
                 return self.__MstQueryHandler.isFetchingMore;
-            },
-            get isFetched() {
-                return self.__MstQueryHandler.isFetched;
             },
             get cachedAt() {
                 return self.__MstQueryHandler.cachedAt;
@@ -346,11 +381,33 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
             isMutation: true,
         }))
         .views((self) => ({
-            get isLoading() {
+            get status() {
+                return self.__MstQueryHandler.mutationStatus;
+            },
+            get isIdle() {
+                return self.__MstQueryHandler.mutationStatus === 'idle';
+            },
+            get isPending() {
                 return self.__MstQueryHandler.isLoading;
+            },
+            /** True while a retry waits for the tab to become visible again. */
+            get isPaused() {
+                return self.__MstQueryHandler.isPaused;
+            },
+            get isSuccess() {
+                return self.__MstQueryHandler.mutationStatus === 'success';
+            },
+            get isError() {
+                return self.__MstQueryHandler.mutationStatus === 'error';
             },
             get error() {
                 return self.__MstQueryHandler.error;
+            },
+            get failureCount() {
+                return self.__MstQueryHandler.failureCount;
+            },
+            get failureReason() {
+                return self.__MstQueryHandler.failureReason;
             },
         }))
         .actions((self) => ({
@@ -366,13 +423,15 @@ export function createMutation<TData extends IAnyType, TRequest extends IAnyType
                 } finally {
                     handler.finishMutation();
                 }
-            }) as <TResult = any>(options: {
-                request: SnapshotIn<TRequest>;
-                optimisticUpdate?: () => any;
-                revert?: OptimisticRevertMode;
-                meta?: { [key: string]: any };
-                scope?: MutationScope;
-            }) => Promise<ReturnData<Instance<TData>, TResult>>,
+            }) as <TResult = any>(
+                options: {
+                    request: SnapshotIn<TRequest>;
+                    optimisticUpdate?: () => any;
+                    revert?: OptimisticRevertMode;
+                    meta?: { [key: string]: any };
+                    scope?: MutationScope;
+                } & RetryOptions,
+            ) => Promise<ReturnData<Instance<TData>, TResult>>,
             abort: self.__MstQueryHandler.abort,
             setMeta(key: string, value: any) {
                 self.meta[key] = value;

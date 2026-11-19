@@ -16,10 +16,10 @@ const useInvoiceQuery = (id: string, initialData: any) => {
 export const InvoiceEditor = observer(
   (props: { invoice: InvoiceModelType }) => {
     const { invoice } = props;
-    const { isLoading } = useInvoiceQuery(invoice.id, invoice);
+    const { isFetching } = useInvoiceQuery(invoice.id, invoice);
     return (
       <div>
-        <div style={{ color: "red" }}>{isLoading && `Loading invoice...`}</div>
+        <div style={{ color: "red" }}>{isFetching && `Loading invoice...`}</div>
         <h3>Invoice id</h3>
         <div>{invoice.id}</div>
         <h3>Amount</h3>
