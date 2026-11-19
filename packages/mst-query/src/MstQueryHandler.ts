@@ -1263,7 +1263,10 @@ export class MstQueryHandler {
     hydrate = (data: any, options: any) => {
         const { enabled, request, pagination } = options;
 
-        if (enabled) {
+        // Hydrated data belongs to these variables even while fetching is disabled.
+        // Store them before exposing data so child pagination can reuse the request.
+        // Disabled forms without a request still initialize when they become enabled.
+        if (enabled || (request !== undefined && request !== EmptyRequest)) {
             this.setVariables({ request, pagination });
         }
         this.options.meta = options.meta;
