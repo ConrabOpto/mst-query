@@ -40,6 +40,7 @@ type QueryHookOptions = {
     isMounted?: any;
     isRequestEqual?: boolean;
     isReenabled?: boolean;
+    isPaginationChanged?: boolean;
     refetchOnMount?: 'always' | 'never' | 'if-stale';
     refetchOnChanged?: 'all' | 'request' | 'pagination' | 'none';
 };
@@ -69,6 +70,16 @@ type OnResponseOptions = {
 
 export class DisposedError extends Error {}
 
+export class PaginationSourceError extends Error {
+    constructor(name: string) {
+        super(
+            `Query "${name}" loaded pages both by changing the pagination option of ` +
+                'useInfiniteQuery and by calling queryMore. Use one of them: change the ' +
+                'pagination option, or keep it at its initial value and call queryMore.',
+        );
+    }
+}
+
 export type PrefetchedResponse = {
     status: 'pending' | 'success' | 'error';
     promise: Promise<any>;
@@ -87,6 +98,8 @@ export class QueryObserver {
     private refetchTimer?: ReturnType<typeof setInterval>;
     private refetchInterval?: number;
     private focusDisposer?: () => void;
+    // The pagination option this observer last applied while enabled
+    private appliedPagination: any = EmptyPagination;
 
     constructor(query: any, isQuery: boolean) {
         this.query = query;
@@ -163,6 +176,23 @@ export class QueryObserver {
                             ? { prevPagination: this.query.variables.pagination }
                             : {}),
                     });
+                }
+                if (options.enabled) {
+                    // A fixed pagination option is only an initial value, so queryMore may move on.
+                    options.isPaginationChanged =
+                        this.isMounted &&
+                        options.pagination !== EmptyPagination &&
+                        !equal(options.pagination, this.appliedPagination);
+                    if (
+                        options.isPaginationChanged &&
+                        options.isRequestEqual &&
+                        (options.refetchOnChanged === 'all' ||
+                            options.refetchOnChanged === 'pagination') &&
+                        this.handler.paginationSource === 'queryMore'
+                    ) {
+                        throw new PaginationSourceError(this.handler.type.name);
+                    }
+                    this.appliedPagination = options.pagination;
                 }
             }
 
@@ -242,7 +272,10 @@ export class QueryObserver {
                 typeof options.placeholderData === 'function'
                     ? options.placeholderData(previousData)
                     : options.placeholderData;
-            if (data !== previousData) this.query.setData(data ?? null);
+            if (data !== previousData) {
+                this.query.setData(data ?? null);
+                this.handler.markPlaceholderData();
+            }
         } else if (clearOnRequestChange && !options.isRequestEqual) {
             this.query.setData(null);
         }
@@ -416,6 +449,10 @@ export class MstQueryHandler {
     private invalidationVersion = 0;
     private refetchAfterInvalidation = false;
     private variablesInitialized = false;
+    // The request version `data` belongs to; undefined for placeholder data
+    private dataRequestVersion?: number;
+    /** @internal How pages of a singleton have been loaded since its request was set. */
+    paginationSource?: 'option' | 'queryMore';
 
     cachedAt: Date | undefined = undefined;
     markedAsStale = false;
@@ -425,8 +462,10 @@ export class MstQueryHandler {
     prefetchedResponse?: PrefetchedResponse;
 
     isDisposed = false;
-    private collection?: any;
-    private collectionKey?: string;
+    /** @internal */
+    collection?: any;
+    /** @internal */
+    collectionKey?: string;
     private collectionScope?: string;
     private cacheTime?: number;
     private evictionTimer?: ReturnType<typeof setTimeout>;
@@ -692,6 +731,11 @@ export class MstQueryHandler {
 
             if (!options.isRequestEqual) return this.model.query(options);
 
+            // A failed query without data retries on mount. Hooks that throw the error never mount.
+            if (this.error && this.model.data == null && !this.isLoading) {
+                return this.model.query(options);
+            }
+
             // A fetch for this request is already in flight, e.g. when StrictMode or <Activity>
             // remounts right after the first mount started it. Restarting it would only abort it.
             if (this.isLoading && !this.isFetchingMore) {
@@ -724,9 +768,10 @@ export class MstQueryHandler {
             this.isFetched &&
             options.pagination !== EmptyPagination &&
             (options.refetchOnChanged === 'all' || options.refetchOnChanged === 'pagination') &&
+            options.isPaginationChanged &&
             !equal(options.pagination, this.model.variables.pagination)
         ) {
-            return this.model.queryMore(options);
+            return this.model.queryMore({ ...options, isPaginationOption: true });
         }
     }
 
@@ -849,6 +894,14 @@ export class MstQueryHandler {
     };
 
     queryMore = (options: any = {}): Promise<() => any> => {
+        // Two sources of truth for the current page would load pages twice.
+        if (!this.isQueryMap) {
+            const source = options.isPaginationOption ? 'option' : 'queryMore';
+            if (this.paginationSource && this.paginationSource !== source) {
+                throw new PaginationSourceError(this.type.name);
+            }
+            this.paginationSource = source;
+        }
         this.pendingQueryMoreCount += 1;
         this.isFetchingMore = true;
 
@@ -1006,7 +1059,12 @@ export class MstQueryHandler {
                 return { data: null, error: err, result: null };
             }
 
-            if (shouldUpdate) {
+            // Like React Query, a failed fetch keeps data from the same request.
+            // Mutations, placeholders and data from a previous request are cleared.
+            if (
+                shouldUpdate &&
+                (this.model.isMutation || options.requestVersion !== this.dataRequestVersion)
+            ) {
                 this.setData(null);
             }
 
@@ -1057,6 +1115,9 @@ export class MstQueryHandler {
 
     removeQueryObserver(queryObserver: any) {
         this.queryObservers = this.queryObservers.filter((observer) => observer !== queryObserver);
+        if (!this.queryObservers.some((observer) => observer.isQuery)) {
+            this.paginationSource = undefined;
+        }
         this.scheduleEviction();
     }
 
@@ -1111,6 +1172,7 @@ export class MstQueryHandler {
         this.variablesInitialized = true;
         if (!isRequestEqual) {
             this.requestVersion += 1;
+            this.paginationSource = undefined;
         }
     }
 
@@ -1127,6 +1189,7 @@ export class MstQueryHandler {
     setData = (data: any, options: CacheOptions = {}) => {
         const opts = options ?? this.options;
 
+        this.dataRequestVersion = this.requestVersion;
         this.model.__MstQueryHandlerAction(() => {
             if (isStateTreeNode(data)) {
                 if (isReferenceType(this.type.properties.data)) {
@@ -1154,6 +1217,11 @@ export class MstQueryHandler {
 
         return this.model.data;
     };
+
+    /** @internal */
+    markPlaceholderData() {
+        this.dataRequestVersion = undefined;
+    }
 
     hydrate = (data: any, options: any) => {
         const { enabled, request, pagination } = options;

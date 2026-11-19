@@ -12,13 +12,21 @@ import {
 } from 'mobx-state-tree';
 import { action, computed, makeObservable, observableRef } from 'mobx';
 import { QueryStore } from './QueryStore';
-import type { InfiniteQueryReturnType, MutationScope, QueryReturnType } from './create';
+import type {
+    InfiniteQueryMapReturnType,
+    InfiniteQueryReturnType,
+    MutationScope,
+    QueryMapReturnType,
+    QueryReturnType,
+} from './create';
 import type { EntryOf } from './QueryCollection';
 import { validateCacheTime } from './requestKey';
 
 export type DehydratedQuery = {
     path: string;
     type: string;
+    /** Set for query map entries; `path` then points to the map. */
+    key?: string;
     request?: unknown;
     pagination?: unknown;
     cachedAt?: number;
@@ -31,8 +39,16 @@ export type DehydratedState = {
     queries: DehydratedQuery[];
 };
 
-type PrefetchOptions<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>> = {
-    request?: SnapshotIn<T['variables']['request']>;
+type Prefetchable =
+    | Instance<QueryReturnType>
+    | Instance<InfiniteQueryReturnType>
+    | Instance<QueryMapReturnType>
+    | Instance<InfiniteQueryMapReturnType>;
+
+type PrefetchOptions<T extends Prefetchable> = {
+    request?: SnapshotIn<EntryOf<T>['variables']['request']>;
+    /** Selects a query map entry; ignored by singleton queries. */
+    scope?: string;
     pagination?: any;
     meta?: { [key: string]: any };
 };
@@ -66,6 +82,7 @@ type QueryClientConfig<T extends IAnyModelType> = {
         refetchOnWindowFocus?: RefetchOnWindowFocus<
             EntryOf<Instance<QueryReturnType | InfiniteQueryReturnType>>
         >;
+        throwOnError?: boolean | ((error: any, query: any) => boolean);
     };
     RootStore: T;
 };
@@ -157,27 +174,37 @@ export class QueryClient<T extends IAnyModelType> {
     }
 
     // Never rejects; await it to block on the data, or leave it pending to stream it
-    prefetchQuery<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>>(
+    prefetchQuery<T extends Prefetchable>(
         query: T,
         options: PrefetchOptions<T> = {},
     ): Promise<void> {
-        return query.__MstQueryHandler.prefetch(options).then(noop, noop);
+        if ((query as any).isQueryCollection) {
+            const entry = (query as any).getOrCreate(options);
+            return entry.__MstQueryHandler
+                .prefetch({ ...options, request: entry.variables.request })
+                .then(noop, noop);
+        }
+        return (query as any).__MstQueryHandler.prefetch(options).then(noop, noop);
     }
 
     dehydrate(): DehydratedState {
         const queries: DehydratedQuery[] = [];
         for (const query of this.queryStore.getAllQueries()) {
-            const response = query.__MstQueryHandler.prefetchedResponse;
+            const handler = query.__MstQueryHandler;
+            const response = handler.prefetchedResponse;
             if (!response || response.status === 'error' || getRoot(query) !== this.rootStore) {
                 continue;
             }
             const variables = getSnapshot<any>(query.variables);
             const entry: DehydratedQuery = {
-                path: getPath(query),
+                path: getPath(handler.collection ?? query),
                 type: getType(query).name,
                 request: serializable(variables.request),
                 pagination: serializable(variables.pagination),
             };
+            if (handler.collection) {
+                entry.key = handler.collectionKey;
+            }
             if (response.status === 'success') {
                 entry.result = response.result;
                 entry.cachedAt = response.cachedAt;
@@ -193,7 +220,10 @@ export class QueryClient<T extends IAnyModelType> {
     hydrate(state: DehydratedState, options: { deferObserved?: boolean } = {}) {
         const deferred: DehydratedQuery[] = [];
         for (const entry of state.queries) {
-            const query: any = tryResolve(this.rootStore, entry.path);
+            const query: any =
+                entry.key === undefined
+                    ? tryResolve(this.rootStore, entry.path)
+                    : this.#resolveMapEntry(entry);
             const handler = query?.__MstQueryHandler;
             if (!handler || getType(query).name !== entry.type) {
                 console.warn(
@@ -228,6 +258,19 @@ export class QueryClient<T extends IAnyModelType> {
             }
         }
         return deferred;
+    }
+
+    // Map entries are created on demand, so the client may not have this entry yet
+    #resolveMapEntry(entry: DehydratedQuery) {
+        const collection: any = tryResolve(this.rootStore, entry.path);
+        if (!collection?.isQueryCollection || collection.__entryType.name !== entry.type) {
+            return undefined;
+        }
+        const scope = JSON.parse(entry.key!).scope ?? undefined;
+        if (collection.__getKey(entry.request, scope) !== entry.key) {
+            return undefined;
+        }
+        return collection.getOrCreate({ request: entry.request, scope, pagination: entry.pagination });
     }
 
     getMutationScopes() {

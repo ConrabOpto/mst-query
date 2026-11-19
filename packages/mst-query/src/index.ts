@@ -3,10 +3,17 @@ export type { OptimisticRevertMode } from './MstQueryHandler';
 export {
     useQuery,
     useSuspenseQuery,
+    useSuspenseInfiniteQuery,
     useMutation,
     useInfiniteQuery,
     useVolatileQuery,
 } from './hooks';
+export type { ThrowOnError } from './hooks';
+export {
+    QueryErrorResetBoundary,
+    useQueryErrorResetBoundary,
+} from './QueryErrorResetBoundary';
+export type { QueryErrorResetBoundaryValue } from './QueryErrorResetBoundary';
 export {
     createQuery,
     createQueryMap,

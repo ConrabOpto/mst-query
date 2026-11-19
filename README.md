@@ -58,6 +58,8 @@ const MesssageView = observer((props) => {
 
 # Documentation
 
+Upgrading from version 4? See the [migration notes](MIGRATION.md).
+
 ## Installation
 
 ```
@@ -185,6 +187,57 @@ can take over the same instance.
 Their snapshots remain `{ data, variables }`. Use `createQueryMap` or `createInfiniteQueryMap`
 when multiple hooks need to coordinate requests through the same store property.
 
+### Errors
+
+Like React Query, a failed fetch keeps the data from the last successful fetch of the same
+request, so a failed background refetch doesn't remove what's on screen. `error` is set either
+way, and two flags tell the cases apart:
+
+- `isLoadingError`: the query failed and has no data to show.
+- `isRefetchError`: the query failed but still has data from an earlier fetch.
+
+Data from a previous request and placeholder data are cleared when a request fails. Mutations
+clear their data on error.
+
+Hooks return errors instead of throwing them. Set `throwOnError` to throw them to the nearest
+error boundary instead:
+
+```tsx
+useQuery(messageStore.messageQuery, { request: { id }, throwOnError: true });
+
+// Only throw when there's nothing to show
+useQuery(messageStore.messageQuery, {
+    request: { id },
+    throwOnError: (error, query) => query.data == null,
+});
+```
+
+Set it for all queries with `new QueryClient({ RootStore, queryOptions: { throwOnError } })`.
+Errors aren't thrown while the query is fetching again.
+
+A failed query without data is retried when its hook mounts again. A hook that throws its error
+never mounts, so to retry after the error boundary resets, wrap it in a `QueryErrorResetBoundary`:
+
+```tsx
+import { QueryErrorResetBoundary } from 'mst-query';
+import { ErrorBoundary } from 'react-error-boundary';
+
+<QueryErrorResetBoundary>
+    {({ reset }) => (
+        <ErrorBoundary
+            onReset={reset}
+            fallbackRender={({ resetErrorBoundary }) => (
+                <button onClick={resetErrorBoundary}>Try again</button>
+            )}>
+            <Messages />
+        </ErrorBoundary>
+    )}
+</QueryErrorResetBoundary>;
+```
+
+`useQueryErrorResetBoundary()` returns the `reset` function of the closest boundary, or of a
+global one when there is no boundary.
+
 Use `placeholderData` to keep previous data visible while a changed request is loading:
 
 ```tsx
@@ -305,6 +358,30 @@ const MesssageListView = observer((props) => {
     );
 });
 ```
+
+Instead of changing `pagination`, you can keep it at its initial value (or omit it) and call the
+`queryMore` function returned by the hook:
+
+```tsx
+const { data, queryMore } = useInfiniteQuery(messageStore.messagesQuery, {
+    request: { filter: '' },
+    pagination: { offset: 0, limit: 20 },
+});
+
+<button onClick={() => queryMore({ pagination: { offset: data.items.length, limit: 20 } })}>
+    Get more messages
+</button>;
+```
+
+Use one or the other for a request: once the `pagination` option has loaded a page, `queryMore`
+rejects, and changing `pagination` after `queryMore` has loaded a page throws. Changing the request
+or unmounting the hook starts over.
+
+A refetch of an infinite query fetches a single page and replaces the data with it, so loaded
+pages aren't fetched again. Refetches on mount use the hook's `pagination` option, which starts the
+list over from the first page when the data is stale. Other refetches, such as on window focus,
+use the current pagination. Set `refetchOnMount: 'never'` or `refetchOnWindowFocus: false` to keep
+the loaded pages instead.
 
 Parallel `queryMore` calls can finish out of order and each calls `onQueryMore` while the
 request remains the same. Changing the request (for example, its filter) discards pending
@@ -569,7 +646,9 @@ export const Message = observer(({ id }) => {
 - `prefetchQuery` never rejects. Await it to block rendering until the data is available, or leave it pending to stream it.
 - `dehydrate` includes queries started with `prefetchQuery` that live in the root store. Resolved queries are sent as raw endpoint results, pending ones as promises, and failed ones are left out so the client can retry them. The client normalizes results the same way as its own responses, so endpoint results must be serializable by React.
 - `HydrationBoundary` matches queries by their path in the root store, so the server and client must use the same `RootStore`. Data is only applied when it is newer than what the client already has.
-- `useSuspenseQuery` suspends until the query has data, and throws errors to the nearest error boundary. It fetches by itself when nothing was prefetched. To avoid refetching right after suspending, `staleTime` is at least 1000 ms. It doesn't support `useVolatileQuery`.
+- `useSuspenseQuery` suspends until the query has data, including data set with `setData` while the request is in flight. It throws errors to the nearest error boundary when there is no data to show; after a failed background refetch it keeps rendering the data and returns the `error`. It fetches by itself when nothing was prefetched. To avoid refetching or evicting a query map entry right after suspending, `staleTime` and the map's `cacheTime` are at least 1000 ms. A failed query is only retried on remount after its `QueryErrorResetBoundary` is reset (see [Errors](#errors)), or after you call `refetch`. It doesn't support `useVolatileQuery`.
+- `useSuspenseInfiniteQuery` is the suspense counterpart of `useInfiniteQuery`, with the same rules. It only suspends for the first page; loading more pages updates `isFetchingMore`, and a failed page keeps the loaded pages on screen and returns the `error`.
+- Query maps work the same way: pass the map to `prefetchQuery` with a `request` (and optional `scope`), and to `useQuery`/`useSuspenseQuery`/`useSuspenseInfiniteQuery` on the client. Hydration creates the matching entry if the client doesn't have it yet.
 - Infinite queries only dehydrate their first page.
 
 ### Multiple query clients

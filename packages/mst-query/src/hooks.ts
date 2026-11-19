@@ -2,7 +2,7 @@
 import { equal } from '@wry/equality';
 import { Instance, SnapshotIn, getEnv, isAlive, isStateTreeNode } from 'mobx-state-tree';
 import { useContext, useEffect, useRef, useState, type Context as ReactContext } from 'react';
-import { runInAction } from 'mobx';
+import { runInAction, when } from 'mobx';
 import {
     VolatileQuery,
     MutationReturnType,
@@ -24,6 +24,10 @@ import {
     OptimisticRevertMode,
 } from './MstQueryHandler';
 import { resolvePlaceholder } from './requestKey';
+import {
+    useQueryErrorResetBoundary,
+    type QueryErrorResetBoundaryValue,
+} from './QueryErrorResetBoundary';
 import { useEvent } from './utils';
 
 function mergeWithDefaultOptions(key: string, options: any, queryClient: QueryClient<any>) {
@@ -76,7 +80,11 @@ type QueryOptions<T extends QuerySource> = {
         | PlaceholderData<Entry<T>['data']>
         | ((previousData: Entry<T>['data']) => PlaceholderData<Entry<T>['data']> | undefined);
     meta?: Record<string, any>;
+    /** Throw errors to the nearest error boundary. Defaults to false. */
+    throwOnError?: ThrowOnError<Entry<T>>;
 } & CacheOptions;
+
+export type ThrowOnError<TQuery = any> = boolean | ((error: any, query: TQuery) => boolean);
 
 function useEntry<T extends QuerySource>(
     source: T,
@@ -84,6 +92,7 @@ function useEntry<T extends QuerySource>(
     infinite: boolean,
 ) {
     const client = useOwningClient(source);
+    const errorResetBoundary = useQueryErrorResetBoundary();
     const suppliedCacheTime = options.cacheTime;
     options = mergeWithDefaultOptions('queryOptions', options, client);
     const collection = (source as any).isQueryCollection ? (source as Collection) : undefined;
@@ -206,14 +215,30 @@ function useEntry<T extends QuerySource>(
     }
 
     useEffect(() => placeholderOwner?.retainPlaceholder(), [placeholderOwner]);
+    useEffect(() => errorResetBoundary.clearReset(), [errorResetBoundary]);
 
     const refetch = useEvent((params: Parameters<T['refetch']>[0] = {}) =>
         source.refetch((isMap ? { ...options, ...params } : params) as any),
     );
+    const error = isHydrating || hasInitialData ? null : (query?.error ?? null);
+    if (
+        error &&
+        !query.isLoading &&
+        !errorResetBoundary.isReset() &&
+        (typeof options.throwOnError === 'function'
+            ? options.throwOnError(error, query)
+            : options.throwOnError)
+    ) {
+        throw error;
+    }
     return {
         data: data as Entry<T>['data'],
         dataUpdatedAt: query?.__MstQueryHandler.cachedAt?.getTime(),
-        error: isHydrating || hasInitialData ? null : (query?.error ?? null),
+        error,
+        /** The query failed and has no data to show. */
+        isLoadingError: !!error && query.data == null,
+        /** The query failed but still has data from an earlier fetch. */
+        isRefetchError: !!error && query.data != null,
         isFetched: query?.isFetched ?? false,
         isLoading: query?.isLoading ?? (!!options.enabled && !hasInitialData && !isHydrating),
         isRefetching: query?.isRefetching ?? false,
@@ -237,7 +262,6 @@ export function useInfiniteQuery<T extends QuerySource>(
     source: T,
     options: InfiniteQueryOptions<T> = {},
 ) {
-    const result = useEntry(source, options, true);
     const queryMore = useEvent(
         (
             params: {
@@ -252,77 +276,179 @@ export function useInfiniteQuery<T extends QuerySource>(
                 ...params,
             }) as Promise<QueryResponse<Entry<T>>>,
     );
+    const result = useEntry(source, options, true);
     return { ...result, isFetchingMore: (result.query as any)?.isFetchingMore ?? false, queryMore };
 }
 
-// Avoids refetching right after a suspended component mounts
-const MIN_SUSPENSE_STALE_TIME = 1000;
+// Avoids refetching, or evicting a map entry, right after a suspended component mounts
+const MIN_SUSPENSE_TIME = 1000;
 
-type SuspenseQueryOptions<T extends Instance<QueryReturnType>> = Omit<
-    QueryOptions<T>,
+type SuspenseSource =
+    | Instance<QueryReturnType>
+    | Instance<QueryMapReturnType>
+    | EntryOf<Instance<QueryMapReturnType>>;
+
+type SuspenseInfiniteSource =
+    | Instance<InfiniteQueryReturnType>
+    | Instance<InfiniteQueryMapReturnType>
+    | EntryOf<Instance<InfiniteQueryMapReturnType>>;
+
+type SuspenseOmittedOptions =
     | 'enabled'
     | 'initialData'
     | 'initialDataUpdatedAt'
     | 'placeholderData'
     | 'cacheKey'
     | 'cacheTime'
+    | 'throwOnError';
+
+type SuspenseQueryOptions<T extends SuspenseSource> = Omit<QueryOptions<T>, SuspenseOmittedOptions>;
+
+type SuspenseInfiniteQueryOptions<T extends SuspenseInfiniteSource> = Omit<
+    InfiniteQueryOptions<T>,
+    SuspenseOmittedOptions
 >;
 
-export function useSuspenseQuery<T extends Instance<QueryReturnType>>(
-    query: T,
+type WithSuspenseData<TResult, T extends QuerySource> = TResult & {
+    data: NonNullable<Entry<T>['data']>;
+    query: Entry<T>;
+};
+
+export function useSuspenseQuery<T extends SuspenseSource>(
+    source: T,
     options: SuspenseQueryOptions<T> = {},
 ) {
-    const queryClient = useOwningClient(query);
+    return useSuspenseEntry(source, options, false) as WithSuspenseData<
+        ReturnType<typeof useQuery<T>>,
+        T
+    >;
+}
+
+export function useSuspenseInfiniteQuery<T extends SuspenseInfiniteSource>(
+    source: T,
+    options: SuspenseInfiniteQueryOptions<T> = {},
+) {
+    return useSuspenseEntry(source, options, true) as WithSuspenseData<
+        ReturnType<typeof useInfiniteQuery<T>>,
+        T
+    >;
+}
+
+function useSuspenseEntry(source: any, options: any, infinite: boolean) {
+    const queryClient = useOwningClient(source);
+    const errorResetBoundary = useQueryErrorResetBoundary();
     const staleTime = Math.max(
         options.staleTime ?? queryClient.config.queryOptions?.staleTime ?? 0,
-        MIN_SUSPENSE_STALE_TIME,
+        MIN_SUSPENSE_TIME,
     );
-    const result = useQuery(query, { ...options, staleTime });
+    const collection = source.isQueryCollection ? source : undefined;
+    const map = collection ?? source.__MstQueryHandler.collection;
+    const cacheTime = map
+        ? Math.max(map.__cacheTime ?? queryClient.queryMapCacheTime, MIN_SUSPENSE_TIME)
+        : undefined;
+    const hookOptions = {
+        ...options,
+        staleTime,
+        // Suspense throws only errors without data to show, below.
+        throwOnError: false,
+        ...(cacheTime === undefined ? {} : { cacheTime }),
+    };
+    // `infinite` is fixed per call site, so the hook order doesn't change.
+    const result: any = infinite
+        ? useInfiniteQuery(source, hookOptions)
+        : useQuery(source, hookOptions);
 
-    const handler = query.__MstQueryHandler;
-    const isRequestEqual = isVariableEqual(query.variables.request, options.request);
+    const query: any = collection ? collection.get(options.request, options.scope) : source;
+    const isRequestEqual =
+        !!query && (!!map || isVariableEqual(query.variables.request, options.request));
     if (isRequestEqual) {
         if (query.data != null) {
-            return result as typeof result & { data: NonNullable<T['data']> };
+            return result;
         }
-        if (handler.isLoading) {
-            throw handler.promise;
+        if (query.isLoading && query.__MstQueryHandler.promise) {
+            throw untilData(query, query.__MstQueryHandler.promise);
         }
-        if (query.error) {
+        if (query.error && !errorResetBoundary.isReset()) {
             throw query.error;
         }
     }
 
-    throw suspendQuery(query, options.request, options.meta);
+    throw suspendQuery(source, { ...options, cacheTime }, errorResetBoundary);
 }
 
-const pendingSuspensions = new WeakMap<object, { request: any; promise: Promise<void> }>();
+const pendingSuspensions = new WeakMap<
+    object,
+    Map<string, { request: any; promise: Promise<void> }>
+>();
 
-function suspendQuery(query: Instance<QueryReturnType>, request: any, meta: any) {
-    const handler = query.__MstQueryHandler;
-    const pending = pendingSuspensions.get(handler);
-    if (pending && equal(pending.request, request)) {
-        return pending.promise;
+function suspendQuery(
+    source: any,
+    options: any,
+    errorResetBoundary: QueryErrorResetBoundaryValue,
+) {
+    const { request, scope, pagination, meta, cacheTime } = options;
+    const collection = source.isQueryCollection ? source : undefined;
+    const owner = collection ?? source.__MstQueryHandler;
+    // A map can suspend on several entries at once; a singleton has one slot.
+    const slot = collection ? collection.__getKey(request, scope) : '';
+    let pending = pendingSuspensions.get(owner);
+    if (!pending) {
+        pending = new Map();
+        pendingSuspensions.set(owner, pending);
+    }
+    const current = pending.get(slot);
+    if (current && (collection || equal(current.request, request))) {
+        return current.promise;
     }
 
     // Start outside render, so components observing the query aren't updated while rendering
     const entry = { request, promise: undefined as unknown as Promise<void> };
     entry.promise = Promise.resolve()
         .then(() => {
-            if (!isVariableEqual(query.variables.request, request)) {
-                query.setData(null);
+            let query = source;
+            let fetch: Promise<unknown>;
+            if (collection) {
+                fetch = collection.query({ request, scope, pagination, meta, cacheTime });
+                query = collection.get(request, scope);
+            } else if (source.__MstQueryHandler.isQueryMap) {
+                fetch = source.query({ meta, cacheTime });
+            } else {
+                if (!isVariableEqual(source.variables.request, request)) {
+                    source.setData(null);
+                }
+                source.query({ request, pagination, meta });
+                fetch = source.__MstQueryHandler.promise;
             }
-            query.query({ request, meta } as any);
-            return handler.promise;
+            return untilData(query, fetch).then(() => {
+                // A failed retry is thrown again rather than retried in a loop.
+                if (query.error) errorResetBoundary.clearReset();
+            });
         })
         .finally(() => {
-            if (pendingSuspensions.get(handler) === entry) {
-                pendingSuspensions.delete(handler);
+            if (pending.get(slot) === entry) {
+                pending.delete(slot);
             }
         });
-    pendingSuspensions.set(handler, entry);
+    pending.set(slot, entry);
     return entry.promise;
 }
+
+const dataPromises = new WeakMap<Promise<unknown>, Promise<void>>();
+
+// Like the fetch, but also settles once data is set while it's in flight, e.g. by setData
+function untilData(query: any, fetch: Promise<unknown>) {
+    let promise = dataPromises.get(fetch);
+    if (!promise) {
+        const hasData = when(() => !isAlive(query) || query.data != null);
+        promise = Promise.race([fetch, hasData])
+            .then(noop, noop)
+            .finally(() => hasData.cancel());
+        dataPromises.set(fetch, promise);
+    }
+    return promise;
+}
+
+const noop = () => {};
 
 type MutationOptions<T extends Instance<MutationReturnType>> = {
     onMutate?: (data: T['data'], self: T) => void;
