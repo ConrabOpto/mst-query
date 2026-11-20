@@ -64,7 +64,10 @@ test.each([
         expect(query.data).toEqual(initialData);
         expect(query.isFetched).toBe(false);
         expect(endpoint).not.toHaveBeenCalled();
-        expect(getSnapshot(query.variables)).toEqual({ request: undefined, pagination: undefined });
+        expect(getSnapshot(query.variables)).toEqual({
+            request: requestReady ? { id: 'ready' } : undefined,
+            pagination: requestReady ? { offset: 0 } : undefined,
+        });
 
         if (mode === 'remount') view.unmount();
         await act(async () => {
@@ -74,8 +77,13 @@ test.each([
                 view.rerender(<Comp enabled />);
             }
         });
-        expect(endpoint).toHaveBeenCalledTimes(1);
-        expect(query.data).toEqual({ request: { id: 'ready' }, pagination: { offset: 0 } });
+        // A supplied request already identifies fresh hydrated data; incomplete forms
+        // still initialize by fetching when they become enabled.
+        const initialFetches = requestReady ? 0 : 1;
+        expect(endpoint).toHaveBeenCalledTimes(initialFetches);
+        expect(query.data).toEqual(
+            requestReady ? initialData : { request: { id: 'ready' }, pagination: { offset: 0 } },
+        );
 
         await expect(query.queryMore({ pagination: { offset: 10 } })).resolves.toMatchObject({
             error: null,
@@ -85,7 +93,7 @@ test.each([
             error: null,
             result: { request: { id: 'ready' }, pagination: { offset: 10 } },
         });
-        expect(endpoint).toHaveBeenCalledTimes(3);
+        expect(endpoint).toHaveBeenCalledTimes(initialFetches + 2);
         expect(query.isLoading).toBe(false);
         expect(query.isFetchingMore).toBe(false);
         expect(query.isRefetching).toBe(false);
