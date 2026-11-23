@@ -18,7 +18,6 @@ function setup() {
     });
     const client = new QueryClient({
         RootStore: types.model({ search: types.optional(Search, {}) }),
-        queryOptions: { retry: false },
     }).init();
     const { QueryClientProvider } = createContext(client);
     return { endpoint, search: client.rootStore.search, QueryClientProvider };
