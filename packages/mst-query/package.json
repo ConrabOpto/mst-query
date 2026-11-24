@@ -1,6 +1,6 @@
 {
     "name": "mst-query",
-    "version": "4.13.0",
+    "version": "4.13.1",
     "description": "Query library for mobx-state-tree",
     "source": "src/index.ts",
     "type": "module",
@@ -19,6 +19,7 @@
     },
     "scripts": {
         "build": "tsup",
+        "prepack": "npm run build",
         "watch": "vitest",
         "test": "vitest run",
         "test:build": "publint --strict && attw --pack"
