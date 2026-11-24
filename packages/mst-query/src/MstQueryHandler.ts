@@ -118,6 +118,10 @@ export class QueryObserver {
         this.subscribe();
 
         if (this.isQuery) {
+            // Fresh hydrated queries may skip fetching, but imperative refetches still need hook metadata.
+            if (options.meta !== undefined) {
+                this.handler.options.meta = options.meta;
+            }
             options.isMounted = this.isMounted;
 
             if (!this.options.enabled && options.enabled) {
@@ -390,7 +394,10 @@ export class MstQueryHandler {
             isVariableEqual(this.model.variables.pagination, options.pagination);
 
         this.setVariables({ request: options.request, pagination: options.pagination });
-        this.options.meta = options.meta;
+        // Streamed hydration adopts a response without supplying client-only metadata.
+        if (options.meta !== undefined) {
+            this.options.meta = options.meta;
+        }
 
         if (this.isLoading && this.abortController && !this.model.isMutation && isVariablesEqual) {
             this.abortController.abort();
@@ -406,7 +413,7 @@ export class MstQueryHandler {
             ...options,
             request: this.model.variables.request,
             pagination: this.model.variables.pagination,
-            meta: options.meta ?? {},
+            meta: this.options.meta ?? {},
             signal: this.abortController.signal,
             setData: this.model.setData,
             query: this.model,
@@ -877,7 +884,9 @@ export class MstQueryHandler {
         if (enabled || (request !== undefined && request !== EmptyRequest)) {
             this.setVariables({ request, pagination });
         }
-        this.options.meta = options.meta;
+        if (options.meta !== undefined) {
+            this.options.meta = options.meta;
+        }
 
         this.isLoading = false;
 
