@@ -58,9 +58,18 @@ type OnResponseOptions = {
 
 export class DisposedError extends Error {}
 
-export type PrefetchedResponse = {
+type QueryIdentity = {
+    request: any;
+    pagination: any;
+    meta: any;
+    endpoint: any;
+};
+
+export type QueryResponse = {
     status: 'pending' | 'success' | 'error';
     promise: Promise<any>;
+    identity: QueryIdentity;
+    data?: any;
     result?: any;
     cachedAt?: number;
 };
@@ -338,7 +347,9 @@ export class MstQueryHandler {
 
     // Settles after the latest query run has applied its result
     promise?: Promise<void>;
-    prefetchedResponse?: PrefetchedResponse;
+    response?: QueryResponse;
+    dehydrateEnabled = false;
+    private runIdentity?: QueryIdentity;
 
     isDisposed = false;
 
@@ -363,7 +374,7 @@ export class MstQueryHandler {
             setError: action,
             run: action,
             query: action,
-            prefetch: action,
+            fetch: action,
             adopt: action,
             mutate: action,
             queryMore: action,
@@ -418,8 +429,16 @@ export class MstQueryHandler {
             setData: this.model.setData,
             query: this.model,
         };
+        this.runIdentity = this.getIdentity();
 
-        return endpoint(opts).then((result: any) => {
+        // Synchronous endpoint failures follow the same state/error path as rejections.
+        let response: Promise<any>;
+        try {
+            response = Promise.resolve(endpoint(opts));
+        } catch (error) {
+            response = Promise.reject(error);
+        }
+        return response.then((result: any) => {
             if (abortController?.signal.aborted || this.isDisposed) {
                 throw new DisposedError();
             }
@@ -496,33 +515,65 @@ export class MstQueryHandler {
         return this.handleResponse(this.run(options), options);
     };
 
-    // Keeps the raw endpoint response so it can be dehydrated
-    prefetch = (options: any = {}) => {
-        const promise = this.run(options);
-        const response: PrefetchedResponse = { status: 'pending', promise };
-        this.prefetchedResponse = response;
-        promise.then(
-            (result) => {
-                response.status = 'success';
-                response.result = result;
-                response.cachedAt = Date.now();
-            },
-            () => {
-                response.status = 'error';
-            },
+    private getIdentity(): QueryIdentity {
+        return {
+            request: snapshotIdentity(this.model.variables.request),
+            pagination: snapshotIdentity(this.model.variables.pagination),
+            meta: snapshotIdentity(this.options.meta ?? {}),
+            endpoint: this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint,
+        };
+    }
+
+    private matchesResponse(options: any) {
+        const identity = this.response?.identity;
+        return (
+            !!identity &&
+            isVariableEqual(this.model.variables.request, options.request) &&
+            isVariableEqual(this.model.variables.pagination, options.pagination) &&
+            equal(identity.request, snapshotIdentity(this.model.variables.request)) &&
+            equal(identity.pagination, snapshotIdentity(this.model.variables.pagination)) &&
+            equal(identity.meta, snapshotIdentity(options.meta ?? this.options.meta ?? {})) &&
+            identity.endpoint ===
+                (this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint)
         );
-        return this.applyResponse(this.handleResponse(promise, options));
+    }
+
+    fetch = async (options: any = {}) => {
+        if (this.isDisposed) {
+            throw new DisposedError();
+        }
+        this.dehydrateEnabled = true;
+        if (this.matchesResponse(options) && !this.abortController?.signal.aborted) {
+            const response = this.response!;
+            if (response.status === 'pending') {
+                await response.promise;
+                return response.data;
+            }
+            if (response.status === 'success' && !this.isStale(options)) {
+                return this.model.data;
+            }
+        }
+
+        const applied = this.applyResponse(this.handleResponse(this.run(options), options));
+        const response = this.response!;
+        await applied;
+        await response.promise;
+        return response.data;
     };
 
     // Treats an externally started request, such as a streamed server response, as a query run
     adopt = (promise: PromiseLike<any>, options: any = {}) => {
         // React's deserialized promises are thenables whose then() doesn't return a promise
         const response = Promise.resolve(promise);
-        return this.applyResponse(this.handleResponse(this.run(options, () => response), options));
+        // Errors are exposed through query state and the tracked response promise.
+        return this.applyResponse(this.handleResponse(this.run(options, () => response), options))
+            .catch(() => {});
     };
 
     private applyResponse(response: Promise<() => any>) {
-        return response.then((next) => this.model.__MstQueryHandlerAction(next));
+        return response.then((next) =>
+            this.isDisposed ? next() : this.model.__MstQueryHandlerAction(next),
+        );
     }
 
     // `run` must be called before this, since it assigns the abort controller of the current run
@@ -530,20 +581,66 @@ export class MstQueryHandler {
         const abortController = this.abortController;
         const requestVersion = this.requestVersion;
         let settle: (() => void) | undefined;
+        let response: QueryResponse | undefined;
+        let resolveResponse: ((result: any) => void) | undefined;
+        let rejectResponse: ((error: any) => void) | undefined;
         if (!this.model.isMutation && !options.isQueryMore) {
             this.promise = new Promise<void>((resolve) => (settle = resolve));
+            response = {
+                status: 'pending',
+                identity: this.runIdentity!,
+                promise: new Promise((resolve, reject) => {
+                    resolveResponse = resolve;
+                    rejectResponse = reject;
+                }),
+            };
+            // Hooks use the error state; imperative callers and hydration use this promise.
+            response.promise.catch(() => {});
+            this.response = response;
+        } else if (options.isQueryMore) {
+            // A page changes the aggregate result; it is not a reusable full-query response.
+            this.response = undefined;
         }
-        const settleAfter = (next: () => any) => () => {
+        const settleAfter = (next: () => any, failed: boolean, value: any) => () => {
             try {
-                return next();
+                const result = next();
+                if (response) {
+                    if (failed || abortController?.signal.aborted || this.isDisposed) {
+                        response.status = 'error';
+                        rejectResponse!(failed ? value : new DisposedError());
+                    } else {
+                        response.status = 'success';
+                        response.result = value;
+                        response.data = result.data;
+                        response.cachedAt = this.cachedAt?.getTime() ?? Date.now();
+                        resolveResponse!(value);
+                    }
+                }
+                return result;
+            } catch (error) {
+                if (response) {
+                    response.status = 'error';
+                    rejectResponse!(error);
+                    this.onError(error, { ...options, abortController, requestVersion })();
+                }
+                throw error;
             } finally {
                 settle?.();
             }
         };
         return promise.then(
             (result) =>
-                settleAfter(this.onSuccess(result, { ...options, abortController, requestVersion })),
-            (err) => settleAfter(this.onError(err, { ...options, abortController, requestVersion })),
+                settleAfter(
+                    this.onSuccess(result, { ...options, abortController, requestVersion }),
+                    false,
+                    result,
+                ),
+            (err) =>
+                settleAfter(
+                    this.onError(err, { ...options, abortController, requestVersion }),
+                    true,
+                    err,
+                ),
         );
     }
 
@@ -801,6 +898,7 @@ export class MstQueryHandler {
     abort = () => {
         this.abortController?.abort();
         this.abortController = undefined;
+        this.response = undefined;
 
         if (!this.isDisposed) {
             this.revertVariables();
@@ -893,6 +991,15 @@ export class MstQueryHandler {
         this.setData(data, options);
         this.cachedAt = new Date();
         this.error = null;
+        this.markedAsStale = false;
+        this.response = {
+            status: 'success',
+            identity: this.getIdentity(),
+            promise: Promise.resolve(data),
+            result: data,
+            data: this.model.data,
+            cachedAt: this.cachedAt.getTime(),
+        };
     };
 
     isStale(options: any) {
@@ -913,6 +1020,26 @@ export class MstQueryHandler {
         this.queryObservers.forEach((observer) => observer.unsubscribe());
         this.abort();
     };
+}
+
+// Freeze the identity of plain metadata (including GraphQL documents) without
+// serializing functions, circular structures, or client-only metadata into SSR state.
+const functionIdentities = new WeakMap<Function, symbol>();
+function snapshotIdentity(value: any, seen = new Map<any, any>()): any {
+    // @wry/equality compares function source text, which can conflate different closures.
+    if (typeof value === 'function') {
+        if (!functionIdentities.has(value)) functionIdentities.set(value, Symbol());
+        return functionIdentities.get(value);
+    }
+    if (isStateTreeNode(value)) return getSnapshot(value);
+    if (!value || typeof value !== 'object') return value;
+    if (value instanceof Date) return new Date(value);
+    if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype) return value;
+    if (seen.has(value)) return seen.get(value);
+    const copy: any = Array.isArray(value) ? [] : {};
+    seen.set(value, copy);
+    for (const key of Object.keys(value)) copy[key] = snapshotIdentity(value[key], seen);
+    return copy;
 }
 
 function isDataStale(cachedAt?: number, staleTime: number = 0) {

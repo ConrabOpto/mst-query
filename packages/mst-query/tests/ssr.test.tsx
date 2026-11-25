@@ -25,7 +25,7 @@ const prefetchStreamed = () => {
     const response = new Promise((res) => {
         resolve = res;
     });
-    server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
         meta: { getItem: () => response },
     });

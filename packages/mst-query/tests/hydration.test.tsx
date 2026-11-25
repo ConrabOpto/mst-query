@@ -55,7 +55,7 @@ test('dehydrate includes resolved prefetched queries as results', async () => {
     const server = createServerClient();
     const q = server.rootStore.serviceStore.itemServiceStore;
 
-    await server.prefetchQuery(q.itemQuery, { request: { id: 'test' } });
+    await server.query(q.itemQuery, { request: { id: 'test' } });
     const state = server.dehydrate();
 
     expect(state.queries).toEqual([
@@ -75,7 +75,7 @@ test('dehydrate includes pending prefetched queries as promises', async () => {
     const q = server.rootStore.serviceStore.itemServiceStore;
     const deferred = createDeferred<any>();
 
-    server.prefetchQuery(q.itemQuery, {
+    server.query(q.itemQuery, {
         request: { id: 'test' },
         meta: { getItem: () => deferred.promise },
     });
@@ -89,37 +89,39 @@ test('dehydrate includes pending prefetched queries as promises', async () => {
     await expect(state.queries[0].promise).resolves.toEqual(itemData);
 });
 
-test('dehydrate skips queries not started by prefetchQuery and failed prefetches', async () => {
+test('dehydrate skips queries not selected by the client and failed queries', async () => {
     const server = createServerClient();
     const q = server.rootStore.serviceStore.itemServiceStore;
 
     await q.itemQuery.query({ request: { id: 'test' } });
-    await server.prefetchQuery(q.itemQuery2, {
-        request: { id: 'test' },
-        meta: {
-            getItem: () => Promise.reject(new Error('Failed')),
-        },
-    });
+    await expect(
+        server.query(q.itemQuery2, {
+            request: { id: 'test' },
+            meta: {
+                getItem: () => Promise.reject(new Error('Failed')),
+            },
+        }),
+    ).rejects.toThrow('Failed');
 
     expect(server.dehydrate().queries).toEqual([]);
 });
 
-test('prefetchQuery never rejects', async () => {
+test('client query rejects on failure', async () => {
     const server = createServerClient();
     const q = server.rootStore.serviceStore.itemServiceStore;
 
     await expect(
-        server.prefetchQuery(q.itemQuery, {
+        server.query(q.itemQuery, {
             request: { id: 'test' },
             meta: { getItem: () => Promise.reject(new Error('Failed')) },
         }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('Failed');
     expect(q.itemQuery.error?.message).toBe('Failed');
 });
 
 test('HydrationBoundary hydrates results during the first render without fetching', async () => {
     const server = createServerClient();
-    await server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    await server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
     });
     const state = server.dehydrate();
@@ -152,7 +154,7 @@ test('HydrationBoundary hydrates results during the first render without fetchin
 test('useSuspenseQuery suspends on a streamed promise and renders when it resolves', async () => {
     const server = createServerClient();
     const deferred = createDeferred<any>();
-    server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
         meta: { getItem: () => deferred.promise },
     });
@@ -222,10 +224,10 @@ test('hydrate adopts thenables whose then does not return a promise', async () =
 test('a rejected streamed promise is thrown to the error boundary', async () => {
     const server = createServerClient();
     const deferred = createDeferred<any>();
-    server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    void server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
         meta: { getItem: () => deferred.promise },
-    });
+    }).catch(() => {});
     const state = server.dehydrate();
 
     const { q, render } = setupClient();
@@ -313,7 +315,7 @@ test('useSuspenseQuery suspends again when the request changes', async () => {
 
 test('hydrate does not overwrite newer client data', async () => {
     const server = createServerClient();
-    await server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    await server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
     });
     const state = server.dehydrate();
@@ -348,7 +350,7 @@ test('hydrate warns about and skips paths that do not resolve to a query of the 
 
 test('HydrationBoundary defers hydrating observed queries to an effect', async () => {
     const server = createServerClient();
-    await server.prefetchQuery(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
+    await server.query(server.rootStore.serviceStore.itemServiceStore.itemQuery, {
         request: { id: 'test' },
     });
     const state = server.dehydrate();
@@ -414,7 +416,7 @@ describe('multiple query clients', () => {
 
     const prefetchAdminState = async () => {
         const server = new QueryClient({ RootStore: AdminRoot }).init();
-        await server.prefetchQuery(server.rootStore.adminItemStore.adminItemQuery, {
+        await server.query(server.rootStore.adminItemStore.adminItemQuery, {
             request: { id: '1' },
             meta: { getAdminItem },
         });

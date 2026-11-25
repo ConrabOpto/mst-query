@@ -13,20 +13,24 @@ export default async function Page() {
     const queryClient = new QueryClient({ RootStore }).init();
     const { itemStore } = queryClient.rootStore;
 
-    await queryClient.prefetchQuery(itemStore.awaitedItemQuery, {
+    await queryClient.query(itemStore.awaitedItemQuery, {
         request: { id: 'awaited' },
         meta: { fetchItem },
     });
-    queryClient.prefetchQuery(itemStore.streamedItemQuery, {
-        request: { id: 'streamed' },
-        meta: { fetchItem },
-    });
+    void queryClient
+        .query(itemStore.streamedItemQuery, {
+            request: { id: 'streamed' },
+            meta: { fetchItem },
+        })
+        .catch(() => {}); // The streamed promise reports errors to the client boundary.
 
     const adminQueryClient = new QueryClient({ RootStore: AdminRootStore }).init();
-    adminQueryClient.prefetchQuery(adminQueryClient.rootStore.adminStore.adminItemQuery, {
-        request: { id: 'admin' },
-        meta: { fetchItem },
-    });
+    void adminQueryClient
+        .query(adminQueryClient.rootStore.adminStore.adminItemQuery, {
+            request: { id: 'admin' },
+            meta: { fetchItem },
+        })
+        .catch(() => {});
 
     return (
         <main>

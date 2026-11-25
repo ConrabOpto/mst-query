@@ -327,6 +327,37 @@ const AddMessage = observer((props) => {
 });
 ```
 
+## Imperative fetching
+
+Use `queryClient.query` to fetch and normalize data outside a hook:
+
+```ts
+const data = await queryClient.query(selectedDashboardQuery, {
+    request: { path, origin },
+    meta: { gql: selectedDashboardDocument },
+    staleTime: 5_000,
+});
+```
+
+It returns fresh cached data (including a successful `null`), joins a matching pending request,
+or starts a request when data is missing, stale, or invalidated. The promise resolves with normalized
+`query.data` after MST state is updated, and rejects on endpoint, cancellation, or normalization failure.
+Matching requires the same query instance, request, pagination, endpoint, and metadata. Omitted
+variables and metadata retain the query's current values. `staleTime` defaults to the client's
+configured value, which is `0`; completed requests therefore fetch again by default. Use the model's
+`refetch()` to force a refresh regardless of freshness.
+
+For hover prefetching, call the same method early and handle its rejection:
+
+```ts
+void queryClient.query(selectedDashboardQuery, options).catch(handlePrefetchError);
+// Navigation can join the hover request or reuse its fresh result.
+const data = await queryClient.query(selectedDashboardQuery, options);
+```
+
+In 4.13.3, `queryClient.query` replaces `prefetchQuery`. Rename existing calls and handle errors;
+the old API and its swallowed-error contract have been removed.
+
 ## Server components and streaming
 
 Prefetch queries in a server component and pass them to client components with `HydrationBoundary`.
@@ -350,7 +381,8 @@ export default function Page({ params }) {
     const { messageStore } = queryClient.rootStore;
 
     // Not awaited: the response streams to the client when it resolves
-    queryClient.prefetchQuery(messageStore.messageQuery, { request: { id: params.id } });
+    void queryClient.query(messageStore.messageQuery, { request: { id: params.id } })
+        .catch(() => {}); // The streamed promise reports errors to the client boundary.
 
     return (
         <HydrationBoundary state={queryClient.dehydrate()}>
@@ -375,11 +407,12 @@ export const Message = observer(({ id }) => {
 });
 ```
 
-- `prefetchQuery` never rejects. Await it to block rendering until the data is available, or leave it pending to stream it.
-- `dehydrate` includes queries started with `prefetchQuery` that live in the root store. Resolved queries are sent as raw endpoint results, pending ones as promises, and failed ones are left out so the client can retry them. The client normalizes results the same way as its own responses, so endpoint results must be serializable by React.
+- `queryClient.query` returns normalized data and rejects on failure. Await it to block rendering, or handle its rejection and leave it pending to stream it.
+- `dehydrate` includes root-store queries selected through `queryClient.query`, including fresh results and requests joined from hooks or model methods. Resolved queries are sent as raw endpoint results, pending ones as promises, and failed ones are left out so the client can retry them. The client normalizes results the same way as its own responses, so endpoint results must be serializable by React.
+- Metadata stays local and is not dehydrated. Hydrated results and pending streams can be reused with their local metadata; supplying different metadata (for example a new `meta.gql`) causes `queryClient.query` to fetch.
 - `HydrationBoundary` matches queries by their path in the root store, so the server and client must use the same `RootStore`. Data is only applied when it is newer than what the client already has.
 - `useSuspenseQuery` suspends until the query has data, and throws errors to the nearest error boundary. It fetches by itself when nothing was prefetched. To avoid refetching right after suspending, `staleTime` is at least 1000 ms. It doesn't support `useVolatileQuery`.
-- Infinite queries only dehydrate their first page.
+- Infinite queries can dehydrate their initial query response; loading more pages clears that response from dehydration.
 
 ### Multiple query clients
 

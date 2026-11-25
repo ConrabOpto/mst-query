@@ -32,13 +32,12 @@ export type DehydratedState = {
     queries: DehydratedQuery[];
 };
 
-type PrefetchOptions<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>> = {
+export type QueryOptions<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>> = {
     request?: SnapshotIn<T['variables']['request']>;
     pagination?: any;
     meta?: { [key: string]: any };
+    staleTime?: number;
 };
-
-const noop = () => {};
 
 // Requestless queries use a symbol sentinel, which can't be serialized
 const serializable = (value: unknown) => (typeof value === 'symbol' ? undefined : value);
@@ -118,19 +117,28 @@ export class QueryClient<T extends IAnyModelType> {
         return this.queryStore.hasPendingMutations(node);
     }
 
-    // Never rejects; await it to block on the data, or leave it pending to stream it
-    prefetchQuery<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>>(
+    // Reuse fresh data or a matching request, resolving only after normalization.
+    query<T extends Instance<QueryReturnType> | Instance<InfiniteQueryReturnType>>(
         query: T,
-        options: PrefetchOptions<T> = {},
-    ): Promise<void> {
-        return query.__MstQueryHandler.prefetch(options).then(noop, noop);
+        options: QueryOptions<T> = {},
+    ): Promise<T['data']> {
+        return query.__MstQueryHandler.fetch({
+            ...options,
+            staleTime: options.staleTime ?? this.config.queryOptions?.staleTime,
+        });
     }
 
     dehydrate(): DehydratedState {
         const queries: DehydratedQuery[] = [];
         for (const query of this.queryStore.getAllQueries()) {
-            const response = query.__MstQueryHandler.prefetchedResponse;
-            if (!response || response.status === 'error' || getRoot(query) !== this.rootStore) {
+            const handler = query.__MstQueryHandler;
+            const response = handler.response;
+            if (
+                !handler.dehydrateEnabled ||
+                !response ||
+                response.status === 'error' ||
+                getRoot(query) !== this.rootStore
+            ) {
                 continue;
             }
             const variables = getSnapshot<any>(query.variables);
@@ -186,6 +194,7 @@ export class QueryClient<T extends IAnyModelType> {
                 handler.hydrate(entry.result, { ...variables, enabled: true });
                 if (entry.cachedAt !== undefined) {
                     handler.cachedAt = new Date(entry.cachedAt);
+                    handler.response.cachedAt = entry.cachedAt;
                 }
             }
         }

@@ -199,7 +199,7 @@ test.each([false, true])('dehydration excludes metadata (pending=%s)', async (pe
     meta.circular = meta;
     let resolve!: (value: { value: string }) => void;
     endpoint.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
-    const prefetch = client.prefetchQuery(query, { request: { id: '1' }, meta });
+    const prefetch = client.query(query, { request: { id: '1' }, meta });
     if (!pending) {
         resolve({ value: 'server' });
         await prefetch;
@@ -212,4 +212,23 @@ test.each([false, true])('dehydration excludes metadata (pending=%s)', async (pe
         resolve({ value: 'server' });
         await prefetch;
     }
+});
+
+test('client query joins a request started by useQuery', async () => {
+    const { client, query, endpoint, meta, QueryClientProvider } = setup();
+    let resolve!: (value: { value: string }) => void;
+    endpoint.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
+    const Probe = () => {
+        useQuery(query, { request: { id: '1' }, meta });
+        return null;
+    };
+    render(<Probe />, { wrapper: QueryClientProvider });
+    const joined = client.query(query, { request: { id: '1' }, meta });
+    expect(endpoint).toHaveBeenCalledTimes(1);
+    await act(async () => {
+        resolve({ value: 'joined' });
+        expect(await joined).toBe(query.data);
+    });
+    expect(query.data).toEqual({ value: 'joined' });
+    expect(client.dehydrate().queries[0].result).toEqual({ value: 'joined' });
 });
