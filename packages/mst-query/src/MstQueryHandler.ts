@@ -2,6 +2,7 @@ import { equal } from '@wry/equality';
 import { makeObservable, observable, action, autorun } from 'mobx';
 import {
     addDisposer,
+    clone,
     getEnv,
     getIdentifier,
     getRoot,
@@ -69,6 +70,7 @@ export type QueryResponse = {
     status: 'pending' | 'success' | 'error';
     promise: Promise<any>;
     identity: QueryIdentity;
+    needsMetadata?: boolean;
     data?: any;
     result?: any;
     cachedAt?: number;
@@ -128,9 +130,7 @@ export class QueryObserver {
 
         if (this.isQuery) {
             // Fresh hydrated queries may skip fetching, but imperative refetches still need hook metadata.
-            if (options.meta !== undefined) {
-                this.handler.options.meta = options.meta;
-            }
+            this.handler.registerMetadata(options);
             options.isMounted = this.isMounted;
 
             if (!this.options.enabled && options.enabled) {
@@ -524,7 +524,7 @@ export class MstQueryHandler {
         };
     }
 
-    private matchesResponse(options: any) {
+    private matchesVariablesAndEndpoint(options: any) {
         const identity = this.response?.identity;
         return (
             !!identity &&
@@ -532,9 +532,30 @@ export class MstQueryHandler {
             isVariableEqual(this.model.variables.pagination, options.pagination) &&
             equal(identity.request, snapshotIdentity(this.model.variables.request)) &&
             equal(identity.pagination, snapshotIdentity(this.model.variables.pagination)) &&
-            equal(identity.meta, snapshotIdentity(options.meta ?? this.options.meta ?? {})) &&
             identity.endpoint ===
                 (this.options.endpoint ?? this.queryClient.config.queryOptions?.endpoint)
+        );
+    }
+
+    registerMetadata(options: any) {
+        if (options.meta === undefined) return;
+
+        // SSR matches a query by path/type and variables, but deliberately omits metadata.
+        // Its first matching client use supplies that missing identity exactly once.
+        if (this.response?.needsMetadata && this.matchesVariablesAndEndpoint(options)) {
+            this.response.identity.meta = snapshotIdentity(options.meta);
+            this.response.needsMetadata = false;
+        }
+        this.options.meta = options.meta;
+    }
+
+    private matchesResponse(options: any) {
+        return (
+            this.matchesVariablesAndEndpoint(options) &&
+            equal(
+                this.response!.identity.meta,
+                snapshotIdentity(options.meta ?? this.options.meta ?? {}),
+            )
         );
     }
 
@@ -542,6 +563,7 @@ export class MstQueryHandler {
         if (this.isDisposed) {
             throw new DisposedError();
         }
+        this.registerMetadata(options);
         this.dehydrateEnabled = true;
         if (this.matchesResponse(options) && !this.abortController?.signal.aborted) {
             const response = this.response!;
@@ -565,9 +587,10 @@ export class MstQueryHandler {
     adopt = (promise: PromiseLike<any>, options: any = {}) => {
         // React's deserialized promises are thenables whose then() doesn't return a promise
         const response = Promise.resolve(promise);
+        const handled = this.handleResponse(this.run(options, () => response), options);
+        this.response!.needsMetadata = this.options.meta === undefined;
         // Errors are exposed through query state and the tracked response promise.
-        return this.applyResponse(this.handleResponse(this.run(options, () => response), options))
-            .catch(() => {});
+        return this.applyResponse(handled).catch(() => {});
     };
 
     private applyResponse(response: Promise<() => any>) {
@@ -995,6 +1018,7 @@ export class MstQueryHandler {
         this.response = {
             status: 'success',
             identity: this.getIdentity(),
+            needsMetadata: this.options.meta === undefined,
             promise: Promise.resolve(data),
             result: data,
             data: this.model.data,
@@ -1048,6 +1072,21 @@ function isDataStale(cachedAt?: number, staleTime: number = 0) {
     return now - cachedTime >= staleTime;
 }
 
+function cloneVariableNodes(value: any, seen = new WeakMap<object, any>()): any {
+    if (isStateTreeNode(value)) return clone(value);
+    if (!value || typeof value !== 'object') return value;
+
+    const prototype = Object.getPrototypeOf(value);
+    const isArray = Array.isArray(value);
+    if (!isArray && prototype !== Object.prototype && prototype !== null) return value;
+    if (seen.has(value)) return seen.get(value);
+
+    const copy = isArray ? value.slice() : { __proto__: prototype, ...value };
+    seen.set(value, copy);
+    for (const key of Object.keys(copy)) copy[key] = cloneVariableNodes(copy[key], seen);
+    return copy;
+}
+
 // Undefined variables and hook sentinels mean "keep the current one", see setVariables.
 export function isVariableEqual(currentVariable: any, nextVariable: any) {
     if (
@@ -1060,9 +1099,11 @@ export function isVariableEqual(currentVariable: any, nextVariable: any) {
     }
 
     if (isStateTreeNode(currentVariable)) {
+        // MST adopts nested model instances when it creates the temporary comparison tree.
+        // Give it copies so the original nodes can still be attached to the actual request.
         const nextSnapshot = isStateTreeNode(nextVariable)
             ? getSnapshot(nextVariable)
-            : getSnapshot(getType(currentVariable).create(nextVariable));
+            : getSnapshot(getType(currentVariable).create(cloneVariableNodes(nextVariable)));
         return equal(nextSnapshot, getSnapshot(currentVariable));
     }
 
