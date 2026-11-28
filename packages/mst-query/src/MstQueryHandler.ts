@@ -2,6 +2,7 @@ import { equal } from '@wry/equality';
 import { makeObservable, observable, action, autorun } from 'mobx';
 import {
     addDisposer,
+    clone,
     getEnv,
     getIdentifier,
     getRoot,
@@ -1071,6 +1072,21 @@ function isDataStale(cachedAt?: number, staleTime: number = 0) {
     return now - cachedTime >= staleTime;
 }
 
+function cloneVariableNodes(value: any, seen = new WeakMap<object, any>()): any {
+    if (isStateTreeNode(value)) return clone(value);
+    if (!value || typeof value !== 'object') return value;
+
+    const prototype = Object.getPrototypeOf(value);
+    const isArray = Array.isArray(value);
+    if (!isArray && prototype !== Object.prototype && prototype !== null) return value;
+    if (seen.has(value)) return seen.get(value);
+
+    const copy = isArray ? value.slice() : { __proto__: prototype, ...value };
+    seen.set(value, copy);
+    for (const key of Object.keys(copy)) copy[key] = cloneVariableNodes(copy[key], seen);
+    return copy;
+}
+
 // Undefined variables and hook sentinels mean "keep the current one", see setVariables.
 export function isVariableEqual(currentVariable: any, nextVariable: any) {
     if (
@@ -1083,9 +1099,11 @@ export function isVariableEqual(currentVariable: any, nextVariable: any) {
     }
 
     if (isStateTreeNode(currentVariable)) {
+        // MST adopts nested model instances when it creates the temporary comparison tree.
+        // Give it copies so the original nodes can still be attached to the actual request.
         const nextSnapshot = isStateTreeNode(nextVariable)
             ? getSnapshot(nextVariable)
-            : getSnapshot(getType(currentVariable).create(nextVariable));
+            : getSnapshot(getType(currentVariable).create(cloneVariableNodes(nextVariable)));
         return equal(nextSnapshot, getSnapshot(currentVariable));
     }
 

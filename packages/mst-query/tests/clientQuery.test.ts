@@ -256,9 +256,16 @@ test('hydrated fresh results preserve their timestamp and can be dehydrated agai
     browser.client.hydrate(state);
     expect(await browser.client.query(browser.query)).toBe(browser.query.data);
     expect(browser.client.dehydrate().queries).toEqual(state.queries);
-    // New operation metadata cannot be assumed to match server-only metadata.
-    await browser.client.query(browser.query, browser.options);
-    expect(browser.endpoint).toHaveBeenCalledTimes(1);
+    // The first matching client call supplies the metadata omitted by hydration.
+    expect(await browser.client.query(browser.query, browser.options)).toBe(browser.query.data);
+    expect(browser.endpoint).not.toHaveBeenCalled();
+
+    const differentEndpoint = vi.fn(async () => itemData);
+    await browser.client.query(browser.query, {
+        ...browser.options,
+        meta: { getItem: differentEndpoint },
+    });
+    expect(differentEndpoint).toHaveBeenCalledTimes(1);
 });
 
 test('joins an adopted stream and can dehydrate it while pending or settled', async () => {
